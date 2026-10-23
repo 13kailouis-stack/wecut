@@ -46,7 +46,7 @@ var targets = []target{
 const (
 	repo        = "https://github.com/13kailouis-stack/wecut"
 	mcpName     = "io.github.13kailouis-stack/wecut"
-	description = "Video editing engine for AI agents: cut, caption and render video locally with FFmpeg. CLI and MCP server."
+	description = "Free video editing engine for AI agents: cut, caption and render short-form video locally with FFmpeg, and reuse a viral video's format as a template. CLI and MCP server."
 )
 
 func main() {
@@ -123,10 +123,11 @@ func main() {
 		must(os.WriteFile(filepath.Join(main, "bin", "wecut.js"), launcher, 0o755))
 	}
 	writeJSON(filepath.Join(main, "package.json"), map[string]any{
-		"name":                 "wecut",
-		"version":              *version,
-		"description":          description,
-		"keywords":             []string{"mcp", "mcp-server", "ai-agent", "video", "video-editing", "ffmpeg", "captions", "subtitles", "karaoke", "shorts", "reels", "tiktok"},
+		"name":        "wecut",
+		"version":     *version,
+		"description": description,
+		"keywords": []string{"mcp", "mcp-server", "model-context-protocol", "ai-agent", "ai-agents", "agent-skills", "claude", "claude-code", "cursor", "llm",
+			"video", "video-editing", "video-editor", "ffmpeg", "captions", "subtitles", "karaoke", "short-form-video", "shorts", "youtube-shorts", "reels", "tiktok", "clipping", "viral-video", "templates"},
 		"license":              "Apache-2.0",
 		"homepage":             repo,
 		"repository":           map[string]string{"type": "git", "url": "git+" + repo + ".git"},
