@@ -39,10 +39,10 @@ jobs:
         run: npm install -g npm@11
       - name: Publish platform packages, then the launcher
         run: |
-          for dir in dist/npm/cli-*; do
-            (cd "$dir" && npm publish --access public --provenance)
+          for f in dist/npm/tarballs/wefluence-wecut-*.tgz; do
+            npm publish "$f" --access public --provenance
           done
-          cd dist/npm/wecut && npm publish --access public --provenance
+          npm publish dist/npm/tarballs/wecut-*.tgz --access public --provenance
       - name: GitHub release
         env:
           GH_TOKEN: ${{ github.token }}

@@ -2,14 +2,15 @@
 //
 //	dist/bin/<os>-<arch>/wecut[.exe]        one static binary per platform
 //	dist/npm/wecut/                         the npm launcher package (`npx wecut`)
-//	dist/npm/cli-<os>-<arch>/               one npm package per platform binary
+//	dist/npm/platforms/<os>-<arch>/         one npm package per platform binary
+//	dist/npm/tarballs/*.tgz                 the same packages, ready for `npm publish <file>`
 //	dist/release/wecut_<v>_<os>_<arch>.*    archives for GitHub Releases
 //	dist/release/SHA256SUMS
 //
-// Usage: go run ./tools/release -version 0.1.0 [-scope @wecut]
+// Usage: go run ./tools/release -version 0.1.0 [-scope @wefluence]
 //
 // Nothing is published. Publishing happens in CI (.github/workflows/release.yml)
-// or by hand with `npm publish` in each dist/npm folder, platforms first.
+// or by hand with `npm publish dist/npm/tarballs/<file>.tgz`, platforms first.
 package main
 
 import (
@@ -28,6 +29,7 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+	"time"
 )
 
 type target struct{ goos, goarch, npmOS, npmCPU string }
@@ -49,7 +51,7 @@ const (
 
 func main() {
 	version := flag.String("version", "", "release version, e.g. 0.1.0")
-	scope := flag.String("scope", "@wecut", "npm scope of the platform packages")
+	scope := flag.String("scope", "@wefluence", "npm scope of the platform packages")
 	only := flag.String("only", "", "build only these targets, e.g. win32-x64,linux-x64 (for local tests)")
 	flag.Parse()
 	if !regexp.MustCompile(`^\d+\.\d+\.\d+(-[0-9A-Za-z.]+)?$`).MatchString(*version) {
@@ -75,8 +77,8 @@ func main() {
 		build(t, *version, bin)
 
 		// npm platform package
-		pkgName := *scope + "/cli-" + key
-		dir := filepath.Join("dist", "npm", "cli-"+key)
+		pkgName := *scope + "/wecut-" + key
+		dir := filepath.Join("dist", "npm", "platforms", key)
 		copyFile(bin, filepath.Join(dir, "bin", exe), 0o755)
 		copyFile("LICENSE", filepath.Join(dir, "LICENSE"), 0o644)
 		writeJSON(filepath.Join(dir, "package.json"), map[string]any{
@@ -92,6 +94,7 @@ func main() {
 		})
 		must(os.WriteFile(filepath.Join(dir, "README.md"), []byte(fmt.Sprintf("# %s\n\nThe %s binary used by [`wecut`](https://www.npmjs.com/package/wecut). Install `wecut`, not this package.\n", pkgName, key)), 0o644))
 		optional[pkgName] = *version
+		npmTarball(dir, pkgName, *version)
 
 		// GitHub release archive
 		archive := filepath.Join("dist", "release", fmt.Sprintf("wecut_%s_%s_%s", *version, t.goos, t.goarch))
@@ -115,8 +118,8 @@ func main() {
 	copyFile("LICENSE", filepath.Join(main, "LICENSE"), 0o644)
 	launcher, err := os.ReadFile(filepath.Join(main, "bin", "wecut.js"))
 	must(err)
-	if *scope != "@wecut" {
-		launcher = []byte(strings.Replace(string(launcher), "const SCOPE = '@wecut';", "const SCOPE = '"+*scope+"';", 1))
+	if *scope != "@wefluence" {
+		launcher = []byte(strings.Replace(string(launcher), "const SCOPE = '@wefluence';", "const SCOPE = '"+*scope+"';", 1))
 		must(os.WriteFile(filepath.Join(main, "bin", "wecut.js"), launcher, 0o755))
 	}
 	writeJSON(filepath.Join(main, "package.json"), map[string]any{
@@ -133,6 +136,7 @@ func main() {
 		"optionalDependencies": optional,
 		"mcpName":              mcpName,
 	})
+	npmTarball(main, "wecut", *version)
 
 	sort.Strings(sums)
 	must(os.WriteFile(filepath.Join("dist", "release", "SHA256SUMS"), []byte(strings.Join(sums, "\n")+"\n"), 0o644))
@@ -190,6 +194,48 @@ func tarFiles(out string, files map[string]string) {
 	must(tw.Close())
 	must(gz.Close())
 }
+
+// npmTarball packs dir the way `npm pack` does (every entry under
+// package/), but sets the modes itself: files under bin/ are 0755 on every
+// host. `npm pack` on Windows would ship the Linux and macOS binaries as
+// 0644. The fixed date matches npm's, so tarballs are reproducible.
+// `npm publish <file>.tgz` uploads the file unchanged.
+func npmTarball(dir, name, version string) {
+	file := strings.NewReplacer("@", "", "/", "-").Replace(name) + "-" + version + ".tgz"
+	out := filepath.Join("dist", "npm", "tarballs", file)
+	must(os.MkdirAll(filepath.Dir(out), 0o755))
+	var paths []string
+	must(filepath.WalkDir(dir, func(p string, d os.DirEntry, err error) error {
+		if err == nil && !d.IsDir() {
+			paths = append(paths, p)
+		}
+		return err
+	}))
+	sort.Strings(paths)
+	f, err := os.Create(out)
+	must(err)
+	defer f.Close()
+	gz := gzip.NewWriter(f)
+	tw := tar.NewWriter(gz)
+	for _, p := range paths {
+		rel, err := filepath.Rel(dir, p)
+		must(err)
+		rel = filepath.ToSlash(rel)
+		data, err := os.ReadFile(p)
+		must(err)
+		mode := int64(0o644)
+		if strings.HasPrefix(rel, "bin/") {
+			mode = 0o755
+		}
+		must(tw.WriteHeader(&tar.Header{Name: "package/" + rel, Mode: mode, Size: int64(len(data)), ModTime: npmEpoch, Typeflag: tar.TypeReg}))
+		_, err = tw.Write(data)
+		must(err)
+	}
+	must(tw.Close())
+	must(gz.Close())
+}
+
+var npmEpoch = time.Date(1985, 10, 26, 8, 15, 0, 0, time.UTC)
 
 func zipFiles(out string, files map[string]string) {
 	must(os.MkdirAll(filepath.Dir(out), 0o755))

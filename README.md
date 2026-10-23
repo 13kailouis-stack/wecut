@@ -31,12 +31,12 @@ Every command prints one JSON object on stdout. Exit codes: `0` ok, `2` invalid 
 FFmpeg 6 or newer with libass is required (`wecut doctor` checks it):
 
 - Debian/Ubuntu: `sudo apt-get install -y ffmpeg`
-- macOS: `brew install ffmpeg`
+- macOS: `brew install ffmpeg-full` (the slim `ffmpeg` formula has no libass; WeCut finds ffmpeg-full on its own)
 - Windows: `winget install Gyan.FFmpeg`
 
 Then pick one:
 
-- **npm** (Node 16+): `npx -y wecut <command>`, or `npm i -g wecut`. npm installs only the binary for your platform (`@wecut/cli-<os>-<arch>`); there are no install scripts.
+- **npm** (Node 16+): `npx -y wecut <command>`, or `npm i -g wecut`. npm installs only the binary for your platform (`@wefluence/wecut-<os>-<arch>`); there are no install scripts.
 - **Binary**: download the archive for your OS from GitHub Releases and check it against `SHA256SUMS`.
 - **Source** (Go 1.22+): `go build -o wecut ./cmd/wecut`
 

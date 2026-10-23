@@ -220,7 +220,7 @@ func (a *app) doctor(args []string) int {
 	}
 	var problems []spec.Issue
 	if m := caps.Missing(); len(m) > 0 {
-		problems = append(problems, spec.Issue{Code: "E_DEPENDENCY", Message: "this FFmpeg build lacks filters WeCut needs: " + strings.Join(m, ", "), Hint: "Use a full FFmpeg build (with libass). " + ff.InstallHint()})
+		problems = append(problems, spec.Issue{Code: "E_DEPENDENCY", Message: "this FFmpeg build lacks filters WeCut needs: " + ff.Explain(m), Hint: "Use a full FFmpeg build. " + ff.InstallHint()})
 	}
 	if caps.DefaultEncoder() == "" {
 		problems = append(problems, spec.Issue{Code: "E_DEPENDENCY", Message: "no H.264 encoder found", Hint: ff.InstallHint()})
@@ -230,6 +230,9 @@ func (a *app) doctor(args []string) int {
 		res["errors"] = problems
 		a.out(res)
 		return exitDep
+	}
+	if !caps.Filters["ass"] {
+		res["warnings"] = []spec.Issue{{Code: "W_FEATURE", Message: "this FFmpeg has no libass: projects with texts or captions will not render", Hint: ff.InstallHint()}}
 	}
 	return a.ok(res)
 }
@@ -493,9 +496,6 @@ func (a *app) render(args []string, preview bool) int {
 	if err != nil {
 		return a.fail(exitDep, nil, spec.Issue{Code: "E_DEPENDENCY", Message: err.Error()})
 	}
-	if m := caps.Missing(); len(m) > 0 {
-		return a.fail(exitDep, nil, spec.Issue{Code: "E_DEPENDENCY", Message: "this FFmpeg build lacks: " + strings.Join(m, ", "), Hint: "Use a full FFmpeg build (with libass). " + ff.InstallHint()})
-	}
 	if encoder == "" {
 		encoder = caps.DefaultEncoder()
 	}
@@ -553,7 +553,15 @@ func (a *app) render(args []string, preview bool) int {
 		if len(e.Warnings) > 0 {
 			res["warnings"] = e.Warnings
 		}
+		if m := caps.MissingFor(plan.Graph); len(m) > 0 {
+			res["missing_filters"] = m
+		}
 		return a.ok(res)
+	}
+	// Only what this project uses has to exist: a build without libass can
+	// still render a project that has no text.
+	if m := caps.MissingFor(plan.Graph); len(m) > 0 {
+		return a.fail(exitDep, e.Warnings, spec.Issue{Code: "E_DEPENDENCY", Message: "this FFmpeg build lacks what the project needs: " + ff.Explain(m), Hint: ff.InstallHint()})
 	}
 
 	job, err := os.MkdirTemp("", "wecut-job-")

@@ -10,7 +10,7 @@ Fase 1 dibangun 23 Okt 2026, fase 2 (MCP + npm) di hari yang sama. Arsitektur da
 - Fitur render: potong, sambung, kecepatan, 8 rasio, cover dengan titik fokus + zoom, contain dengan latar warna atau blur, zoom/geser foto, 36 transisi, fade klip, 14 gaya teks dengan animasi (pop, ketik, naik, pudar, turun, mengecil), caption dari transkrip (frasa, karaoke, satu kata), logo/gambar hamparan, musik dengan loop dan ducking otomatis, 20 filter warna, 6 efek, keluaran MP4 atau GIF.
 - 13 font dari app WeCut ikut tertanam di biner, ukurannya sudah dikoreksi supaya `size` sama artinya dengan di app.
 - **Server MCP** (`wecut mcp`): 8 tool, preview mengirim frame sebagai gambar ke model, render mengirim progres, bisa dibatalkan. Melayani klien baru (spesifikasi 2026-07-28) dan klien lama (`initialize`, 2024-11-05 sampai 2025-11-25). Folder kerja dikunci saat server dijalankan; argumen tool tidak bisa memindahnya.
-- **Paket npm**: peluncur `wecut` + satu paket biner per OS (`@wecut/cli-linux-x64` dan seterusnya, 6 platform). Tanpa skrip install. `tools/release` membangun semuanya ke `dist/` plus arsip GitHub Release dan `SHA256SUMS`.
+- **Paket npm**: peluncur `wecut` + satu paket biner per OS (`@wefluence/wecut-linux-x64` dan seterusnya, 6 platform). Tanpa skrip install. `tools/release` membangun semuanya ke `dist/` plus arsip GitHub Release dan `SHA256SUMS`.
 - Penjaga keamanan: tanpa shell, teks tidak pernah masuk graf FFmpeg, folder kerja terkunci, whitelist demuxer (playlist HLS yang menyamar jadi .mp4 ditolak), output tidak boleh menimpa input, hasil dicek ffprobe sebelum dipindah ke nama akhir, tanpa telemetri.
 - Test: unit, golden plan FFmpeg, test integrasi yang benar-benar merender, dan test protokol MCP. `go test ./...` lulus di laptop ini.
 - Sudah dicoba dengan klien MCP resmi Python (1.12) dan TypeScript (1.32.1), langsung dan lewat peluncur npm. Keduanya masih memakai protokol lama; jalur protokol baru diuji lewat test sendiri.
@@ -35,8 +35,15 @@ Taruh video di folder kerja, tulis proyek, lalu `validate`, `preview`, `render`.
 ## Langkah rilis pertama (dijalankan pemilik akun)
 
 1. Repo GitHub: https://github.com/13kailouis-stack/wecut (dibuat 23 Okt 2026, publik). Path modul sudah disesuaikan.
-2. Buat organisasi npm bernama `wecut` (gratis untuk paket publik). Kalau namanya sudah dipakai orang, pilih scope lain dan jalankan `go run ./tools/release -version 0.1.0 -scope @namabaru`.
-3. Publikasi pertama harus manual, karena trusted publishing baru bisa diatur setelah paketnya ada: `go run ./tools/release -version 0.1.0` di Linux atau macOS (supaya biner Linux/macOS tetap bisa dieksekusi), `npm login`, lalu `npm publish --access public` di tiap folder `dist/npm/cli-*`, terakhir di `dist/npm/wecut`.
+2. Organisasi npm: `wefluence` (dibuat 23 Okt 2026). Paket biner bernama `@wefluence/wecut-<os>-<arch>` dan otomatis masuk organisasi saat pertama diterbitkan; halaman "Add Package" tidak perlu diisi. Peluncur `wecut` sendiri tanpa scope.
+3. Publikasi pertama harus manual, karena trusted publishing baru bisa diatur setelah paketnya ada. Boleh dari Windows: `tools/release` membuat tarball sendiri dengan izin eksekusi yang benar.
+   ```
+   go run ./tools/release -version 0.1.0
+   npm login
+   npm publish dist/npm/tarballs/wefluence-wecut-linux-x64-0.1.0.tgz --access public
+   (ulangi untuk kelima tarball wefluence-wecut-* lainnya)
+   npm publish dist/npm/tarballs/wecut-0.1.0.tgz --access public
+   ```
 4. Di npmjs.com, atur trusted publisher ke `.github/workflows/release.yml` untuk ketujuh paket. Sesudah itu rilis berikutnya cukup push tag `v0.1.1`, tanpa token npm.
 5. Sebelum rilis otomatis pertama, kunci action di workflow ke commit SHA.
 

@@ -37,7 +37,7 @@ var ErrMissing = errors.New("ffmpeg not found")
 func InstallHint() string {
 	switch runtime.GOOS {
 	case "darwin":
-		return "Install FFmpeg 6 or newer: `brew install ffmpeg`. Or set WECUT_FFMPEG and WECUT_FFPROBE to the binaries."
+		return "Install FFmpeg with libass: `brew install ffmpeg-full` (WeCut finds it on its own; Homebrew's slim `ffmpeg` formula has no libass, so text and captions would not work). Or set WECUT_FFMPEG and WECUT_FFPROBE to the binaries."
 	case "windows":
 		return "Install FFmpeg 6 or newer: `winget install Gyan.FFmpeg`, then open a new terminal. Or set WECUT_FFMPEG and WECUT_FFPROBE to the binaries."
 	default:
@@ -50,6 +50,9 @@ func InstallHint() string {
 func Find(ctx context.Context, ffmpegPath, ffprobePath string) (*Tools, error) {
 	t := &Tools{}
 	var err error
+	if ffmpegPath == "" && os.Getenv("WECUT_FFMPEG") == "" {
+		ffmpegPath = kegFFmpeg()
+	}
 	if t.FFmpeg, err = look(ffmpegPath, "WECUT_FFMPEG", "ffmpeg"); err != nil {
 		return nil, err
 	}
@@ -81,6 +84,20 @@ func Find(ctx context.Context, ffmpegPath, ffprobePath string) (*Tools, error) {
 
 var versionRe = regexp.MustCompile(`version n?((\d+)\.(\d+)(?:\.\d+)?)`)
 
+// kegFFmpeg finds Homebrew's ffmpeg-full, which is keg-only (not on PATH)
+// and is the Homebrew build that includes libass.
+func kegFFmpeg() string {
+	if runtime.GOOS != "darwin" {
+		return ""
+	}
+	for _, p := range []string{"/opt/homebrew/opt/ffmpeg-full/bin/ffmpeg", "/usr/local/opt/ffmpeg-full/bin/ffmpeg"} {
+		if st, err := os.Stat(p); err == nil && !st.IsDir() {
+			return p
+		}
+	}
+	return ""
+}
+
 func look(explicit, env, name string) (string, error) {
 	for _, p := range []string{explicit, os.Getenv(env)} {
 		if p == "" {
@@ -111,16 +128,22 @@ func output(ctx context.Context, bin string, args ...string) ([]byte, error) {
 	return out, err
 }
 
-// Caps lists what this FFmpeg build can do.
+// Caps lists what this FFmpeg build can do. Filters shows the ones WeCut
+// cares about; every filter the build has is kept for MissingFor.
 type Caps struct {
 	Encoders map[string]bool `json:"encoders"`
 	Filters  map[string]bool `json:"filters"`
+	all      map[string]bool
 }
 
 var (
 	wantEncoders = []string{"libx264", "h264_nvenc", "h264_qsv", "h264_amf", "h264_videotoolbox", "h264_mf", "libopenh264", "aac"}
-	// Required filters; whisper is optional (local transcription, later).
-	wantFilters = []string{"ass", "xfade", "acrossfade", "zoompan", "sidechaincompress", "amix", "alimiter", "drawbox", "palettegen", "paletteuse", "boxblur", "tpad", "apad", "atempo", "colorchannelmixer", "rotate", "whisper"}
+	// Core filters every render may use. ass (text, captions) and whisper
+	// (local transcription) are features: a build without them still works
+	// for projects that do not need them.
+	coreFilters  = []string{"xfade", "acrossfade", "zoompan", "sidechaincompress", "amix", "alimiter", "drawbox", "lutyuv", "palettegen", "paletteuse", "boxblur", "tpad", "apad", "atempo", "colorchannelmixer", "rotate"}
+	wantFilters  = append(append([]string{}, coreFilters...), "ass", "whisper")
+	filterNeeded = map[string]string{"ass": "text and captions", "whisper": "local transcription", "zoompan": "photo motion", "xfade": "transitions", "sidechaincompress": "ducking"}
 )
 
 func (t *Tools) Capabilities(ctx context.Context) (*Caps, error) {
@@ -141,7 +164,76 @@ func (t *Tools) Capabilities(ctx context.Context) (*Caps, error) {
 	for _, f := range wantFilters {
 		c.Filters[f] = filNames[f]
 	}
+	c.all = filNames
 	return c, nil
+}
+
+// MissingFor lists filters a filter graph uses that this build lacks.
+func (c *Caps) MissingFor(graph string) []string {
+	var out []string
+	seen := map[string]bool{}
+	for _, name := range GraphFilters(graph) {
+		if !c.all[name] && !seen[name] {
+			seen[name] = true
+			out = append(out, name)
+		}
+	}
+	return out
+}
+
+// Explain says which WeCut features need the given filters.
+func Explain(filters []string) string {
+	var parts []string
+	for _, f := range filters {
+		if why, ok := filterNeeded[f]; ok {
+			parts = append(parts, f+" ("+why+")")
+		} else {
+			parts = append(parts, f)
+		}
+	}
+	return strings.Join(parts, ", ")
+}
+
+// GraphFilters returns the filter names in a filter graph, in order. It
+// splits on , and ; outside quotes and drops [labels].
+func GraphFilters(graph string) []string {
+	var names []string
+	var cur strings.Builder
+	quoted, escaped := false, false
+	flush := func() {
+		s := strings.TrimSpace(cur.String())
+		cur.Reset()
+		for strings.HasPrefix(s, "[") {
+			end := strings.IndexByte(s, ']')
+			if end < 0 {
+				return
+			}
+			s = strings.TrimSpace(s[end+1:])
+		}
+		end := strings.IndexAny(s, "=[")
+		if end < 0 {
+			end = len(s)
+		}
+		if name := strings.TrimSpace(s[:end]); name != "" {
+			names = append(names, name)
+		}
+	}
+	for _, r := range graph {
+		switch {
+		case escaped:
+			escaped = false
+		case r == '\\':
+			escaped = true
+		case r == '\'':
+			quoted = !quoted
+		case !quoted && (r == ',' || r == ';'):
+			flush()
+			continue
+		}
+		cur.WriteRune(r)
+	}
+	flush()
+	return names
 }
 
 // fieldSet collects the nth whitespace field of every line.
@@ -156,11 +248,11 @@ func fieldSet(s string, n int) map[string]bool {
 	return out
 }
 
-// Missing lists required filters this build lacks.
+// Missing lists core filters this build lacks.
 func (c *Caps) Missing() []string {
 	var out []string
-	for _, f := range wantFilters {
-		if f != "whisper" && !c.Filters[f] {
+	for _, f := range coreFilters {
+		if !c.Filters[f] {
 			out = append(out, f)
 		}
 	}
@@ -301,6 +393,15 @@ func (t *Tools) Run(ctx context.Context, j Job) error {
 	cmd := exec.CommandContext(ctx, t.FFmpeg, args...)
 	cmd.Dir = j.Dir
 	cmd.WaitDelay = 5 * time.Second
+	cmd.Cancel = func() error {
+		if runtime.GOOS == "windows" {
+			// Chocolatey and similar package managers start FFmpeg through a
+			// shim; killing only the shim leaves FFmpeg running and holding
+			// the files. taskkill /T ends the whole tree.
+			_ = exec.Command("taskkill", "/T", "/F", "/PID", strconv.Itoa(cmd.Process.Pid)).Run()
+		}
+		return cmd.Process.Kill()
+	}
 	var stderr tail
 	cmd.Stderr = &stderr
 	stdout, err := cmd.StdoutPipe()
