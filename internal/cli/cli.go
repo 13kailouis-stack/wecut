@@ -77,17 +77,24 @@ func Run(ctx context.Context, args []string, stdin io.Reader, stdout, stderr io.
 			return exitInput
 		}
 		return exitOK
+	case "guide":
+		// Markdown, not JSON: it is read by a model, like `schema` is.
+		if _, err := stdout.Write(wecut.Guide()); err != nil {
+			return exitInput
+		}
+		return exitOK
 	case "list":
 		return a.list(rest)
 	case "example":
 		return a.example(rest)
 	}
-	return a.fail(exitInput, nil, spec.Issue{Code: "E_USAGE", Message: fmt.Sprintf("unknown command %q", cmd), Hint: "Commands: doctor, probe, analyze, recipe, validate, preview, render, schema, list, example, mcp, version. Run `wecut help`."})
+	return a.fail(exitInput, nil, spec.Issue{Code: "E_USAGE", Message: fmt.Sprintf("unknown command %q", cmd), Hint: "Commands: guide, doctor, probe, analyze, recipe, validate, preview, render, schema, list, example, mcp, version. Run `wecut help`."})
 }
 
 const usage = `wecut: video editing engine for AI agents. Renders on this machine with FFmpeg.
 
 Usage:
+  wecut guide                       how to use WeCut, for agents: workflow, format, templates (start here)
   wecut doctor                      check FFmpeg, encoders and filters
   wecut probe <file>...             duration, size, fps and audio of media files
   wecut analyze <video>             cuts, pace, hook, beat, pauses + a frame sheet (--transcript words.json)
@@ -113,7 +120,8 @@ Render flags:
   --timeout SEC     stop after this many seconds (default: scales with video length)
   --dry-run         print the FFmpeg plan without running it
 
-Use "-" as the project path to read the project from stdin. Output is always one JSON object on stdout.
+Use "-" as the project path to read the project from stdin. Output is one JSON object on stdout
+(guide and schema print a document instead).
 Exit codes: 0 ok, 2 invalid input, 3 missing dependency, 4 render failed, 5 over a limit.
 `
 

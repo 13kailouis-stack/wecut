@@ -25,6 +25,8 @@ func Decode(data []byte) (*Project, []Issue) {
 // DecodeAs decodes data into v, a pointer to a struct, with the same checks
 // as Decode. Recipes use it too.
 func DecodeAs(data []byte, v any) []Issue {
+	// Windows PowerShell 5.1 writes UTF-8 files with a byte order mark.
+	data = bytes.TrimPrefix(data, []byte("\xef\xbb\xbf"))
 	var raw any
 	dec := json.NewDecoder(bytes.NewReader(data))
 	dec.UseNumber()

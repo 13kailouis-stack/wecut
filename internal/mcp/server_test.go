@@ -76,6 +76,56 @@ func TestLegacyHandshakeThenTools(t *testing.T) {
 	}
 }
 
+func TestPrompts(t *testing.T) {
+	msgs := session(t, t.TempDir(),
+		`{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-11-25"}}`,
+		`{"jsonrpc":"2.0","id":2,"method":"prompts/list"}`,
+		`{"jsonrpc":"2.0","id":3,"method":"prompts/get","params":{"name":"copy-viral-format","arguments":{"reference":"media/viral.mp4","footage":"media/mine/"}}}`,
+		`{"jsonrpc":"2.0","id":4,"method":"prompts/get","params":{"name":"copy-viral-format","arguments":{"footage":"media/mine/"}}}`,
+		`{"jsonrpc":"2.0","id":5,"method":"prompts/get","params":{"name":"nope"}}`,
+		`{"jsonrpc":"2.0","id":6,"method":"prompts/list","params":{`+meta+`}}`,
+		`{"jsonrpc":"2.0","id":7,"method":"tools/call","params":{"name":"wecut_schema","arguments":{"what":"recipe"}}}`,
+	)
+	caps := byID(msgs, "1")["result"].(map[string]any)["capabilities"].(map[string]any)
+	if caps["prompts"] == nil {
+		t.Fatalf("prompts capability missing: %v", caps)
+	}
+	list := byID(msgs, "2")["result"].(map[string]any)["prompts"].([]any)
+	if len(list) != len(prompts) || len(list) < 4 {
+		t.Fatalf("prompts/list: %v", list)
+	}
+	for _, p := range list {
+		m := p.(map[string]any)
+		if m["name"] == "" || m["description"] == "" || m["arguments"] == nil {
+			t.Errorf("incomplete prompt: %v", m)
+		}
+	}
+	get := byID(msgs, "3")["result"].(map[string]any)
+	text := get["messages"].([]any)[0].(map[string]any)["content"].(map[string]any)["text"].(string)
+	if !strings.Contains(text, "wecut_analyze media/viral.mp4") || !strings.Contains(text, "the recipe's own track") || strings.Contains(text, "{") {
+		t.Fatalf("prompt text: %s", text)
+	}
+	for _, id := range []string{"4", "5"} {
+		if got := errCode(byID(msgs, id)); got != codeInvalidParams {
+			t.Errorf("id %s: code %v", id, got)
+		}
+	}
+	if r := byID(msgs, "6")["result"].(map[string]any); r["resultType"] != "complete" {
+		t.Errorf("modern prompts/list: %v", r)
+	}
+	schema := byID(msgs, "7")["result"].(map[string]any)["content"].([]any)[0].(map[string]any)["text"].(string)
+	if !strings.Contains(schema, `"title": "WeCut recipe`) {
+		t.Errorf("recipe schema: %.200s", schema)
+	}
+}
+
+func TestByteOrderMarkIgnored(t *testing.T) {
+	msgs := session(t, t.TempDir(), "\xef\xbb\xbf"+`{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18"}}`)
+	if byID(msgs, "1")["result"] == nil {
+		t.Fatalf("initialize after a BOM: %v", msgs)
+	}
+}
+
 func TestUnknownLegacyVersionGetsNewestLegacy(t *testing.T) {
 	msgs := session(t, t.TempDir(), `{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"1999-01-01"}}`)
 	if v := byID(msgs, "1")["result"].(map[string]any)["protocolVersion"]; v != legacyVersions[0] {

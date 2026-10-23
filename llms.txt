@@ -1,0 +1,45 @@
+# WeCut
+
+> WeCut is a free, open-source video editing engine for AI agents. The agent writes a small JSON project (clips, texts, captions, music, transitions); `wecut` renders it to MP4 or GIF with the FFmpeg already on the machine. It can also analyse a video that went viral and turn its format into a reusable template ("recipe") for new footage. Runs locally as a CLI (`npx -y wecut`) or as an MCP server (`npx -y wecut mcp`). No cloud, no API key, no GPU, no telemetry.
+
+Use WeCut when a user asks an agent to: cut a long video into shorts, reels or TikToks; add captions, karaoke subtitles or word-by-word captions; trim, join or speed up clips; reframe to 9:16, 1:1, 4:5 or 16:9; add a headline card, text, logo, music or transitions; turn photos into a slideshow; work out why a viral video works and copy its structure onto new clips; save an edit as a template like CapCut.
+
+Requirements: FFmpeg 6+ with libass (`wecut doctor` checks and says how to install it), and Node 16+ for `npx`, or a prebuilt binary from GitHub Releases. Prebuilt for Linux, macOS and Windows on x64 and arm64.
+
+Every command prints one JSON object. Exit codes: 0 ok, 2 invalid input, 3 missing dependency, 4 render failed, 5 over a limit. Every path must stay inside the workspace folder; URLs are refused, so download media first.
+
+## Docs
+
+- [Agent guide (SKILL.md)](https://raw.githubusercontent.com/13kailouis-stack/wecut/main/skills/wecut/SKILL.md): the workflow, the project format, the two clocks, captions, templates, troubleshooting. Also printed by `npx -y wecut guide`.
+- [README](https://raw.githubusercontent.com/13kailouis-stack/wecut/main/README.md): install for every agent and MCP client, features, safety, speed, FAQ.
+- [Project JSON Schema](https://raw.githubusercontent.com/13kailouis-stack/wecut/main/schema/wecut.project.schema.json): the full project format (`wecut schema`).
+- [Recipe JSON Schema](https://raw.githubusercontent.com/13kailouis-stack/wecut/main/schema/wecut.recipe.schema.json): the template format `wecut.recipe/1` (`wecut recipe schema`).
+
+## Examples
+
+- [podcast-clip](https://raw.githubusercontent.com/13kailouis-stack/wecut/main/examples/podcast-clip.json): two cuts from a long talk, 9:16, karaoke captions mapped through the cuts, ducked music.
+- [product-promo](https://raw.githubusercontent.com/13kailouis-stack/wecut/main/examples/product-promo.json): two clips joined by a flash, blurred background, speed-up, animated text, logo overlay, ducked music.
+- [slideshow](https://raw.githubusercontent.com/13kailouis-stack/wecut/main/examples/slideshow.json): photos with Ken Burns motion, transitions, text and music.
+
+## Recipes (templates)
+
+- [news-headline](https://raw.githubusercontent.com/13kailouis-stack/wecut/main/recipes/news-headline.json): news-style repost: a headline card with a small label over the opening footage, a white flash, then the talk centred on black with one-word captions.
+- [news-headline-blur](https://raw.githubusercontent.com/13kailouis-stack/wecut/main/recipes/news-headline-blur.json): the same with the talk on a blurred copy of itself and bold one-word pops.
+- [quote-hook](https://raw.githubusercontent.com/13kailouis-stack/wecut/main/recipes/quote-hook.json): a comment-style quote over a long opening shot, then full-frame footage with big caps captions.
+- [vlog-phrases](https://raw.githubusercontent.com/13kailouis-stack/wecut/main/recipes/vlog-phrases.json): fade in to a headline card, then handheld footage cut every couple of seconds with short caps phrases.
+- [podcast-punch](https://raw.githubusercontent.com/13kailouis-stack/wecut/main/recipes/podcast-punch.json): a talking head jump-cut every 2.5 s with punch-ins, karaoke captions, a hook line and a call to action.
+- [photo-slideshow](https://raw.githubusercontent.com/13kailouis-stack/wecut/main/recipes/photo-slideshow.json): photos with slow zooms and pans, soft fades, a title and a warm tint.
+
+## Install in an agent
+
+- [Claude Code](https://github.com/13kailouis-stack/wecut#claude-code): `claude mcp add wecut -- npx -y wecut mcp`, or the plugin: `/plugin marketplace add 13kailouis-stack/wecut` then `/plugin install wecut@wecut`.
+- [Any MCP client](https://github.com/13kailouis-stack/wecut#any-mcp-client): `{"mcpServers":{"wecut":{"command":"npx","args":["-y","wecut","mcp","--root","/path/to/workspace"]}}}`.
+- [Agents with a shell](https://github.com/13kailouis-stack/wecut#agents-with-a-terminal) (Grok, Manus, Codex, OpenHands, Devin and others): run `npx -y wecut guide`, then the commands it describes.
+- [Gemini CLI](https://github.com/13kailouis-stack/wecut#gemini-cli): `gemini extensions install https://github.com/13kailouis-stack/wecut`.
+- [Agent Skill](https://github.com/13kailouis-stack/wecut#agent-skill): `npx skills add 13kailouis-stack/wecut`.
+
+## Optional
+
+- [AGENTS.md](https://raw.githubusercontent.com/13kailouis-stack/wecut/main/AGENTS.md): for agents changing the WeCut source code itself (build, test, layout, rules).
+- [MCP Registry entry](https://raw.githubusercontent.com/13kailouis-stack/wecut/main/server.json): `io.github.13kailouis-stack/wecut`.
+- [Wefluence](https://wefluence.id): the Indonesian UGC and clipping marketplace that makes WeCut.

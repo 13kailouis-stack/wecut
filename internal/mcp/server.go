@@ -148,6 +148,8 @@ func (s *Server) fail(id json.RawMessage, e *rpcError) {
 }
 
 func (s *Server) handle(ctx context.Context, line []byte) {
+	// Windows PowerShell starts piped stdin with a UTF-8 byte order mark.
+	line = bytes.TrimPrefix(line, []byte("\xef\xbb\xbf"))
 	var req request
 	if err := json.Unmarshal(line, &req); err != nil {
 		s.fail(nil, &rpcError{Code: codeParse, Message: "parse error: " + err.Error()})
@@ -277,7 +279,7 @@ func (s *Server) dispatch(ctx context.Context, req request) (any, *rpcError) {
 		s.mu.Unlock()
 		return map[string]any{
 			"protocolVersion": v,
-			"capabilities":    map[string]any{"tools": map[string]any{"listChanged": false}},
+			"capabilities":    capabilities(),
 			"serverInfo":      s.info(),
 			"instructions":    s.instructions(),
 		}, nil
@@ -294,11 +296,19 @@ func (s *Server) dispatch(ctx context.Context, req request) (any, *rpcError) {
 	case "server/discover":
 		return s.result(true, map[string]any{
 			"supportedVersions": []string{modernVersion},
-			"capabilities":      map[string]any{"tools": map[string]any{}},
+			"capabilities":      capabilities(),
 			"instructions":      s.instructions(),
 		}), nil
 	case "tools/list":
 		return s.result(modern, map[string]any{"tools": tools}), nil
+	case "prompts/list":
+		return s.result(modern, map[string]any{"prompts": prompts}), nil
+	case "prompts/get":
+		res, err := s.getPrompt(req.Params)
+		if err != nil {
+			return nil, err
+		}
+		return s.result(modern, res), nil
 	case "tools/call":
 		var token json.RawMessage
 		if t, ok := p.Meta["progressToken"]; ok {
@@ -321,6 +331,13 @@ func (s *Server) result(modern bool, r map[string]any) map[string]any {
 		r["_meta"] = map[string]any{metaServer: s.info()}
 	}
 	return r
+}
+
+func capabilities() map[string]any {
+	return map[string]any{
+		"tools":   map[string]any{"listChanged": false},
+		"prompts": map[string]any{"listChanged": false},
+	}
 }
 
 func (s *Server) info() map[string]any {

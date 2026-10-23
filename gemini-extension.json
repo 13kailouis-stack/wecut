@@ -1,0 +1,9 @@
+{
+  "name": "wecut",
+  "version": "0.1.0",
+  "description": "Edit, caption and render video locally with FFmpeg; analyse viral videos and reuse their format as templates.",
+  "mcpServers": {
+    "wecut": { "command": "npx", "args": ["-y", "wecut", "mcp"] }
+  },
+  "contextFileName": "GEMINI.md"
+}

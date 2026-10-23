@@ -93,8 +93,12 @@ var tools = []object{
 	},
 	{
 		"name": "wecut_schema", "title": "Project format",
-		"description": "The JSON Schema of the WeCut project format, with a description of every field.",
-		"inputSchema": noArgs, "annotations": annotations(true),
+		"description": "The JSON Schema of the WeCut project format, with a description of every field. what=recipe gives the recipe (template) format instead.",
+		"inputSchema": object{
+			"type": "object", "additionalProperties": false,
+			"properties": object{"what": object{"type": "string", "enum": []string{"project", "recipe"}}},
+		},
+		"annotations": annotations(true),
 	},
 	{
 		"name": "wecut_example", "title": "Example project",
@@ -249,7 +253,15 @@ func (s *Server) callTool(ctx context.Context, name string, raw json.RawMessage,
 		}
 		return textResult(s.runCLI(ctx, nil, nil, args...)), nil
 	case "wecut_schema":
-		out, code := s.runCLI(ctx, nil, nil, "schema")
+		args := []string{"schema"}
+		switch a.What {
+		case "", "project":
+		case "recipe":
+			args = []string{"recipe", "schema"}
+		default:
+			return toolError(`what is "project" or "recipe"`), nil
+		}
+		out, code := s.runCLI(ctx, nil, nil, args...)
 		return map[string]any{"content": []object{{"type": "text", "text": string(out)}}, "isError": code != 0}, nil
 	case "wecut_example":
 		if a.Name == "" {

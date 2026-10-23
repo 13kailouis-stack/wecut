@@ -1,8 +1,10 @@
 // Package wecut holds the files shipped inside the binary that live at the
-// repository root: JSON Schemas, example projects and built-in recipes.
+// repository root: JSON Schemas, example projects, built-in recipes and the
+// agent guide.
 package wecut
 
 import (
+	"bytes"
 	"embed"
 	"sort"
 	"strings"
@@ -23,6 +25,21 @@ var examples embed.FS
 
 //go:embed recipes/*.json
 var recipes embed.FS
+
+//go:embed skills/wecut/SKILL.md
+var skill []byte
+
+// Guide is the Agent Skill without its front matter: what `wecut guide`
+// prints for agents that only have a terminal.
+func Guide() []byte {
+	b := bytes.ReplaceAll(skill, []byte("\r\n"), []byte("\n"))
+	if rest, ok := bytes.CutPrefix(b, []byte("---\n")); ok {
+		if _, body, ok := bytes.Cut(rest, []byte("\n---\n")); ok {
+			return bytes.TrimLeft(body, "\n")
+		}
+	}
+	return b
+}
 
 func ExampleNames() []string { return names(examples, "examples") }
 

@@ -63,6 +63,7 @@ func TestValidate(t *testing.T) {
 		want       []string
 	}{
 		{"ok", `{"wecut":"1","clips":[{"src":"a.mp4"}]}`, nil},
+		{"byte order mark", "\xef\xbb\xbf" + `{"wecut":"1","clips":[{"src":"a.mp4"}]}`, nil},
 		{"version", `{"wecut":"2","clips":[{"src":"a.mp4"}]}`, []string{"E_SCHEMA /wecut"}},
 		{"no clips", `{"wecut":"1","clips":[]}`, []string{"E_VALUE /clips"}},
 		{"url", `{"wecut":"1","clips":[{"src":"https://x.com/a.mp4"}]}`, []string{"E_PATH /clips/0/src"}},

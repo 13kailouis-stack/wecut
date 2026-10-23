@@ -1,0 +1,12 @@
+{
+  "name": "wecut",
+  "description": "WeCut: free, local video editing for AI agents",
+  "owner": { "name": "Wefluence", "url": "https://wefluence.id" },
+  "plugins": [
+    {
+      "name": "wecut",
+      "source": "./",
+      "description": "Edit, caption and render video locally with FFmpeg; analyse viral videos and reuse their format as templates."
+    }
+  ]
+}
