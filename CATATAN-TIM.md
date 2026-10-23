@@ -15,6 +15,7 @@ Fase 1 dibangun 23 Okt 2026, fase 2 (MCP + npm) di hari yang sama. Arsitektur da
 - Test: unit, golden plan FFmpeg, test integrasi yang benar-benar merender, dan test protokol MCP. `go test ./...` lulus di laptop ini.
 - Sudah dicoba dengan klien MCP resmi Python (1.12) dan TypeScript (1.32.1), langsung dan lewat peluncur npm. Keduanya masih memakai protokol lama; jalur protokol baru diuji lewat test sendiri.
 - Agent Skill di `skill/wecut/SKILL.md`.
+- **Analisis + template (23 Okt, fase 3 awal)**: `wecut analyze` mengukur video yang berhasil (titik potong dengan kilat/strobo dihitung sekali, tempo, ketukan, jeda, outro TikTok yang sunyi) dan membuat lembar frame untuk "mata" agent. Format resep `wecut.recipe/1`: bagian (hook, body) yang diisi klip sesuai peran, slot teks dengan kata berwarna (emphasis), gaya caption, musik bawaan seperti template CapCut (bisa diganti atau "none"), efek di tiap potongan. `wecut recipe apply` mengubah resep + bahan baru jadi proyek; `wecut recipe from-project` menyimpan proyek jadi template sendiri. 6 resep bawaan dirancang dari 5 klip viral Indonesia yang dikirim pemilik (strukturnya saja; klipnya tidak masuk repo). Gaya teks baru: headline, label, quote; caption word dan phrase; huruf miring.
 
 ## Cara coba
 
@@ -50,7 +51,7 @@ Taruh video di folder kerja, tulis proyek, lalu `validate`, `preview`, `render`.
 ## Belum dikerjakan
 
 - `uvx wecut` (wheel PyPI), bundel MCPB, daftar di MCP Registry (butuh paket npm sudah terbit; `mcpName` sudah ada di package.json).
-- `wecut analyze` (jeda, adegan, keras suara, transkripsi lokal lewat filter Whisper FFmpeg 8).
+- Transkripsi lokal (filter Whisper FFmpeg 8 hanya ada di sebagian build; Ubuntu dan Chocolatey tidak punya).
 - Video PiP, stiker Twemoji, efek PNG dari app (vinyet, debu, VHS, dll.), normalisasi loudness, `batch`.
 - Render per segmen. Sekarang tiap klip dibuka sebagai input FFmpeg terpisah, jadi batasnya 100 klip per proyek supaya RAM mesin agent aman.
 - Jembatan Wefluence untuk kampanye clipping.

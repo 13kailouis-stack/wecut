@@ -33,7 +33,7 @@ Claude Desktop / Cursor style config:
 }
 ```
 
-Tools: `wecut_doctor`, `wecut_probe`, `wecut_validate`, `wecut_preview` (returns frames as images), `wecut_render` (with progress), `wecut_list`, `wecut_schema`, `wecut_example`. Every path stays inside the workspace given with `--root`.
+Tools: `wecut_doctor`, `wecut_probe`, `wecut_validate`, `wecut_preview` (returns frames as images), `wecut_render` (with progress), `wecut_list`, `wecut_schema`, `wecut_example`, `wecut_analyze` (measures a video, returns its frame sheet), `wecut_recipe_list`, `wecut_recipe_show`, `wecut_recipe_apply`, `wecut_recipe_from_project` (templates). Every path stays inside the workspace given with `--root`.
 
 Full documentation, the project format and the Agent Skill: https://github.com/13kailouis-stack/wecut
 

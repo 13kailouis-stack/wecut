@@ -268,3 +268,11 @@ func TestPreviewPlanSelectsFrames(t *testing.T) {
 		t.Fatalf("frame times %v", got)
 	}
 }
+
+func TestEmphasize(t *testing.T) {
+	got := emphasize("Banyak MULAI speak up! {x}", []string{"mulai speak up", "x"}, "#FF0000", "#FFFFFF")
+	want := `Banyak {\1c&H0000FF&}MULAI speak up{\1c&HFFFFFF&}! \{{\1c&H0000FF&}x{\1c&HFFFFFF&}\}`
+	if got != want {
+		t.Fatalf("got  %s\nwant %s", got, want)
+	}
+}

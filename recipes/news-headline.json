@@ -1,0 +1,24 @@
+{
+  "recipe": "1",
+  "name": "news-headline",
+  "about": "News-style repost: a headline card with a small label over the opening footage, a white flash, then the talk centred on black with one word of caption at a time. Common on viral Indonesian reposts.",
+  "output": { "ratio": "9:16", "res": 1080, "fps": 30, "background": "#000000" },
+  "maxDuration": 60,
+  "sections": [
+    {
+      "role": "hook",
+      "about": "establishing footage; if none is given, the start of the body footage",
+      "duration": 5,
+      "fit": "cover",
+      "fadeIn": 0.4,
+      "texts": [
+        { "slot": "label", "about": "short tag such as the page name", "style": "label", "y": 0.64 },
+        { "slot": "headline", "about": "the claim in one or two lines; pass emphasis for the words to colour", "style": "headline", "y": 0.74, "in": { "type": "pop", "duration": 0.35 }, "emphasisColor": "#E53935" }
+      ],
+      "transitionOut": { "type": "flash", "duration": 0.3 }
+    },
+    { "role": "body", "about": "the talk or interview; 16:9 footage sits in the middle", "fit": "contain" }
+  ],
+  "captions": { "style": "word", "y": 0.6 },
+  "music": { "volume": 12, "duck": true, "loop": true, "fadeOut": 1, "note": "optional; or add a trending sound in the app when posting" }
+}

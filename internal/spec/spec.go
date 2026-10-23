@@ -81,6 +81,7 @@ type Look struct {
 	Opacity           *float64 `json:"opacity,omitempty"`
 	LetterSpacing     float64  `json:"letterSpacing,omitempty"`
 	Uppercase         *bool    `json:"uppercase,omitempty"`
+	Italic            *bool    `json:"italic,omitempty"`
 	Align             string   `json:"align,omitempty"` // left, center, right
 }
 
@@ -93,6 +94,10 @@ type Text struct {
 	Rotate float64  `json:"rotate,omitempty"`
 	In     *Anim    `json:"in,omitempty"`
 	Out    *Anim    `json:"out,omitempty"`
+	// Emphasis colours these words or phrases (case-insensitive) in
+	// EmphasisColor, like the red words in a headline card.
+	Emphasis      []string `json:"emphasis,omitempty"`
+	EmphasisColor string   `json:"emphasisColor,omitempty"`
 	Look
 }
 

@@ -341,6 +341,18 @@ func (v *validator) text(path string, t *Text) {
 	if t.Out != nil && v.oneOf(path+"/out/type", t.Out.Type, AnimOut, "out animation") && t.Out.Duration != 0 {
 		v.rng(path+"/out/duration", t.Out.Duration, 0.05, 5, "out.duration")
 	}
+	if len(t.Emphasis) > 10 {
+		v.add("E_LIMIT", path+"/emphasis", "at most 10 emphasised phrases per text", "")
+	}
+	for i, e := range t.Emphasis {
+		if strings.TrimSpace(e) == "" {
+			v.add("E_VALUE", fmt.Sprintf("%s/emphasis/%d", path, i), "empty phrase", "")
+		}
+	}
+	v.color(path+"/emphasisColor", t.EmphasisColor, false)
+	if len(t.Emphasis) > 0 && t.In != nil && t.In.Type == "type" {
+		v.add("E_VALUE", path+"/emphasis", "emphasis cannot be combined with the typing animation", "Use pop, up or fade, or drop the emphasis.")
+	}
 }
 
 func (v *validator) captions(path string, c *Captions) {

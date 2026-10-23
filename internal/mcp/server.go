@@ -332,6 +332,8 @@ func (s *Server) instructions() string {
 		"Workspace (every path is relative to it): " + s.root + "\n" +
 		"Workflow: wecut_probe the media, write a project (wecut_example shows one, wecut_schema has the format), " +
 		"wecut_validate it, wecut_preview a few frames and look at them, then wecut_render.\n" +
+		"Templates: wecut_analyze a video that worked and look at its frame sheet; pick a recipe (wecut_recipe_list) or write one; " +
+		"wecut_recipe_apply it to new clips, words and music; save a finished project as a recipe with wecut_recipe_from_project.\n" +
 		"Two clocks: clip from/to are seconds of the SOURCE file; texts, overlays, audio and effects use seconds of the FINISHED video. " +
 		"A transition overlaps two clips and shortens the video by its duration.\n" +
 		"Captions: pass word timings (JSON word list, Whisper JSON, SRT or VTT) and set captions.src to the source video so times follow the cuts.\n" +

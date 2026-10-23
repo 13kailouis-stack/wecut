@@ -61,6 +61,10 @@ func Run(ctx context.Context, args []string, stdin io.Reader, stdout, stderr io.
 		return a.doctor(rest)
 	case "probe":
 		return a.probe(rest)
+	case "analyze":
+		return a.analyze(rest)
+	case "recipe":
+		return a.recipe(rest)
 	case "validate":
 		return a.validate(rest)
 	case "render":
@@ -78,7 +82,7 @@ func Run(ctx context.Context, args []string, stdin io.Reader, stdout, stderr io.
 	case "example":
 		return a.example(rest)
 	}
-	return a.fail(exitInput, nil, spec.Issue{Code: "E_USAGE", Message: fmt.Sprintf("unknown command %q", cmd), Hint: "Commands: doctor, probe, validate, preview, render, schema, list, example, mcp, version. Run `wecut help`."})
+	return a.fail(exitInput, nil, spec.Issue{Code: "E_USAGE", Message: fmt.Sprintf("unknown command %q", cmd), Hint: "Commands: doctor, probe, analyze, recipe, validate, preview, render, schema, list, example, mcp, version. Run `wecut help`."})
 }
 
 const usage = `wecut: video editing engine for AI agents. Renders on this machine with FFmpeg.
@@ -86,6 +90,8 @@ const usage = `wecut: video editing engine for AI agents. Renders on this machin
 Usage:
   wecut doctor                      check FFmpeg, encoders and filters
   wecut probe <file>...             duration, size, fps and audio of media files
+  wecut analyze <video>             cuts, pace, hook, beat, pauses + a frame sheet (--transcript words.json)
+  wecut recipe list|show|apply|from-project   templates: the shape of an edit, applied to new clips
   wecut validate <project.json>     check a project without rendering
   wecut preview <project.json>      render a few still frames to look at (--at 1,5,9)
   wecut render <project.json>       render the video (--preset draft|final|high)
@@ -344,34 +350,22 @@ func (a *app) load(c common, projectArg string) (*loaded, int) {
 	if len(data) > maxProjSize {
 		return nil, a.fail(exitLimit, nil, spec.Issue{Code: "E_LIMIT", Message: "project is larger than 10 MB"})
 	}
-	p, issues := spec.Decode(data)
+	l, issues, code := a.prepare(c, root, data, name)
 	if len(issues) > 0 {
-		return nil, a.fail(exitInput, nil, issues...)
+		return nil, a.fail(code, nil, issues...)
 	}
-	if issues = spec.Validate(p); len(issues) > 0 {
-		return nil, a.fail(exitFor(issues), nil, issues...)
-	}
-	t, iss := a.tools(c)
-	if iss != nil {
-		return nil, a.fail(exitDep, nil, *iss)
-	}
+	return l, exitOK
+}
 
-	// Probe each distinct file once; report problems at every place it is used.
-	type use struct{ src, ptr string }
-	var uses []use
-	for i, cl := range p.Clips {
-		uses = append(uses, use{cl.Src, fmt.Sprintf("/clips/%d/src", i)})
-	}
-	for i, o := range p.Overlays {
-		uses = append(uses, use{o.Src, fmt.Sprintf("/overlays/%d/src", i)})
-	}
-	for i, tr := range p.Audio {
-		uses = append(uses, use{tr.Src, fmt.Sprintf("/audio/%d/src", i)})
-	}
+// use is one place a project names a file.
+type use struct{ src, ptr string }
+
+// probeAll probes each distinct file once and reports problems at every
+// place it is used. used collects the absolute paths read.
+func (a *app) probeAll(root *workspace.Root, t *ff.Tools, uses []use, used map[string]bool) (media.Set, []spec.Issue) {
 	set := media.Set{}
 	failed := map[string]error{}
 	var errs []spec.Issue
-	used := map[string]bool{}
 	for _, u := range uses {
 		if _, ok := set[u.src]; ok {
 			continue
@@ -395,6 +389,36 @@ func (a *app) load(c common, projectArg string) (*loaded, int) {
 		failed[u.src] = err
 		errs = append(errs, pathIssue(u.src, u.ptr, err))
 	}
+	return set, errs
+}
+
+// prepare runs everything after reading a project: parse, checks, probing,
+// transcript and timeline. It returns problems instead of printing them, so
+// commands that build projects (recipe apply) can check what they made.
+func (a *app) prepare(c common, root *workspace.Root, data []byte, name string) (*loaded, []spec.Issue, int) {
+	p, issues := spec.Decode(data)
+	if len(issues) > 0 {
+		return nil, issues, exitInput
+	}
+	if issues = spec.Validate(p); len(issues) > 0 {
+		return nil, issues, exitFor(issues)
+	}
+	t, iss := a.tools(c)
+	if iss != nil {
+		return nil, []spec.Issue{*iss}, exitDep
+	}
+	var uses []use
+	for i, cl := range p.Clips {
+		uses = append(uses, use{cl.Src, fmt.Sprintf("/clips/%d/src", i)})
+	}
+	for i, o := range p.Overlays {
+		uses = append(uses, use{o.Src, fmt.Sprintf("/overlays/%d/src", i)})
+	}
+	for i, tr := range p.Audio {
+		uses = append(uses, use{tr.Src, fmt.Sprintf("/audio/%d/src", i)})
+	}
+	used := map[string]bool{}
+	set, errs := a.probeAll(root, t, uses, used)
 
 	var words []engine.Word
 	if cp := p.Captions; cp != nil {
@@ -425,13 +449,13 @@ func (a *app) load(c common, projectArg string) (*loaded, int) {
 		words = tw
 	}
 	if len(errs) > 0 {
-		return nil, a.fail(exitInput, nil, errs...)
+		return nil, errs, exitInput
 	}
 	e, issues := engine.Resolve(p, set, words)
 	if len(issues) > 0 {
-		return nil, a.fail(exitFor(issues), nil, issues...)
+		return nil, issues, exitFor(issues)
 	}
-	return &loaded{root: root, tools: t, edit: e, name: name, used: used}, exitOK
+	return &loaded{root: root, tools: t, edit: e, name: name, used: used}, nil, exitOK
 }
 
 func (a *app) validate(args []string) int {

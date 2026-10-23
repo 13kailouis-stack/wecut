@@ -179,3 +179,72 @@ func TestExamplesPrint(t *testing.T) {
 		}
 	}
 }
+
+// A video with hard cuts every 1.2 s and a beat, analysed, then a recipe
+// applied to it, saved back as the user's own recipe and applied again.
+func TestAnalyzeAndRecipes(t *testing.T) {
+	root := testWorkspace(t)
+	m := filepath.Join(root, "media")
+	ffmpeg(t, m, "-f", "lavfi", "-i", "testsrc2=s=360x640:r=30:d=1.2", "-f", "lavfi", "-i", "smptebars=s=360x640:r=30:d=1.2",
+		"-f", "lavfi", "-i", "testsrc2=s=360x640:r=30:d=1.2,negate", "-f", "lavfi", "-i", "aevalsrc='0.9*sin(2*PI*55*t)*exp(-25*mod(t,0.5))':s=22050:d=3.6",
+		"-filter_complex", "[0:v][1:v][2:v]concat=n=3:v=1:a=0[v]", "-map", "[v]", "-map", "3:a", "-c:v", "libx264", "-preset", "ultrafast", "-c:a", "aac", "-shortest", "cuts.mp4")
+
+	var an map[string]any
+	out := runRaw(t, root, "", "analyze", "media/cuts.mp4", "--frames", "4")
+	json.Unmarshal(out, &an)
+	if an["ok"] != true {
+		t.Fatalf("analyze: %s", out)
+	}
+	if shots := an["shots"].([]any); len(shots) != 3 {
+		t.Fatalf("shots %v", shots)
+	}
+	if _, err := os.Stat(filepath.Join(root, an["sheet"].(string))); err != nil {
+		t.Fatal("no sheet:", err)
+	}
+
+	req := `{"recipe": "news-headline", "clips": [{"src": "media/cuts.mp4", "role": "hook"}, {"src": "media/talk.mp4", "from": 0.5, "to": 5}],
+	  "texts": {"headline": {"text": "Big news today", "emphasis": ["news"]}, "label": {"text": "Page"}},
+	  "transcript": "media/talk.words.json", "music": "media/beep.mp3", "write": "projects/one.json"}`
+	var ap map[string]any
+	out = runRaw(t, root, req, "recipe", "apply", "--input", "-")
+	json.Unmarshal(out, &ap)
+	if ap["ok"] != true || ap["file"] != "projects/one.json" {
+		t.Fatalf("apply: %s", out)
+	}
+	r, code := run(t, root, "", "render", "projects/one.json")
+	if code != 0 || r.File != "out/one.mp4" || !r.HasAudio {
+		t.Fatalf("render applied project: code %d %+v", code, r)
+	}
+
+	var fp map[string]any
+	out = runRaw(t, root, "", "recipe", "from-project", "projects/one.json", "--name", "mine", "--write", "recipes/mine.json")
+	json.Unmarshal(out, &fp)
+	if fp["ok"] != true {
+		t.Fatalf("from-project: %s", out)
+	}
+	var again map[string]any
+	out = runRaw(t, root, `{"recipe": "mine", "clips": [{"src": "media/talk.mp4", "from": 1}]}`, "recipe", "apply", "--input", "-")
+	json.Unmarshal(out, &again)
+	if again["ok"] != true {
+		t.Fatalf("apply own recipe: %s", out)
+	}
+	if audio := again["project"].(map[string]any)["audio"].([]any); audio[0].(map[string]any)["src"] != "media/beep.mp3" {
+		t.Fatalf("own recipe lost its music: %v", audio)
+	}
+	var list map[string]any
+	json.Unmarshal(runRaw(t, root, "", "recipe", "list"), &list)
+	found := false
+	for _, it := range list["recipes"].([]any) {
+		found = found || it.(map[string]any)["name"] == "mine"
+	}
+	if !found {
+		t.Fatal("recipe list does not show the workspace recipe")
+	}
+}
+
+func runRaw(t *testing.T, root, stdin string, args ...string) []byte {
+	t.Helper()
+	var out, errOut bytes.Buffer
+	Run(context.Background(), append(args, "--root", root), strings.NewReader(stdin), &out, &errOut)
+	return out.Bytes()
+}

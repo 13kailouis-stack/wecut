@@ -67,7 +67,7 @@ func TestLegacyHandshakeThenTools(t *testing.T) {
 	if _, modern := list["resultType"]; modern {
 		t.Error("legacy result must not carry resultType")
 	}
-	if n := len(list["tools"].([]any)); n != 8 {
+	if n := len(list["tools"].([]any)); n != 13 {
 		t.Fatalf("%d tools", n)
 	}
 	call := byID(msgs, "3")["result"].(map[string]any)

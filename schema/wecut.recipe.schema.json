@@ -1,0 +1,140 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/13kailouis-stack/wecut/main/schema/wecut.recipe.schema.json",
+  "title": "WeCut recipe (format 1)",
+  "description": "The shape of an edit without its content: sections fed by roles, text slots, caption and music style, effects. `wecut recipe apply` turns a recipe plus new clips, words and music into a project. Section text times are seconds from the start of the section; recipe-level text times are seconds of the whole video.",
+  "type": "object",
+  "required": ["recipe", "sections"],
+  "additionalProperties": false,
+  "properties": {
+    "recipe": { "const": "1" },
+    "name": { "type": "string" },
+    "about": { "type": "string", "description": "What the recipe makes and when to use it." },
+    "output": {
+      "type": "object", "additionalProperties": false,
+      "properties": {
+        "ratio": { "enum": ["9:16", "16:9", "1:1", "4:5", "4:3", "3:4", "2:1", "original"] },
+        "res": { "type": "integer", "minimum": 240, "maximum": 2160 },
+        "fps": { "type": "integer", "minimum": 1, "maximum": 60 },
+        "background": { "type": "string", "pattern": "^(#[0-9A-Fa-f]{6}|blur)$", "description": "Behind contain clips." },
+        "blur": { "type": "integer", "minimum": 1, "maximum": 4 }
+      }
+    },
+    "maxDuration": { "type": "number", "minimum": 3, "maximum": 600, "default": 60, "description": "Longest the video may be; the last section fills up to it." },
+    "sections": {
+      "type": "array", "minItems": 1,
+      "items": {
+        "type": "object", "required": ["role"], "additionalProperties": false,
+        "properties": {
+          "role": { "type": "string", "description": "Name the input clips use to feed this section, e.g. hook, body. A section without clips borrows the start of the next section's footage." },
+          "about": { "type": "string", "description": "What footage belongs here." },
+          "duration": { "type": "number", "minimum": 0, "description": "Seconds; 0 or absent = whatever is left." },
+          "fit": { "enum": ["cover", "contain"] },
+          "shot": { "type": "number", "minimum": 0.3, "maximum": 60, "description": "Cut long clips into shots of about this length (jump cuts); images last this long. Absent = keep clips whole." },
+          "zoom": { "type": "number", "minimum": 1, "maximum": 3, "description": "Punch in on every other shot (cover only)." },
+          "motion": { "enum": ["in", "out", "left", "right", "up", "down", "alternate"], "description": "Images: Ken Burns move; alternate cycles in, left, out, right." },
+          "fadeIn": { "type": "number", "minimum": 0, "maximum": 5 },
+          "mute": { "type": "boolean", "description": "Silence the footage's own sound in this section, so only the music plays." },
+          "join": { "$ref": "#/$defs/transition", "description": "Between shots inside the section. Absent = hard cut." },
+          "transitionOut": { "$ref": "#/$defs/transition", "description": "Into the next section." },
+          "texts": { "type": "array", "items": { "$ref": "#/$defs/slot" } }
+        }
+      }
+    },
+    "texts": { "type": "array", "items": { "$ref": "#/$defs/slot" }, "description": "Slots timed against the whole video, e.g. a call to action with fromEnd." },
+    "captions": {
+      "type": "object", "unevaluatedProperties": false,
+      "allOf": [{ "$ref": "#/$defs/look" }],
+      "description": "Caption style. Captions appear when a transcript is passed at apply time.",
+      "properties": {
+        "mode": { "enum": ["chunk", "karaoke", "pop"] },
+        "highlight": { "type": "string" },
+        "maxWords": { "type": "integer", "minimum": 1, "maximum": 12 },
+        "maxDuration": { "type": "number", "minimum": 0.5, "maximum": 10 },
+        "x": { "type": "number", "minimum": 0, "maximum": 1 },
+        "y": { "type": "number", "minimum": 0, "maximum": 1 }
+      }
+    },
+    "music": {
+      "type": "object", "additionalProperties": false,
+      "description": "The soundtrack. src is the default track (like the song in a CapCut template); music passed at apply time replaces it, and \"none\" drops it.",
+      "properties": {
+        "src": { "type": "string", "description": "Workspace audio file, or a video whose sound is used (for example the reference video). A song taken from someone else's video may be muted by the platform when you upload." },
+        "from": { "type": "number", "minimum": 0, "description": "Start point in the track, e.g. the beat drop." },
+        "volume": { "type": "number", "minimum": 0, "maximum": 200 },
+        "duck": { "type": "boolean" },
+        "loop": { "type": "boolean" },
+        "fadeIn": { "type": "number", "minimum": 0 },
+        "fadeOut": { "type": "number", "minimum": 0 },
+        "bpm": { "type": "number", "description": "Tempo of the original, for choosing music." },
+        "note": { "type": "string", "description": "Advice shown when no music is passed." }
+      }
+    },
+    "effects": {
+      "type": "array",
+      "items": {
+        "type": "object", "required": ["name", "on"], "additionalProperties": false,
+        "properties": {
+          "name": { "enum": ["flash", "dim", "cinema", "frame", "night", "sepia"] },
+          "on": { "enum": ["cuts", "sections", "time"], "description": "cuts = every shot change, sections = every section change, time = at." },
+          "every": { "type": "integer", "minimum": 1, "description": "Only every Nth cut or section change." },
+          "at": { "type": "number", "description": "For on=time: seconds; negative = before the end." }
+        }
+      }
+    },
+    "filters": {
+      "type": "array",
+      "items": {
+        "type": "object", "required": ["name"], "additionalProperties": false,
+        "properties": {
+          "name": { "type": "string" },
+          "amount": { "type": "number", "minimum": 0, "maximum": 100 },
+          "start": { "type": "number", "minimum": 0 },
+          "end": { "type": "number" }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "transition": {
+      "type": "object", "required": ["type"], "additionalProperties": false,
+      "properties": { "type": { "type": "string" }, "duration": { "type": "number", "minimum": 0.1, "maximum": 3 } }
+    },
+    "look": {
+      "type": "object",
+      "properties": {
+        "style": { "type": "string" },
+        "font": { "type": "string" },
+        "size": { "type": "number", "minimum": 8, "maximum": 400 },
+        "color": { "type": "string" },
+        "stroke": { "type": "string" },
+        "background": { "type": "string" },
+        "backgroundOpacity": { "type": "number", "minimum": 0, "maximum": 100 },
+        "shadow": { "type": "boolean" },
+        "opacity": { "type": "number", "minimum": 0, "maximum": 100 },
+        "letterSpacing": { "type": "number" },
+        "uppercase": { "type": "boolean" },
+        "italic": { "type": "boolean" },
+        "align": { "enum": ["left", "center", "right"] }
+      }
+    },
+    "slot": {
+      "type": "object", "required": ["slot"], "unevaluatedProperties": false,
+      "allOf": [{ "$ref": "#/$defs/look" }],
+      "properties": {
+        "slot": { "type": "string", "description": "Name the words are passed under at apply time (texts.<slot>)." },
+        "about": { "type": "string", "description": "What words belong here." },
+        "text": { "type": "string", "description": "Default or example words, used when none are passed." },
+        "start": { "type": "number", "minimum": 0 },
+        "end": { "type": "number" },
+        "fromEnd": { "type": "number", "exclusiveMinimum": 0, "description": "Start this many seconds before the end of its section (or video) and run to the end." },
+        "x": { "type": "number", "minimum": 0, "maximum": 1 },
+        "y": { "type": "number", "minimum": 0, "maximum": 1 },
+        "rotate": { "type": "number" },
+        "in": { "type": "object" },
+        "out": { "type": "object" },
+        "emphasisColor": { "type": "string", "description": "Colour for the words passed as emphasis." }
+      }
+    }
+  }
+}

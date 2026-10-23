@@ -15,25 +15,34 @@ import (
 // against the Go types, so an agent gets every unknown field and wrong type
 // at once, each with its JSON pointer and a "did you mean" when one fits.
 func Decode(data []byte) (*Project, []Issue) {
+	var p Project
+	if issues := DecodeAs(data, &p); len(issues) > 0 {
+		return nil, issues
+	}
+	return &p, nil
+}
+
+// DecodeAs decodes data into v, a pointer to a struct, with the same checks
+// as Decode. Recipes use it too.
+func DecodeAs(data []byte, v any) []Issue {
 	var raw any
 	dec := json.NewDecoder(bytes.NewReader(data))
 	dec.UseNumber()
 	if err := dec.Decode(&raw); err != nil {
-		return nil, []Issue{{Code: "E_JSON", Message: "project is not valid JSON: " + err.Error(), Hint: "Check for trailing commas, unquoted keys or comments."}}
+		return []Issue{{Code: "E_JSON", Message: "not valid JSON: " + err.Error(), Hint: "Check for trailing commas, unquoted keys or comments."}}
 	}
 	if dec.More() {
-		return nil, []Issue{{Code: "E_JSON", Message: "extra data after the project object", Hint: "Send exactly one JSON object."}}
+		return []Issue{{Code: "E_JSON", Message: "extra data after the JSON object", Hint: "Send exactly one JSON object."}}
 	}
 	var issues []Issue
-	checkShape(reflect.TypeOf(Project{}), raw, "", &issues)
+	checkShape(reflect.TypeOf(v).Elem(), raw, "", &issues)
 	if len(issues) > 0 {
-		return nil, issues
+		return issues
 	}
-	var p Project
-	if err := json.Unmarshal(data, &p); err != nil {
-		return nil, []Issue{{Code: "E_SCHEMA", Message: err.Error()}}
+	if err := json.Unmarshal(data, v); err != nil {
+		return []Issue{{Code: "E_SCHEMA", Message: err.Error()}}
 	}
-	return &p, nil
+	return nil
 }
 
 var rawMessageType = reflect.TypeOf(json.RawMessage{})

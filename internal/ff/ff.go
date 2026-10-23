@@ -389,19 +389,7 @@ type Job struct {
 
 // Run executes FFmpeg and returns its error output when it fails.
 func (t *Tools) Run(ctx context.Context, j Job) error {
-	args := append([]string{"-hide_banner", "-nostdin", "-loglevel", "error", "-nostats", "-progress", "pipe:1", "-y"}, j.Args...)
-	cmd := exec.CommandContext(ctx, t.FFmpeg, args...)
-	cmd.Dir = j.Dir
-	cmd.WaitDelay = 5 * time.Second
-	cmd.Cancel = func() error {
-		if runtime.GOOS == "windows" {
-			// Chocolatey and similar package managers start FFmpeg through a
-			// shim; killing only the shim leaves FFmpeg running and holding
-			// the files. taskkill /T ends the whole tree.
-			_ = exec.Command("taskkill", "/T", "/F", "/PID", strconv.Itoa(cmd.Process.Pid)).Run()
-		}
-		return cmd.Process.Kill()
-	}
+	cmd := t.command(ctx, j.Dir, append([]string{"-nostats", "-progress", "pipe:1", "-y"}, j.Args...)...)
 	var stderr tail
 	cmd.Stderr = &stderr
 	stdout, err := cmd.StdoutPipe()

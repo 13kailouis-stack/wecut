@@ -19,7 +19,7 @@ Every command prints one JSON object on stdout. Exit codes: `0` ok, `2` invalid 
 - Cover crop with a focus point and zoom, or contain on a colour or blurred background
 - Photos with Ken Burns motion
 - 36 transitions (FFmpeg `xfade`), clip fades
-- Text with 14 styles, 13 bundled fonts, pop / type / slide / fade animations
+- Text with 17 styles (including news-style headline cards and labels), 13 bundled fonts, emphasised words in another colour, pop / type / slide / fade animations
 - Captions from a transcript: phrase, karaoke (spoken word highlighted) or one word at a time. Transcript times can stay in source-file seconds; WeCut maps them through the cuts
 - Image overlays (logos, stickers) with opacity, rotation and fades
 - Music and sound effects with trim, loop, fades and automatic ducking under speech
@@ -68,6 +68,10 @@ That block works for Claude Desktop, Cursor and most clients; give `--root` expl
 | `wecut_preview` | renders frames and returns them as images, so the model can look |
 | `wecut_render` | renders MP4/GIF, with progress notifications |
 | `wecut_list`, `wecut_schema`, `wecut_example` | names, the project format, working examples |
+| `wecut_analyze` | measures a video and returns its frame sheet as an image |
+| `wecut_recipe_list`, `wecut_recipe_show` | templates and their roles and text slots |
+| `wecut_recipe_apply` | recipe + new clips, words and music -> project |
+| `wecut_recipe_from_project` | saves a finished project as a template |
 
 Projects go in as an object (`project`) or a workspace file (`projectFile`). The server speaks both protocol eras: modern clients (2026-07-28, per-request `_meta`, `server/discover`) and clients that open with `initialize` (2024-11-05 to 2025-11-25). Renders run one at a time; `notifications/cancelled` stops one and removes its partial file.
 
@@ -85,6 +89,19 @@ Give your agent [`skill/wecut/SKILL.md`](skill/wecut/SKILL.md). It explains the 
   "audio": [ { "src": "media/music.mp3", "volume": 25, "loop": true, "duck": true } ]
 }
 ```
+
+## Analyse a video, reuse its format
+
+```sh
+wecut analyze media/viral.mp4                 # shots, pace, hook, flashes, tempo, pauses + a frame sheet
+wecut recipe list                             # templates: built-in and the workspace's recipes/*.json
+wecut recipe apply --input request.json       # recipe + new clips, words, music -> project
+wecut recipe from-project my-edit.json --write recipes/my-style.json   # "save as template"
+```
+
+`analyze` measures what a model cannot see in a transcript: where the cuts are (a white flash or a strobe counts once), how long the opening shot holds, whether cuts land on the beat, and whether the file ends with a silent platform outro. Its frame sheet, one frame per shot with timestamps, is how the agent reads the headline card, text style and framing.
+
+A **recipe** (`wecut.recipe/1`, schema in `schema/wecut.recipe.schema.json`) is an edit's shape without its content: sections fed by roles (a 5 s `hook` with a headline card, then the `body`), text slots filled at apply time (with `emphasis` for the words to colour), caption and music style, effects on cuts. A recipe can carry its own default track, like a CapCut template; the music passed at apply time replaces it and `"none"` drops it. The built-in recipes copy the structure of formats that are common on Indonesian short-form video today: news-style reposts with a headline card, quote hooks, phrase-captioned vlogs, punched-in podcasts, photo slideshows.
 
 ## Safety
 
@@ -117,6 +134,8 @@ Encoding dominates; text and captions cost almost nothing. A plain cut without r
 cmd/wecut          entry point (CLI and `wecut mcp`)
 internal/spec      project format: types, strict decoding, validation, catalog
 internal/engine    timeline, captions, .ass builder, FFmpeg graph compiler (pure, no I/O)
+internal/analyze   shots, pace, tempo, pauses from FFmpeg's measurements (pure)
+internal/recipe    the template format: validate, apply to new material, derive from a project
 internal/ff        finding, probing and running FFmpeg
 internal/cli       the commands; every result is one JSON object
 internal/mcp       MCP stdio server, a thin layer over internal/cli
@@ -124,6 +143,7 @@ internal/workspace keeps every path inside the workspace
 internal/assets    fonts embedded in the binary
 schema/            JSON Schema (kept in sync with the Go types by a test)
 examples/          example projects (`wecut example`)
+recipes/           built-in recipes
 skill/wecut/       Agent Skill
 npm/wecut/         the npm launcher (`npx wecut`)
 tools/release/     builds all platforms, npm packages and release archives into dist/

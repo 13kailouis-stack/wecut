@@ -1,0 +1,22 @@
+{
+  "recipe": "1",
+  "name": "news-headline-blur",
+  "about": "Like news-headline, but the talk sits on a blurred copy of itself instead of black, and captions are bold one-word pops.",
+  "output": { "ratio": "9:16", "res": 1080, "fps": 30, "background": "blur", "blur": 3 },
+  "maxDuration": 75,
+  "sections": [
+    {
+      "role": "hook",
+      "about": "establishing footage; if none is given, the start of the body footage",
+      "duration": 5,
+      "fit": "cover",
+      "fadeIn": 0.4,
+      "texts": [
+        { "slot": "headline", "about": "the claim; pass emphasis for the words to colour", "style": "headline", "y": 0.72, "in": { "type": "fade", "duration": 0.3 }, "emphasisColor": "#E53935" }
+      ],
+      "transitionOut": { "type": "flash", "duration": 0.3 }
+    },
+    { "role": "body", "about": "the talk or interview", "fit": "contain" }
+  ],
+  "captions": { "style": "pop", "size": 84, "y": 0.6 }
+}

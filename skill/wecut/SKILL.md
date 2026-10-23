@@ -1,13 +1,13 @@
 ---
 name: wecut
-description: Cut, caption and edit videos locally with the `wecut` CLI (FFmpeg on this machine, no cloud, no API key). Use when asked to make short-form clips, add captions or karaoke subtitles, trim or join videos, turn photos into a slideshow, add text, logos, music or transitions, or render 9:16 / 1:1 / 16:9 video.
+description: Cut, caption and edit videos locally with the `wecut` CLI (FFmpeg on this machine, no cloud, no API key). Use when asked to make short-form clips, add captions or karaoke subtitles, trim or join videos, turn photos into a slideshow, add text, logos, music or transitions, render 9:16 / 1:1 / 16:9 video, analyse why a viral video works, or reuse its format as a template on new footage.
 ---
 
 # WeCut
 
 `wecut` renders a JSON project into an MP4 (or GIF) with the FFmpeg installed on this machine. You describe the edit; WeCut does the video work. It never calls a network service.
 
-If `wecut` is not on PATH, use `npx -y wecut` (Node 16+) in its place everywhere below. If WeCut is connected as an MCP server, the same steps are the tools `wecut_doctor`, `wecut_probe`, `wecut_validate`, `wecut_preview` (returns the frames as images), `wecut_render`, `wecut_list`, `wecut_schema` and `wecut_example`; pass the project as `project` (object) or `projectFile` (path).
+If `wecut` is not on PATH, use `npx -y wecut` (Node 16+) in its place everywhere below. If WeCut is connected as an MCP server, the same steps are the tools `wecut_doctor`, `wecut_probe`, `wecut_validate`, `wecut_preview` (returns the frames as images), `wecut_render`, `wecut_list`, `wecut_schema`, `wecut_example`, `wecut_analyze` (returns the frame sheet as an image), `wecut_recipe_list`, `wecut_recipe_show`, `wecut_recipe_apply` and `wecut_recipe_from_project`; pass a project as `project` (object) or `projectFile` (path).
 
 ## Workflow
 
@@ -57,6 +57,35 @@ Give WeCut a transcript with word timings and it builds subtitles:
 - `style`: `classic`, `yellow`, `box-black`, `box-white`, `bold`, `comic`, `shadow` (a phrase at a time), `karaoke`, `karaoke-green` (spoken word lights up), `pop` (one big word at a time).
 
 If you need a transcript: `wecut doctor` reports `local_transcription: true` when this FFmpeg has the Whisper filter. Otherwise use whatever speech-to-text you already have and save its word timings as JSON.
+
+## Templates: copy what works
+
+A **recipe** is the shape of an edit without its content: sections (for example a 5 s hook with a headline card, then the talk), text slots, caption and music style, effects. Applying it to new clips, words and music gives a project.
+
+1. **Analyse a video that worked:** `wecut analyze media/viral.mp4` returns shots and pace, cuts in the first 3 s, flashes, tempo, pauses, a silent platform outro (leave it out), and `sheet`: one frame per shot in a single image. Look at the sheet for the headline card, text style, framing and caption style.
+2. **Pick or write a recipe:** `wecut recipe list` (built-in: news-headline, news-headline-blur, quote-hook, vlog-phrases, podcast-punch, photo-slideshow, plus the workspace's `recipes/*.json`). `wecut recipe show <name>` lists its roles and text slots. To write one, follow `wecut recipe schema`.
+3. **Apply it:**
+
+```json
+{
+  "recipe": "news-headline",
+  "clips": [
+    { "src": "media/broll.mp4", "role": "hook" },
+    { "src": "media/talk.mp4", "from": 120, "to": 165 }
+  ],
+  "texts": { "label": { "text": "Page name" }, "headline": { "text": "The claim in one line", "emphasis": ["claim"] } },
+  "transcript": "media/talk.words.json",
+  "write": "projects/clip-01.json"
+}
+```
+
+`wecut recipe apply --input request.json` (or `--input -` with the JSON on stdin) checks everything and saves the project; then `preview` and `render` it. Clips without a role feed `body`; a section without clips borrows the start of the next one's footage.
+
+4. **Save your own:** `wecut recipe from-project projects/clip-01.json --name my-style --write recipes/my-style.json` keeps sections, transitions, text slots, caption style, effects and the music as the default track.
+
+Music: a recipe may carry its own track (`music.src`), used by default like the song in a CapCut template. Pass `"music": "media/song.mp3"` (or a video, whose sound is used) to replace it, or `"none"`. A song taken from someone else's video may be muted by the platform after upload; adding a trending sound in the app when posting avoids that.
+
+Copy the structure, not the content: footage, exact wording and music of other creators stay theirs.
 
 ## Making several clips from one long video
 

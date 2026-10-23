@@ -1,0 +1,20 @@
+{
+  "recipe": "1",
+  "name": "quote-hook",
+  "about": "A comment-style quote in white boxes over a long opening shot, then full-frame footage with big caps captions. The long first shot lets people read the quote.",
+  "output": { "ratio": "9:16", "res": 1080, "fps": 30 },
+  "maxDuration": 45,
+  "sections": [
+    {
+      "role": "hook",
+      "about": "one striking shot that holds while the quote is read",
+      "duration": 9,
+      "fit": "cover",
+      "texts": [
+        { "slot": "quote", "about": "lower-case, conversational, three or four short lines", "style": "quote", "y": 0.3, "in": { "type": "fade", "duration": 0.4 } }
+      ]
+    },
+    { "role": "body", "about": "the story, full frame", "fit": "cover", "shot": 3.5 }
+  ],
+  "captions": { "style": "pop", "size": 72, "y": 0.6 }
+}

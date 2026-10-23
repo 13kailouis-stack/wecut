@@ -105,6 +105,72 @@ var tools = []object{
 		},
 		"annotations": annotations(true),
 	},
+	{
+		"name": "wecut_analyze", "title": "Analyse a video",
+		"description": "Measure a video that worked: shots and pace, cuts in the first 3 s, flashes, beat and tempo, pauses, a silent platform outro, and (with a transcript) words per minute and the hook's words. Returns a sheet of frames, one per shot, as an image: look at it for the headline card, text style, framing and captions. Use the result to pick or write a recipe.",
+		"inputSchema": object{
+			"type": "object", "additionalProperties": false, "required": []string{"file"},
+			"properties": object{
+				"file":       object{"type": "string", "description": "Video in the workspace."},
+				"transcript": object{"type": "string", "description": "Word timings for it (.json, .srt, .vtt), optional."},
+				"frames":     object{"type": "integer", "minimum": 1, "maximum": 24, "description": "Frames on the sheet (default 12)."},
+			},
+		},
+		"annotations": annotations(false),
+	},
+	{
+		"name": "wecut_recipe_list", "title": "List recipes",
+		"description": "Recipes are templates: the shape of an edit without its content (sections such as hook and body, text slots, caption and music style). Lists the built-in ones and the workspace's own (recipes/*.json).",
+		"inputSchema": noArgs, "annotations": annotations(true),
+	},
+	{
+		"name": "wecut_recipe_show", "title": "Show a recipe",
+		"description": "A recipe in full, with the roles its clips can feed, its text slots, and its default music.",
+		"inputSchema": object{
+			"type": "object", "additionalProperties": false, "required": []string{"name"},
+			"properties": object{"name": object{"type": "string", "description": "Recipe name or workspace .json path."}},
+		},
+		"annotations": annotations(true),
+	},
+	{
+		"name": "wecut_recipe_apply", "title": "Apply a recipe",
+		"description": "Turn a recipe plus new material into a project: clips (each with an optional role such as hook or body), words for the text slots, a transcript for captions, and music (replaces the recipe's own track; \"none\" drops it). Returns the project (saved with write); then wecut_preview and wecut_render it.",
+		"inputSchema": object{
+			"type": "object", "additionalProperties": false, "required": []string{"recipe", "clips"},
+			"properties": object{
+				"recipe": object{"type": []string{"string", "object"}, "description": "Built-in name, workspace .json path, or a recipe object (wecut.recipe/1)."},
+				"clips": object{"type": "array", "minItems": 1, "items": object{
+					"type": "object", "required": []string{"src"}, "additionalProperties": false,
+					"properties": object{
+						"src":   object{"type": "string"},
+						"from":  object{"type": "number", "minimum": 0},
+						"to":    object{"type": "number"},
+						"role":  object{"type": "string", "description": "Section it feeds; default body (or the last section)."},
+						"focus": object{"type": "object", "properties": object{"x": object{"type": "number"}, "y": object{"type": "number"}}},
+					},
+				}},
+				"texts": object{"type": "object", "description": "Words per slot, e.g. {\"headline\": {\"text\": \"...\", \"emphasis\": [\"key words\"]}}.", "additionalProperties": object{
+					"type": "object", "required": []string{"text"},
+					"properties": object{"text": object{"type": "string"}, "emphasis": object{"type": "array", "items": object{"type": "string"}}},
+				}},
+				"transcript": object{"type": "string", "description": "Word timings of captionSrc (or of the source used longest)."},
+				"captionSrc": object{"type": "string"},
+				"music":      object{"type": "string", "description": "Audio file, a video whose sound is used, or \"none\"."},
+				"output":     object{"type": "string", "description": "Render target (.mp4 or .gif)."},
+				"write":      object{"type": "string", "description": "Save the project here (.json)."},
+			},
+		},
+		"annotations": annotations(false),
+	},
+	{
+		"name": "wecut_recipe_from_project", "title": "Save a project as a recipe",
+		"description": "Make a reusable template from a finished project: sections, transitions, text slots (current words kept as defaults), caption style, effects, and its music as the default track.",
+		"inputSchema": withProject(object{
+			"name":  object{"type": "string"},
+			"write": object{"type": "string", "description": "Save it here, e.g. recipes/my-style.json, so wecut_recipe_list finds it."},
+		}),
+		"annotations": annotations(false),
+	},
 }
 
 type toolArgs struct {
@@ -116,6 +182,10 @@ type toolArgs struct {
 	Out         string          `json:"out"`
 	What        string          `json:"what"`
 	Name        string          `json:"name"`
+	File        string          `json:"file"`
+	Transcript  string          `json:"transcript"`
+	Frames      int             `json:"frames"`
+	Write       string          `json:"write"`
 }
 
 func toolError(msg string) map[string]any {
@@ -134,6 +204,14 @@ func textResult(out []byte, code int) map[string]any {
 }
 
 func (s *Server) callTool(ctx context.Context, name string, raw json.RawMessage, token json.RawMessage) (map[string]any, *rpcError) {
+	if name == "wecut_recipe_apply" {
+		// The arguments are the apply request itself; the CLI checks them
+		// strictly and points at any mistake.
+		if len(raw) == 0 || string(raw) == "null" {
+			return toolError("give recipe and clips"), nil
+		}
+		return textResult(s.runCLI(ctx, raw, nil, "recipe", "apply", "--input", "-")), nil
+	}
 	var a toolArgs
 	if len(raw) > 0 && string(raw) != "null" {
 		dec := json.NewDecoder(bytes.NewReader(raw))
@@ -182,6 +260,49 @@ func (s *Server) callTool(ctx context.Context, name string, raw json.RawMessage,
 			return textResult(out, code), nil
 		}
 		return map[string]any{"content": []object{{"type": "text", "text": string(out)}}, "isError": false}, nil
+	case "wecut_analyze":
+		if a.File == "" {
+			return toolError("file is required"), nil
+		}
+		args := []string{"analyze", a.File}
+		if a.Transcript != "" {
+			args = append(args, "--transcript", a.Transcript)
+		}
+		if a.Frames > 0 {
+			args = append(args, "--frames", strconv.Itoa(a.Frames))
+		}
+		s.heavyMu.Lock()
+		out, code := s.runCLI(ctx, nil, nil, args...)
+		s.heavyMu.Unlock()
+		res := textResult(out, code)
+		if sc, ok := res["structuredContent"].(map[string]any); ok && code == 0 {
+			if sheet, ok := sc["sheet"].(string); ok {
+				if data, err := os.ReadFile(filepath.Join(s.cfg.Root, filepath.FromSlash(sheet))); err == nil {
+					res["content"] = append(res["content"].([]object), object{"type": "image", "mimeType": "image/jpeg", "data": base64.StdEncoding.EncodeToString(data)})
+				}
+			}
+		}
+		return res, nil
+	case "wecut_recipe_list":
+		return textResult(s.runCLI(ctx, nil, nil, "recipe", "list")), nil
+	case "wecut_recipe_show":
+		if a.Name == "" {
+			return toolError("name is required"), nil
+		}
+		return textResult(s.runCLI(ctx, nil, nil, "recipe", "show", a.Name)), nil
+	case "wecut_recipe_from_project":
+		stdin, arg, bad := project()
+		if bad != nil {
+			return bad, nil
+		}
+		args := []string{"recipe", "from-project", arg}
+		if a.Name != "" {
+			args = append(args, "--name", a.Name)
+		}
+		if a.Write != "" {
+			args = append(args, "--write", a.Write)
+		}
+		return textResult(s.runCLI(ctx, stdin, nil, args...)), nil
 	case "wecut_validate":
 		stdin, arg, bad := project()
 		if bad != nil {

@@ -1,0 +1,16 @@
+{
+  "recipe": "1",
+  "name": "podcast-punch",
+  "about": "One talking-head or podcast clip, jump-cut every 2.5 s with a punch-in on every other shot, karaoke captions, a hook line for the first 3 s and a call to action at the end.",
+  "output": { "ratio": "9:16", "res": 1080, "fps": 30 },
+  "maxDuration": 60,
+  "sections": [
+    { "role": "body", "about": "the best minute of the talk", "fit": "cover", "shot": 2.5, "zoom": 1.12 }
+  ],
+  "texts": [
+    { "slot": "hook", "about": "the promise of the clip, under 8 words", "style": "hook", "y": 0.2, "end": 3, "in": { "type": "pop" } },
+    { "slot": "cta", "about": "what to do next", "text": "Follow for part 2", "style": "box-red", "y": 0.82, "fromEnd": 2.5, "in": { "type": "up" } }
+  ],
+  "captions": { "style": "karaoke" },
+  "music": { "volume": 15, "duck": true, "loop": true, "fadeOut": 1.5 }
+}

@@ -24,6 +24,7 @@ type look struct {
 	Opacity   float64 // 0..100
 	Spacing   float64
 	Upper     bool
+	Italic    bool
 	Align     string
 }
 
@@ -31,7 +32,7 @@ func resolveLook(l spec.Look, base spec.TextStyle, scale float64) look {
 	r := look{
 		Size: base.Size, Color: base.Color, Stroke: base.Stroke, Bg: base.Background,
 		BgOpacity: base.BgOpacity, Shadow: base.Shadow, Opacity: 100, Spacing: base.Spacing,
-		Upper: base.Uppercase, Align: "center",
+		Upper: base.Uppercase, Italic: base.Italic, Align: "center",
 	}
 	fontKey := base.Font
 	if l.Font != "" {
@@ -72,6 +73,9 @@ func resolveLook(l spec.Look, base spec.TextStyle, scale float64) look {
 	}
 	if l.LetterSpacing != 0 {
 		r.Spacing = l.LetterSpacing
+	}
+	if l.Italic != nil {
+		r.Italic = *l.Italic
 	}
 	if l.Uppercase != nil {
 		r.Upper = *l.Uppercase
@@ -129,8 +133,12 @@ func (l look) styleLine(name string, W int) string {
 	an := map[string]int{"left": 4, "center": 5, "right": 6}[l.Align]
 	margin := int(math.Round(float64(W) * 0.06))
 	primary := assColor(l.Color, l.Opacity)
-	return fmt.Sprintf("Style: %s,%s,%s,%s,%s,%s,%s,%d,0,0,0,100,100,%s,0,%d,%s,%s,%d,%d,%d,0,1",
-		name, l.Font.Family, num(assSize), primary, primary, outlineCol, backCol, bold,
+	italic := 0
+	if l.Italic {
+		italic = -1
+	}
+	return fmt.Sprintf("Style: %s,%s,%s,%s,%s,%s,%s,%d,%d,0,0,100,100,%s,0,%d,%s,%s,%d,%d,%d,0,1",
+		name, l.Font.Family, num(assSize), primary, primary, outlineCol, backCol, bold, italic,
 		num(round3(l.Spacing)), border, num(outline), num(shadow), an, margin, margin)
 }
 
@@ -211,7 +219,15 @@ func buildASS(e *Edit) (string, []string) {
 		if l.Upper {
 			text = strings.ToUpper(text)
 		}
-		d.textEvents(name, l, t.Start, end, x*float64(e.W), y*float64(e.H), t.Rotate, text, t.In, t.Out)
+		body := escapeASS(text)
+		if len(t.Emphasis) > 0 {
+			color := t.EmphasisColor
+			if color == "" {
+				color = "#E53935"
+			}
+			body = emphasize(text, t.Emphasis, color, l.Color)
+		}
+		d.textEvents(name, l, t.Start, end, x*float64(e.W), y*float64(e.H), t.Rotate, text, body, t.In, t.Out)
 	}
 	if c := e.P.Captions; c != nil && len(e.Words) > 0 {
 		d.captions(e, c, scale)
@@ -228,9 +244,43 @@ func buildASS(e *Edit) (string, []string) {
 	return d.String(), keys
 }
 
+// emphasize escapes text and colours every case-insensitive match of the
+// phrases, longest match first, without overlapping.
+func emphasize(text string, phrases []string, color, base string) string {
+	rs := []rune(text)
+	var ps [][]rune
+	for _, p := range phrases {
+		if p = strings.TrimSpace(p); p != "" {
+			ps = append(ps, []rune(p))
+		}
+	}
+	on, off := `{\1c`+assBGR(color)+`}`, `{\1c`+assBGR(base)+`}`
+	var b strings.Builder
+	plain := 0
+	for i := 0; i < len(rs); {
+		best := 0
+		for _, p := range ps {
+			if len(p) > best && i+len(p) <= len(rs) && strings.EqualFold(string(rs[i:i+len(p)]), string(p)) {
+				best = len(p)
+			}
+		}
+		if best == 0 {
+			i++
+			continue
+		}
+		b.WriteString(escapeASS(string(rs[plain:i])))
+		b.WriteString(on + escapeASS(string(rs[i:i+best])) + off)
+		i += best
+		plain = i
+	}
+	b.WriteString(escapeASS(string(rs[plain:])))
+	return b.String()
+}
+
 // textEvents writes one text with optional in/out animations. An animation
-// gets its own event so in and out can both move the text.
-func (d *assDoc) textEvents(style string, l look, start, end, px, py, rot float64, text string, in, out *spec.Anim) {
+// gets its own event so in and out can both move the text. body is the
+// escaped (and maybe coloured) text; text is the raw text for typing.
+func (d *assDoc) textEvents(style string, l look, start, end, px, py, rot float64, text, body string, in, out *spec.Anim) {
 	inDur, outDur := 0.0, 0.0
 	if in != nil {
 		inDur = animDur(in)
@@ -251,7 +301,6 @@ func (d *assDoc) textEvents(style string, l look, start, end, px, py, rot float6
 		return s
 	}
 	pos := fmt.Sprintf(`\pos(%s,%s)`, num(round1(px)), num(round1(py)))
-	body := escapeASS(text)
 	shift := math.Round(float64(d.H) * 0.04)
 
 	if in != nil && inDur > 0 {

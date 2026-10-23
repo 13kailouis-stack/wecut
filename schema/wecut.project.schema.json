@@ -91,6 +91,7 @@
         "opacity": { "$ref": "#/$defs/percent" },
         "letterSpacing": { "type": "number", "minimum": -10, "maximum": 50 },
         "uppercase": { "type": "boolean" },
+        "italic": { "type": "boolean" },
         "align": { "enum": ["left", "center", "right"], "description": "With left, x is the left edge; with right, x is the right edge." }
       }
     },
@@ -106,7 +107,9 @@
         "y": { "$ref": "#/$defs/fraction", "default": 0.5 },
         "rotate": { "type": "number", "minimum": -360, "maximum": 360, "description": "Clockwise degrees." },
         "in": { "$ref": "#/$defs/animIn" },
-        "out": { "$ref": "#/$defs/animOut" }
+        "out": { "$ref": "#/$defs/animOut" },
+        "emphasis": { "type": "array", "maxItems": 10, "items": { "type": "string", "minLength": 1 }, "description": "Words or phrases to colour differently (case-insensitive), like the red words in a headline card. Not with the typing animation." },
+        "emphasisColor": { "$ref": "#/$defs/color", "description": "Colour of the emphasised words (default #E53935)." }
       }
     },
     "animIn": {

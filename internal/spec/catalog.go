@@ -55,6 +55,7 @@ type TextStyle struct {
 	BgOpacity  float64
 	Shadow     bool
 	Uppercase  bool
+	Italic     bool
 	Spacing    float64
 }
 
@@ -73,6 +74,9 @@ var TextStyles = []TextStyle{
 	{Key: "hook", About: "big heavy caps for the first 3 seconds", Font: "anton", Size: 110, Color: "#FFFFFF", Stroke: "#000000", Uppercase: true},
 	{Key: "title", About: "clean bold title", Font: "archivo-black", Size: 78, Color: "#FFFFFF", Shadow: true},
 	{Key: "comic", About: "comic caps with outline", Font: "bangers", Size: 90, Color: "#FFE14D", Stroke: "#000000", Spacing: 2},
+	{Key: "headline", About: "news-style headline card: dark bold italic on a white box (add emphasis for red words)", Font: "poppins", Size: 52, Color: "#111111", Background: "#FFFFFF", BgOpacity: 100, Italic: true},
+	{Key: "label", About: "small tag above a headline: white italic on a red box", Font: "poppins", Size: 34, Color: "#FFFFFF", Background: "#E53935", BgOpacity: 100, Italic: true},
+	{Key: "quote", About: "dark text on white boxes, line by line, like a quoted comment", Font: "montserrat", Size: 46, Color: "#111111", Background: "#FFFFFF", BgOpacity: 92},
 }
 
 func TextStyleByKey(k string) (TextStyle, bool) {
@@ -104,6 +108,8 @@ var CaptionStyles = []CaptionStyle{
 	{TextStyle{Key: "karaoke", About: "caps, the spoken word lights up yellow", Font: "montserrat", Size: 72, Color: "#FFFFFF", Stroke: "#000000", Uppercase: true}, "karaoke", "#FFE14D", 3, 0.7},
 	{TextStyle{Key: "karaoke-green", About: "caps, the spoken word lights up green", Font: "poppins", Size: 72, Color: "#FFFFFF", Stroke: "#000000", Uppercase: true}, "karaoke", "#39FF6A", 3, 0.7},
 	{TextStyle{Key: "pop", About: "one big word at a time that pops in", Font: "anton", Size: 104, Color: "#FFFFFF", Stroke: "#000000", Uppercase: true}, "pop", "", 1, 0.62},
+	{TextStyle{Key: "word", About: "one plain word at a time in the middle, white with outline", Font: "montserrat", Size: 60, Color: "#FFFFFF", Stroke: "#000000"}, "pop", "", 1, 0.58},
+	{TextStyle{Key: "phrase", About: "short caps phrases with a soft shadow", Font: "poppins", Size: 50, Color: "#FFFFFF", Shadow: true, Uppercase: true}, "chunk", "", 4, 0.6},
 }
 
 func CaptionStyleByKey(k string) (CaptionStyle, bool) {
