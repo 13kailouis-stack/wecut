@@ -1,0 +1,4 @@
+# LF everywhere: golden test files are compared byte for byte, and gofmt
+# rejects CRLF, so Windows checkouts must not convert line endings.
+* text=auto eol=lf
+*.ttf binary

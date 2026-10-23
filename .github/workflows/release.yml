@@ -1,0 +1,49 @@
+name: release
+
+# Push a tag like v0.1.0 to build every platform, publish the npm packages
+# with provenance, and attach the archives to a GitHub release.
+#
+# Before the first run: the npm packages must exist and have this workflow
+# set as their trusted publisher (npmjs.com > package > Settings > Trusted
+# publishing). A brand-new package cannot be configured, so the very first
+# publish is done by hand; see CATATAN-TIM.md. No npm token is stored here.
+# Pin the actions below to commit SHAs before relying on this workflow.
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write # create the GitHub release
+  id-token: write # npm trusted publishing and provenance
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+      - name: Install FFmpeg for the tests
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg
+      - run: go vet ./...
+      - run: go test ./...
+      - name: Build all platforms
+        run: go run ./tools/release -version "${GITHUB_REF_NAME#v}"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          registry-url: 'https://registry.npmjs.org'
+      - name: npm with trusted publishing support
+        run: npm install -g npm@11
+      - name: Publish platform packages, then the launcher
+        run: |
+          for dir in dist/npm/cli-*; do
+            (cd "$dir" && npm publish --access public --provenance)
+          done
+          cd dist/npm/wecut && npm publish --access public --provenance
+      - name: GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" dist/release/* --title "$GITHUB_REF_NAME" --generate-notes

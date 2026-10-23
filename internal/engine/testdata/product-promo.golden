@@ -1,0 +1,121 @@
+# args
+-ss
+2
+-t
+4
+-protocol_whitelist
+file
+-format_whitelist
+mov,mp4,m4a,3gp,3g2,mj2,matroska,webm,mp3,wav,aac,ogg,flac,image2,png_pipe,jpeg_pipe,webp_pipe
+-i
+file:/w/media/a.mp4
+-ss
+0
+-t
+5
+-protocol_whitelist
+file
+-format_whitelist
+mov,mp4,m4a,3gp,3g2,mj2,matroska,webm,mp3,wav,aac,ogg,flac,image2,png_pipe,jpeg_pipe,webp_pipe
+-i
+file:/w/media/b.mp4
+-loop
+1
+-framerate
+30
+-t
+7.033
+-protocol_whitelist
+file
+-format_whitelist
+mov,mp4,m4a,3gp,3g2,mj2,matroska,webm,mp3,wav,aac,ogg,flac,image2,png_pipe,jpeg_pipe,webp_pipe
+-i
+file:/w/media/logo.png
+-ss
+0
+-protocol_whitelist
+file
+-format_whitelist
+mov,mp4,m4a,3gp,3g2,mj2,matroska,webm,mp3,wav,aac,ogg,flac,image2,png_pipe,jpeg_pipe,webp_pipe
+-i
+file:/w/media/music.mp3
+-/filter_complex
+graph.txt
+-map
+[vout]
+-c:v
+libx264
+-preset
+veryfast
+-crf
+21
+-pix_fmt
+yuv420p
+-profile:v
+high
+-g
+60
+-r
+30
+-colorspace
+bt709
+-color_primaries
+bt709
+-color_trc
+bt709
+-map
+[aout]
+-c:a
+aac
+-b:a
+160k
+-ar
+48000
+-ac
+2
+-t
+7.033
+-movflags
++faststart
+-f
+mp4
+/w/out/tmp
+
+# graph
+[0:v]setpts=PTS-STARTPTS,split=2[cb1][cf2];
+[cb1]scale=270:480:force_original_aspect_ratio=increase,crop=270:480,boxblur=4:2,scale=1080:1920[cbg3];
+[cf2]scale=1080:1920:force_original_aspect_ratio=decrease:flags=bicubic[cfg4];
+[cbg3][cfg4]overlay=(W-w)/2:(H-h)/2,fps=30,format=yuv420p,setsar=1,tpad=stop_mode=clone:stop_duration=1,trim=duration=4,setpts=PTS-STARTPTS[v0];
+[0:a]asetpts=PTS-STARTPTS,aresample=48000,aformat=sample_fmts=fltp:channel_layouts=stereo,apad=whole_dur=4,atrim=duration=4[a0];
+[1:v]setpts=(PTS-STARTPTS)/1.5,scale=1080:1920:force_original_aspect_ratio=increase:flags=bicubic,crop=1080:1920:(iw-1080)*0.5:(ih-1920)*0.5,fps=30,format=yuv420p,setsar=1,tpad=stop_mode=clone:stop_duration=1,trim=duration=3.333,setpts=PTS-STARTPTS[v1];
+anullsrc=r=48000:cl=stereo,atrim=duration=3.333,aresample=48000,aformat=sample_fmts=fltp:channel_layouts=stereo[a1];
+[v0][v1]xfade=transition=fadewhite:duration=0.3:offset=3.7[vj5];
+[a0][a1]acrossfade=d=0.3:c1=tri:c2=tri[aj6];
+[2:v]format=rgba,scale=194:-2,colorchannelmixer=aa=0.9[ov0];
+[vj5][ov0]overlay=x=918-w/2:y=153.6-h/2:enable='between(t,0,7.033)':eof_action=pass[vo7];
+[vo7]ass=f=wecut.ass:fontsdir=fonts,format=yuv420p[vout];
+[3:a]atrim=duration=7.033,asetpts=PTS-STARTPTS,volume=0.4,aresample=48000,aformat=sample_fmts=fltp:channel_layouts=stereo[t0];
+[aj6]asplit=2[am8][sc9];
+[t0][sc9]sidechaincompress=threshold=0.02:ratio=8:attack=20:release=350:makeup=1[td10];
+[am8][td10]amix=inputs=2:duration=first:dropout_transition=0:normalize=0,alimiter=limit=0.97:level=0[aout]
+
+# ass
+[Script Info]
+ScriptType: v4.00+
+PlayResX: 1080
+PlayResY: 1920
+WrapStyle: 0
+ScaledBorderAndShadow: yes
+YCbCr Matrix: TV.709
+
+[V4+ Styles]
+Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
+Style: T0,Poppins,106,&H00FFFFFF,&H00FFFFFF,&H00552CFE,&HFF000000,-1,0,0,0,100,100,0,0,3,13,0,5,65,65,0,1
+Style: T1,Montserrat Thin,100,&H00FFFFFF,&H00FFFFFF,&H00000000,&HFF000000,-1,0,0,0,100,100,0,0,1,4,0,5,65,65,0,1
+
+[Events]
+Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
+Dialogue: 0,0:00:00.00,0:00:00.60,T0,,0,0,0,,{\an5\pos(540,288)}{\alpha&HFF&\t(0,1,\alpha&H00&)}O{\alpha&HFF&\t(60,61,\alpha&H00&)}n{\alpha&HFF&\t(120,121,\alpha&H00&)}l{\alpha&HFF&\t(180,181,\alpha&H00&)}y{\alpha&HFF&\t(240,241,\alpha&H00&)} {\alpha&HFF&\t(300,301,\alpha&H00&)}t{\alpha&HFF&\t(360,361,\alpha&H00&)}o{\alpha&HFF&\t(420,421,\alpha&H00&)}d{\alpha&HFF&\t(480,481,\alpha&H00&)}a{\alpha&HFF&\t(540,541,\alpha&H00&)}y
+Dialogue: 0,0:00:00.60,0:00:02.50,T0,,0,0,0,,{\an5\pos(540,288)}Only today
+Dialogue: 0,0:00:04.50,0:00:04.90,T1,,0,0,0,,{\an5\move(540,1709,540,1632,0,400)\fad(200,0)}Link in bio
+Dialogue: 0,0:00:04.90,0:00:07.03,T1,,0,0,0,,{\an5\pos(540,1632)}Link in bio

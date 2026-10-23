@@ -1,0 +1,106 @@
+# args
+-protocol_whitelist
+file
+-format_whitelist
+mov,mp4,m4a,3gp,3g2,mj2,matroska,webm,mp3,wav,aac,ogg,flac,image2,png_pipe,jpeg_pipe,webp_pipe
+-i
+file:/w/media/photo1.jpg
+-protocol_whitelist
+file
+-format_whitelist
+mov,mp4,m4a,3gp,3g2,mj2,matroska,webm,mp3,wav,aac,ogg,flac,image2,png_pipe,jpeg_pipe,webp_pipe
+-i
+file:/w/media/photo2.jpg
+-protocol_whitelist
+file
+-format_whitelist
+mov,mp4,m4a,3gp,3g2,mj2,matroska,webm,mp3,wav,aac,ogg,flac,image2,png_pipe,jpeg_pipe,webp_pipe
+-i
+file:/w/media/photo3.jpg
+-ss
+0
+-protocol_whitelist
+file
+-format_whitelist
+mov,mp4,m4a,3gp,3g2,mj2,matroska,webm,mp3,wav,aac,ogg,flac,image2,png_pipe,jpeg_pipe,webp_pipe
+-i
+file:/w/media/music.mp3
+-/filter_complex
+graph.txt
+-map
+[vout]
+-c:v
+libx264
+-preset
+veryfast
+-crf
+21
+-pix_fmt
+yuv420p
+-profile:v
+high
+-g
+60
+-r
+30
+-colorspace
+bt709
+-color_primaries
+bt709
+-color_trc
+bt709
+-map
+[aout]
+-c:a
+aac
+-b:a
+160k
+-ar
+48000
+-ac
+2
+-t
+7.9
+-movflags
++faststart
+-f
+mp4
+/w/out/tmp
+
+# graph
+[0:v]scale=2160:3840:force_original_aspect_ratio=increase:flags=bicubic,crop=2160:3840,zoompan=z='1+0.3*on/89':x='(iw-iw/zoom)/2':y='(ih-ih/zoom)/2':d=90:s=1080x1920:fps=30,fps=30,format=yuv420p,setsar=1[v0];
+anullsrc=r=48000:cl=stereo,atrim=duration=3,aresample=48000,aformat=sample_fmts=fltp:channel_layouts=stereo[a0];
+[1:v]scale=2160:3840:force_original_aspect_ratio=increase:flags=bicubic,crop=2160:3840,zoompan=z='1.3':x='(iw-iw/zoom)*on/89':y='(ih-ih/zoom)/2':d=90:s=1080x1920:fps=30,fps=30,format=yuv420p,setsar=1[v1];
+anullsrc=r=48000:cl=stereo,atrim=duration=3,aresample=48000,aformat=sample_fmts=fltp:channel_layouts=stereo[a1];
+[2:v]scale=2160:3840:force_original_aspect_ratio=increase:flags=bicubic,crop=2160:3840,zoompan=z='1.3-0.3*on/89':x='(iw-iw/zoom)/2':y='(ih-ih/zoom)/2':d=90:s=1080x1920:fps=30,fps=30,format=yuv420p,setsar=1[v2];
+anullsrc=r=48000:cl=stereo,atrim=duration=3,aresample=48000,aformat=sample_fmts=fltp:channel_layouts=stereo[a2];
+[v0][v1]xfade=transition=fade:duration=0.6:offset=2.4[vj1];
+[a0][a1]acrossfade=d=0.6:c1=tri:c2=tri[aj2];
+[vj1][v2]xfade=transition=slideleft:duration=0.5:offset=4.9[vj3];
+[aj2][a2]acrossfade=d=0.5:c1=tri:c2=tri[aj4];
+[vj3]lutyuv=y='val*0.88+19.305':u='val*0.88+9.186':v='val*0.88+21.138':enable='between(t,0,7.9)'[vf5];
+[vf5]ass=f=wecut.ass:fontsdir=fonts,format=yuv420p[vout];
+[3:a]atrim=duration=7.9,asetpts=PTS-STARTPTS,aresample=48000,aformat=sample_fmts=fltp:channel_layouts=stereo,afade=t=in:st=0:d=0.5,afade=t=out:st=6.9:d=1[t0];
+[aj4][t0]amix=inputs=2:duration=first:dropout_transition=0:normalize=0,alimiter=limit=0.97:level=0[aout]
+
+# ass
+[Script Info]
+ScriptType: v4.00+
+PlayResX: 1080
+PlayResY: 1920
+WrapStyle: 0
+ScaledBorderAndShadow: yes
+YCbCr Matrix: TV.709
+
+[V4+ Styles]
+Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
+Style: T0,Archivo Black,105,&H00FFFFFF,&H00FFFFFF,&H00000000,&H61000000,0,0,0,0,100,100,0,0,1,0,4,5,65,65,0,1
+Style: T1,Poppins,106,&H00111111,&H00111111,&H004DE1FF,&HFF000000,-1,0,0,0,100,100,0,0,3,13,0,5,65,65,0,1
+
+[Events]
+Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
+Dialogue: 0,0:00:00.30,0:00:00.70,T0,,0,0,0,,{\an5\move(540,1651.4,540,1574.4,0,400)\fad(200,0)}Weekend in Bali
+Dialogue: 0,0:00:00.70,0:00:02.20,T0,,0,0,0,,{\an5\pos(540,1574.4)}Weekend in Bali
+Dialogue: 0,0:00:02.20,0:00:02.60,T0,,0,0,0,,{\an5\pos(540,1574.4)\fad(0,400)}Weekend in Bali
+Dialogue: 0,0:00:06.50,0:00:06.90,T1,,0,0,0,,{\an5\pos(540,1574.4)\fad(120,0)\fscx40\fscy40\t(0,240,\fscx112\fscy112)\t(240,400,\fscx100\fscy100)}Book now
+Dialogue: 0,0:00:06.90,0:00:07.90,T1,,0,0,0,,{\an5\pos(540,1574.4)}Book now

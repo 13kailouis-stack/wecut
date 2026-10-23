@@ -1,0 +1,150 @@
+# args
+-ss
+754.2
+-t
+26.8
+-protocol_whitelist
+file
+-format_whitelist
+mov,mp4,m4a,3gp,3g2,mj2,matroska,webm,mp3,wav,aac,ogg,flac,image2,png_pipe,jpeg_pipe,webp_pipe
+-i
+file:/w/media/podcast.mp4
+-ss
+795.5
+-t
+16.5
+-protocol_whitelist
+file
+-format_whitelist
+mov,mp4,m4a,3gp,3g2,mj2,matroska,webm,mp3,wav,aac,ogg,flac,image2,png_pipe,jpeg_pipe,webp_pipe
+-i
+file:/w/media/podcast.mp4
+-stream_loop
+-1
+-protocol_whitelist
+file
+-format_whitelist
+mov,mp4,m4a,3gp,3g2,mj2,matroska,webm,mp3,wav,aac,ogg,flac,image2,png_pipe,jpeg_pipe,webp_pipe
+-i
+file:/w/media/music.mp3
+-/filter_complex
+graph.txt
+-map
+[vout]
+-c:v
+libx264
+-preset
+veryfast
+-crf
+21
+-pix_fmt
+yuv420p
+-profile:v
+high
+-g
+60
+-r
+30
+-colorspace
+bt709
+-color_primaries
+bt709
+-color_trc
+bt709
+-map
+[aout]
+-c:a
+aac
+-b:a
+160k
+-ar
+48000
+-ac
+2
+-t
+43.3
+-movflags
++faststart
+-f
+mp4
+/w/out/tmp
+
+# graph
+[0:v]setpts=PTS-STARTPTS,scale=1080:1920:force_original_aspect_ratio=increase:flags=bicubic,crop=1080:1920:(iw-1080)*0.42:(ih-1920)*0.5,fps=30,format=yuv420p,setsar=1,tpad=stop_mode=clone:stop_duration=1,trim=duration=26.8,setpts=PTS-STARTPTS[v0];
+[0:a]asetpts=PTS-STARTPTS,aresample=48000,aformat=sample_fmts=fltp:channel_layouts=stereo,apad=whole_dur=26.8,atrim=duration=26.8[a0];
+[1:v]setpts=PTS-STARTPTS,scale=1242:2208:force_original_aspect_ratio=increase:flags=bicubic,crop=1080:1920:(iw-1080)*0.42:(ih-1920)*0.5,fps=30,format=yuv420p,setsar=1,tpad=stop_mode=clone:stop_duration=1,trim=duration=16.5,setpts=PTS-STARTPTS[v1];
+[1:a]asetpts=PTS-STARTPTS,aresample=48000,aformat=sample_fmts=fltp:channel_layouts=stereo,apad=whole_dur=16.5,atrim=duration=16.5[a1];
+[v0][a0][v1][a1]concat=n=2:v=1:a=1[vj1][aj2];
+[vj1]lutyuv=y='val*0.22+183.3':u='val*0.22+99.84':v='val*0.22+99.84':enable='between(t,26.6,26.9)'[vf3];
+[vf3]ass=f=wecut.ass:fontsdir=fonts,format=yuv420p[vout];
+[2:a]atrim=duration=43.3,asetpts=PTS-STARTPTS,volume=0.25,aresample=48000,aformat=sample_fmts=fltp:channel_layouts=stereo,afade=t=out:st=41.8:d=1.5[t0];
+[aj2]asplit=2[am4][sc5];
+[t0][sc5]sidechaincompress=threshold=0.02:ratio=8:attack=20:release=350:makeup=1[td6];
+[am4][td6]amix=inputs=2:duration=first:dropout_transition=0:normalize=0,alimiter=limit=0.97:level=0[aout]
+
+# ass
+[Script Info]
+ScriptType: v4.00+
+PlayResX: 1080
+PlayResY: 1920
+WrapStyle: 0
+ScaledBorderAndShadow: yes
+YCbCr Matrix: TV.709
+
+[V4+ Styles]
+Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
+Style: T0,Anton,191,&H00FFFFFF,&H00FFFFFF,&H00000000,&HFF000000,0,0,0,0,100,100,0,0,1,8,0,5,65,65,0,1
+Style: CAP,Montserrat Thin,112,&H00FFFFFF,&H00FFFFFF,&H00000000,&HFF000000,-1,0,0,0,100,100,0,0,1,5,0,5,65,65,0,1
+
+[Events]
+Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
+Dialogue: 0,0:00:00.00,0:00:00.40,T0,,0,0,0,,{\an5\pos(540,384)\fad(120,0)\fscx40\fscy40\t(0,240,\fscx112\fscy112)\t(240,400,\fscx100\fscy100)}HOW I MADE MY FIRST $10K
+Dialogue: 0,0:00:00.40,0:00:03.00,T0,,0,0,0,,{\an5\pos(540,384)}HOW I MADE MY FIRST $10K
+Dialogue: 0,0:00:00.12,0:00:00.47,CAP,,0,0,0,,{\an5\pos(540,1344)}{\1c&H4DE1FF&\fscx108\fscy108}THE{\r} FIRST THING
+Dialogue: 0,0:00:00.47,0:00:00.88,CAP,,0,0,0,,{\an5\pos(540,1344)}THE {\1c&H4DE1FF&\fscx108\fscy108}FIRST{\r} THING
+Dialogue: 0,0:00:00.88,0:00:01.21,CAP,,0,0,0,,{\an5\pos(540,1344)}THE FIRST {\1c&H4DE1FF&\fscx108\fscy108}THING{\r}
+Dialogue: 0,0:00:01.29,0:00:01.58,CAP,,0,0,0,,{\an5\pos(540,1344)}{\1c&H4DE1FF&\fscx108\fscy108}I{\r} DID WAS
+Dialogue: 0,0:00:01.58,0:00:01.93,CAP,,0,0,0,,{\an5\pos(540,1344)}I {\1c&H4DE1FF&\fscx108\fscy108}DID{\r} WAS
+Dialogue: 0,0:00:01.93,0:00:02.20,CAP,,0,0,0,,{\an5\pos(540,1344)}I DID {\1c&H4DE1FF&\fscx108\fscy108}WAS{\r}
+Dialogue: 0,0:00:02.28,0:00:02.69,CAP,,0,0,0,,{\an5\pos(540,1344)}{\1c&H4DE1FF&\fscx108\fscy108}BUILD{\r} A TINY
+Dialogue: 0,0:00:02.69,0:00:02.98,CAP,,0,0,0,,{\an5\pos(540,1344)}BUILD {\1c&H4DE1FF&\fscx108\fscy108}A{\r} TINY
+Dialogue: 0,0:00:02.98,0:00:03.28,CAP,,0,0,0,,{\an5\pos(540,1344)}BUILD A {\1c&H4DE1FF&\fscx108\fscy108}TINY{\r}
+Dialogue: 0,0:00:03.36,0:00:03.83,CAP,,0,0,0,,{\an5\pos(540,1344)}{\1c&H4DE1FF&\fscx108\fscy108}PRODUCT{\r} AND SELL
+Dialogue: 0,0:00:03.83,0:00:04.18,CAP,,0,0,0,,{\an5\pos(540,1344)}PRODUCT {\1c&H4DE1FF&\fscx108\fscy108}AND{\r} SELL
+Dialogue: 0,0:00:04.18,0:00:04.48,CAP,,0,0,0,,{\an5\pos(540,1344)}PRODUCT AND {\1c&H4DE1FF&\fscx108\fscy108}SELL{\r}
+Dialogue: 0,0:00:04.56,0:00:04.88,CAP,,0,0,0,,{\an5\pos(540,1344)}{\1c&H4DE1FF&\fscx108\fscy108}IT{\r} TO TEN
+Dialogue: 0,0:00:04.88,0:00:05.20,CAP,,0,0,0,,{\an5\pos(540,1344)}IT {\1c&H4DE1FF&\fscx108\fscy108}TO{\r} TEN
+Dialogue: 0,0:00:05.20,0:00:05.47,CAP,,0,0,0,,{\an5\pos(540,1344)}IT TO {\1c&H4DE1FF&\fscx108\fscy108}TEN{\r}
+Dialogue: 0,0:00:05.55,0:00:05.95,CAP,,0,0,0,,{\an5\pos(540,1344)}{\1c&H4DE1FF&\fscx108\fscy108}PEOPLE.{\r}
+Dialogue: 0,0:00:06.02,0:00:06.40,CAP,,0,0,0,,{\an5\pos(540,1344)}{\1c&H4DE1FF&\fscx108\fscy108}THEN{\r} I ASKED
+Dialogue: 0,0:00:06.40,0:00:06.69,CAP,,0,0,0,,{\an5\pos(540,1344)}THEN {\1c&H4DE1FF&\fscx108\fscy108}I{\r} ASKED
+Dialogue: 0,0:00:06.69,0:00:07.02,CAP,,0,0,0,,{\an5\pos(540,1344)}THEN I {\1c&H4DE1FF&\fscx108\fscy108}ASKED{\r}
+Dialogue: 0,0:00:07.10,0:00:07.51,CAP,,0,0,0,,{\an5\pos(540,1344)}{\1c&H4DE1FF&\fscx108\fscy108}EVERY{\r} ONE OF
+Dialogue: 0,0:00:07.51,0:00:07.86,CAP,,0,0,0,,{\an5\pos(540,1344)}EVERY {\1c&H4DE1FF&\fscx108\fscy108}ONE{\r} OF
+Dialogue: 0,0:00:07.86,0:00:08.10,CAP,,0,0,0,,{\an5\pos(540,1344)}EVERY ONE {\1c&H4DE1FF&\fscx108\fscy108}OF{\r}
+Dialogue: 0,0:00:08.18,0:00:08.56,CAP,,0,0,0,,{\an5\pos(540,1344)}{\1c&H4DE1FF&\fscx108\fscy108}THEM{\r} WHAT THEY
+Dialogue: 0,0:00:08.56,0:00:08.94,CAP,,0,0,0,,{\an5\pos(540,1344)}THEM {\1c&H4DE1FF&\fscx108\fscy108}WHAT{\r} THEY
+Dialogue: 0,0:00:08.94,0:00:09.24,CAP,,0,0,0,,{\an5\pos(540,1344)}THEM WHAT {\1c&H4DE1FF&\fscx108\fscy108}THEY{\r}
+Dialogue: 0,0:00:09.32,0:00:09.73,CAP,,0,0,0,,{\an5\pos(540,1344)}{\1c&H4DE1FF&\fscx108\fscy108}HATED{\r} ABOUT IT.
+Dialogue: 0,0:00:09.73,0:00:10.14,CAP,,0,0,0,,{\an5\pos(540,1344)}HATED {\1c&H4DE1FF&\fscx108\fscy108}ABOUT{\r} IT.
+Dialogue: 0,0:00:10.14,0:00:10.41,CAP,,0,0,0,,{\an5\pos(540,1344)}HATED ABOUT {\1c&H4DE1FF&\fscx108\fscy108}IT.{\r}
+Dialogue: 0,0:00:10.49,0:00:10.87,CAP,,0,0,0,,{\an5\pos(540,1344)}{\1c&H4DE1FF&\fscx108\fscy108}THAT{\r} LIST BECAME
+Dialogue: 0,0:00:10.87,0:00:11.25,CAP,,0,0,0,,{\an5\pos(540,1344)}THAT {\1c&H4DE1FF&\fscx108\fscy108}LIST{\r} BECAME
+Dialogue: 0,0:00:11.25,0:00:11.61,CAP,,0,0,0,,{\an5\pos(540,1344)}THAT LIST {\1c&H4DE1FF&\fscx108\fscy108}BECAME{\r}
+Dialogue: 0,0:00:11.69,0:00:12.01,CAP,,0,0,0,,{\an5\pos(540,1344)}{\1c&H4DE1FF&\fscx108\fscy108}MY{\r} ROADMAP AND
+Dialogue: 0,0:00:12.01,0:00:12.48,CAP,,0,0,0,,{\an5\pos(540,1344)}MY {\1c&H4DE1FF&\fscx108\fscy108}ROADMAP{\r} AND
+Dialogue: 0,0:00:12.48,0:00:12.75,CAP,,0,0,0,,{\an5\pos(540,1344)}MY ROADMAP {\1c&H4DE1FF&\fscx108\fscy108}AND{\r}
+Dialogue: 0,0:00:12.83,0:00:13.15,CAP,,0,0,0,,{\an5\pos(540,1344)}{\1c&H4DE1FF&\fscx108\fscy108}MY{\r} FIRST TEN
+Dialogue: 0,0:00:13.15,0:00:13.56,CAP,,0,0,0,,{\an5\pos(540,1344)}MY {\1c&H4DE1FF&\fscx108\fscy108}FIRST{\r} TEN
+Dialogue: 0,0:00:13.56,0:00:13.83,CAP,,0,0,0,,{\an5\pos(540,1344)}MY FIRST {\1c&H4DE1FF&\fscx108\fscy108}TEN{\r}
+Dialogue: 0,0:00:13.91,0:00:14.41,CAP,,0,0,0,,{\an5\pos(540,1344)}{\1c&H4DE1FF&\fscx108\fscy108}THOUSAND{\r} DOLLARS
+Dialogue: 0,0:00:14.41,0:00:14.80,CAP,,0,0,0,,{\an5\pos(540,1344)}THOUSAND {\1c&H4DE1FF&\fscx108\fscy108}DOLLARS{\r}
+Dialogue: 0,0:00:26.80,0:00:27.23,CAP,,0,0,0,,{\an5\pos(540,1344)}{\1c&H4DE1FF&\fscx108\fscy108}HONESTLY{\r} THAT IS
+Dialogue: 0,0:00:27.23,0:00:27.65,CAP,,0,0,0,,{\an5\pos(540,1344)}HONESTLY {\1c&H4DE1FF&\fscx108\fscy108}THAT{\r} IS
+Dialogue: 0,0:00:27.65,0:00:27.91,CAP,,0,0,0,,{\an5\pos(540,1344)}HONESTLY THAT {\1c&H4DE1FF&\fscx108\fscy108}IS{\r}
+Dialogue: 0,0:00:28.01,0:00:28.40,CAP,,0,0,0,,{\an5\pos(540,1344)}{\1c&H4DE1FF&\fscx108\fscy108}THE{\r} WHOLE TRICK.
+Dialogue: 0,0:00:28.40,0:00:28.85,CAP,,0,0,0,,{\an5\pos(540,1344)}THE {\1c&H4DE1FF&\fscx108\fscy108}WHOLE{\r} TRICK.
+Dialogue: 0,0:00:28.85,0:00:29.23,CAP,,0,0,0,,{\an5\pos(540,1344)}THE WHOLE {\1c&H4DE1FF&\fscx108\fscy108}TRICK.{\r}
+Dialogue: 0,0:00:29.33,0:00:29.75,CAP,,0,0,0,,{\an5\pos(540,1344)}{\1c&H4DE1FF&\fscx108\fscy108}TALK{\r} TO PEOPLE.
+Dialogue: 0,0:00:29.75,0:00:30.11,CAP,,0,0,0,,{\an5\pos(540,1344)}TALK {\1c&H4DE1FF&\fscx108\fscy108}TO{\r} PEOPLE.
+Dialogue: 0,0:00:30.11,0:00:30.52,CAP,,0,0,0,,{\an5\pos(540,1344)}TALK TO {\1c&H4DE1FF&\fscx108\fscy108}PEOPLE.{\r}

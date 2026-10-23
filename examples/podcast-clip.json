@@ -1,0 +1,16 @@
+{
+  "wecut": "1",
+  "output": { "file": "out/podcast-clip.mp4", "ratio": "9:16", "res": 1080, "fps": 30 },
+  "clips": [
+    { "src": "media/podcast.mp4", "from": 754.2, "to": 781.0, "focus": { "x": 0.42, "y": 0.5 } },
+    { "src": "media/podcast.mp4", "from": 795.5, "to": 812.0, "focus": { "x": 0.42, "y": 0.5 }, "zoom": 1.15 }
+  ],
+  "texts": [
+    { "text": "How I made my first $10k", "start": 0, "end": 3, "style": "hook", "y": 0.2, "in": { "type": "pop" } }
+  ],
+  "captions": { "words": "media/podcast.words.json", "src": "media/podcast.mp4", "style": "karaoke" },
+  "audio": [
+    { "src": "media/music.mp3", "volume": 25, "loop": true, "duck": true, "fadeOut": 1.5 }
+  ],
+  "effects": [ { "name": "flash", "start": 26.6 } ]
+}

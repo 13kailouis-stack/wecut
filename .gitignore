@@ -1,0 +1,4 @@
+/bin/
+/out/
+*.wecut-tmp
+/dist/

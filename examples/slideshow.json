@@ -1,0 +1,15 @@
+{
+  "wecut": "1",
+  "output": { "file": "out/slideshow.mp4", "ratio": "9:16" },
+  "clips": [
+    { "src": "media/photo1.jpg", "duration": 3, "motion": "in", "transition": { "type": "fade", "duration": 0.6 } },
+    { "src": "media/photo2.jpg", "duration": 3, "motion": "left", "transition": { "type": "slideleft", "duration": 0.5 } },
+    { "src": "media/photo3.jpg", "duration": 3, "motion": "out" }
+  ],
+  "texts": [
+    { "text": "Weekend in Bali", "start": 0.3, "end": 2.6, "style": "title", "y": 0.82, "in": { "type": "up" }, "out": { "type": "fade" } },
+    { "text": "Book now", "start": 6.5, "style": "box-yellow", "y": 0.82, "in": { "type": "pop" } }
+  ],
+  "audio": [ { "src": "media/music.mp3", "fadeIn": 0.5, "fadeOut": 1 } ],
+  "filters": [ { "name": "warm", "amount": 60 } ]
+}

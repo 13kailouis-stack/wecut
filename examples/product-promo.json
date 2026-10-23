@@ -1,0 +1,14 @@
+{
+  "wecut": "1",
+  "output": { "file": "out/product-promo.mp4", "ratio": "9:16", "fit": "contain", "background": "blur" },
+  "clips": [
+    { "src": "media/a.mp4", "from": 2, "to": 6, "transition": { "type": "flash", "duration": 0.3 } },
+    { "src": "media/b.mp4", "from": 0, "to": 5, "speed": 1.5, "fit": "cover" }
+  ],
+  "texts": [
+    { "text": "Only today", "start": 0, "end": 2.5, "style": "box-red", "y": 0.15, "in": { "type": "type", "duration": 0.6 } },
+    { "text": "Link in bio", "start": 4.5, "style": "outline", "y": 0.85, "in": { "type": "up" } }
+  ],
+  "overlays": [ { "src": "media/logo.png", "x": 0.85, "y": 0.08, "width": 0.18, "opacity": 90 } ],
+  "audio": [ { "src": "media/music.mp3", "volume": 40, "duck": true } ]
+}
