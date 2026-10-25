@@ -36,7 +36,7 @@ Claude Desktop, Cursor, Windsurf, Cline and other clients:
 
 Tools: `wecut_doctor`, `wecut_probe`, `wecut_validate`, `wecut_preview` (returns frames as images), `wecut_render` (with progress), `wecut_list`, `wecut_schema`, `wecut_example`, `wecut_analyze` (measures a video, returns its frame sheet), `wecut_recipe_list`, `wecut_recipe_show`, `wecut_recipe_apply`, `wecut_recipe_from_project` (templates). Prompts: `clips-from-video`, `copy-viral-format`, `add-captions`, `save-template`. Every path stays inside the workspace given with `--root`.
 
-Agents with only a terminal (Grok, Manus, OpenHands and others) need no MCP: `npx -y wecut guide`, then the commands it describes.
+Any agent permitted to run WeCut and FFmpeg and read local media can use the terminal workflow without MCP: `npx -y wecut guide`. Grok Bot, Manus, Muse, OpenBot, Dots and Claude Duet are requested integration targets, not verified product integrations. Compatibility depends on execution permissions and dependencies. MCP clients must support launching a stdio process; WeCut does not currently expose an HTTP MCP endpoint.
 
 Full documentation, install for every agent, the project format and the Agent Skill: https://github.com/13kailouis-stack/wecut
 

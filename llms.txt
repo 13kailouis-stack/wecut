@@ -15,6 +15,8 @@ Every command prints one JSON object. Exit codes: 0 ok, 2 invalid input, 3 missi
 - [Project JSON Schema](https://raw.githubusercontent.com/13kailouis-stack/wecut/main/schema/wecut.project.schema.json): the full project format (`wecut schema`).
 - [Recipe JSON Schema](https://raw.githubusercontent.com/13kailouis-stack/wecut/main/schema/wecut.recipe.schema.json): the template format `wecut.recipe/1` (`wecut recipe schema`).
 
+- [Template authoring status](https://raw.githubusercontent.com/13kailouis-stack/wecut/main/docs/template-authoring.md): agent authoring, existing human editor, format differences and the planned bridge.
+
 ## Examples
 
 - [podcast-clip](https://raw.githubusercontent.com/13kailouis-stack/wecut/main/examples/podcast-clip.json): two cuts from a long talk, 9:16, karaoke captions mapped through the cuts, ducked music.
@@ -34,7 +36,7 @@ Every command prints one JSON object. Exit codes: 0 ok, 2 invalid input, 3 missi
 
 - [Claude Code](https://github.com/13kailouis-stack/wecut#claude-code): `claude mcp add wecut -- npx -y wecut mcp`, or the plugin: `/plugin marketplace add 13kailouis-stack/wecut` then `/plugin install wecut@wecut`.
 - [Any MCP client](https://github.com/13kailouis-stack/wecut#any-mcp-client): `{"mcpServers":{"wecut":{"command":"npx","args":["-y","wecut","mcp","--root","/path/to/workspace"]}}}`.
-- [Agents with a shell](https://github.com/13kailouis-stack/wecut#agents-with-a-terminal) (Grok, Manus, Codex, OpenHands, Devin and others): run `npx -y wecut guide`, then the commands it describes.
+- [Agents with a shell](https://github.com/13kailouis-stack/wecut#agents-with-a-terminal): any environment permitted to run WeCut and FFmpeg can use `npx -y wecut guide`. Requested targets include Grok Bot, Manus, Muse, OpenBot, Dots and Claude Duet; these are not verified product integrations.
 - [Gemini CLI](https://github.com/13kailouis-stack/wecut#gemini-cli): `gemini extensions install https://github.com/13kailouis-stack/wecut`.
 - [Agent Skill](https://github.com/13kailouis-stack/wecut#agent-skill): `npx skills add 13kailouis-stack/wecut`.
 

@@ -97,7 +97,9 @@ gemini extensions install https://github.com/13kailouis-stack/wecut
 
 ### Agents with a terminal
 
-Grok, Manus, OpenHands, Devin, Codex cloud tasks, Claude's code execution and any agent that can run shell commands can use WeCut without MCP:
+WeCut targets any agent with permission to run local programs and access the user's media. Product names do not determine compatibility: a terminal agent can use the CLI without MCP.
+
+Grok Bot, Manus, Muse, OpenBot, Dots and Claude Duet are examples of requested integration targets, not a list of tested integrations. For each product, verify that its execution environment can run the WeCut binary and FFmpeg. A chat interface alone does not provide that access.
 
 ```sh
 npx -y wecut guide     # read this first: workflow, project format, templates
@@ -105,6 +107,8 @@ npx -y wecut doctor
 ```
 
 Then follow the guide: `probe`, write `project.json`, `validate`, `preview`, `render`. In a fresh Linux sandbox install FFmpeg first with `sudo apt-get install -y ffmpeg`.
+
+Clients that can launch a local MCP process can use `wecut mcp` over stdio; the client-specific examples above are not an allowlist. An HTTP-only MCP client needs a separate bridge: WeCut does not currently serve remote HTTP MCP. Browser-only agents need an execution environment before they can render. Node is needed for the npm launcher; a standalone binary does not need Node.
 
 ### Agent Skill
 
@@ -216,7 +220,11 @@ No. It encodes with libx264 on the CPU by default and can use NVENC, Quick Sync 
 Linux, macOS and Windows on x64 and arm64, with FFmpeg 6+ and libass.
 
 **Can I make my own templates?**
-Yes. Edit a project until it looks right, then `wecut recipe from-project my-edit.json --write recipes/my-style.json`. Recipes in the workspace's `recipes/` folder show up in `wecut recipe list` next to the built-in ones, music included.
+Yes. An agent can write and revise project JSON from your instructions, validate it, preview it and render it. You do not have to edit manually first. Then run `wecut recipe from-project my-edit.json --write recipes/my-style.json`, or author recipe JSON directly using `wecut recipe schema`. Workspace recipes appear in `wecut recipe list` beside the built-ins.
+
+A recipe can retain a music path, but does not bundle the audio file. Extraction captures a reusable structure rather than a lossless copy of every project feature. Review the applied recipe before reusing it in bulk.
+
+The Wefluence Creator app already has a visual editor and a "Jadikan template" action. Its mobile template format is separate from this engine's recipes; visual import/export of engine recipes is not implemented yet. See [template authoring status](docs/template-authoring.md) for the existing flows and the proposed bridge.
 
 ## Compared with other ways to edit video from an agent
 
