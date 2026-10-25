@@ -6,6 +6,10 @@ The human and agent do not need the same computer, network or login. A human edi
 
 ## Human editor
 
+**Independent web editor:** [WeCut Studio](../studio/README.md) runs in the user's browser with local files. It supports clip trims/order/fit/mute, photo duration, timed text slots, colour filters, canvas settings and one default music track. Download its package and send it to an agent on any device. The static site can be hosted publicly without a rendering backend; a local address is not public. Each browser has its own session. There is no shared-project link, autosave or visual bundle import yet.
+
+**Creator app companion:** the following describes the separate APK integration, whose distribution is independent of Studio and the engine.
+
 The companion Wefluence Creator app adds **Kirim ke agent** to a saved project's menu. Its summary explains what travels before sharing/downloading. This app change must be built and distributed separately from the engine.
 
 - Clips become replacement sections (`clip1`, `clip2`, etc.) with duration, fit, mute and fade-in. Photo sections retain duration and motion.

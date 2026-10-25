@@ -35,6 +35,7 @@ On macOS use `brew install ffmpeg-full`; the plain `ffmpeg` formula has no libas
 | `internal/workspace` | keeps every path inside the workspace |
 | `schema/`, `examples/`, `recipes/`, `skills/wecut/SKILL.md` | embedded into the binary through `wecut.go` |
 | `npm/wecut` | the `npx wecut` launcher; platform binaries are `@wefluence/wecut-<os>-<arch>` |
+| `studio` | static browser template editor; no build or backend. `node --test studio/model.test.mjs`; build the engine and run `node studio/check-engine.mjs <binary>` for interoperability |
 
 ## Rules
 

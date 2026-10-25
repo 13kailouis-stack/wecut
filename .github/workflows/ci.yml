@@ -38,6 +38,13 @@ jobs:
       - run: go test ./...
       - run: go run ./cmd/wecut doctor
       - run: node --check npm/wecut/bin/wecut.js
+      - run: node --check studio/app.mjs
+      - run: node --test studio/model.test.mjs
+      - name: Studio template interoperability
+        shell: bash
+        run: |
+          go build -o studio-test-engine.exe ./cmd/wecut
+          node studio/check-engine.mjs ./studio-test-engine.exe
       - name: Release build still works
         if: runner.os == 'Linux'
         run: go run ./tools/release -version 0.0.0-ci

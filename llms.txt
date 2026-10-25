@@ -10,6 +10,8 @@ Every command prints one JSON object. Exit codes: 0 ok, 2 invalid input, 3 missi
 
 ## Docs
 
+- [WeCut Studio](https://raw.githubusercontent.com/13kailouis-stack/wecut/main/studio/README.md): independent visual browser editor for humans, local media processing, static hosting and portable templates for agents on other devices. Requires engine 0.2.0+ for import.
+
 - [Agent guide (SKILL.md)](https://raw.githubusercontent.com/13kailouis-stack/wecut/main/skills/wecut/SKILL.md): the workflow, the project format, the two clocks, captions, templates, troubleshooting. Also printed by `npx -y wecut guide`.
 - [README](https://raw.githubusercontent.com/13kailouis-stack/wecut/main/README.md): install for every agent and MCP client, features, safety, speed, FAQ.
 - [Project JSON Schema](https://raw.githubusercontent.com/13kailouis-stack/wecut/main/schema/wecut.project.schema.json): the full project format (`wecut schema`).

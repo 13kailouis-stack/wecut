@@ -26,6 +26,12 @@ npx -y wecut mcp                              # the same, as an MCP server on st
 
 Every command prints one JSON object on stdout. Exit codes: `0` ok, `2` invalid input, `3` missing dependency, `4` render failed, `5` over a limit.
 
+## Visual editor for humans
+
+[WeCut Studio](studio/README.md) is an independent static web editor. Choose local clips, trim and reorder them, add text and music, then download a portable template for an agent on another device. Editing runs in the browser; rendering runs on the agent's computer. A public editor needs only static file hosting, not a rendering server. A localhost URL itself is not public.
+
+Run `python -m http.server 8770 --bind 127.0.0.1 --directory studio` from this checkout and open `http://127.0.0.1:8770`. No build or backend is needed. The template file is shared through your agent chat; public template storage and project autosave are not included. Bundle import requires the **0.2.0 source/build**; published npm 0.1.0 does not include it yet.
+
 ## Install in your agent
 
 WeCut needs FFmpeg 6 or newer with libass (`npx -y wecut doctor` checks it and says what to install):
