@@ -99,6 +99,8 @@ Usage:
   wecut probe <file>...             duration, size, fps and audio of media files
   wecut analyze <video>             cuts, pace, hook, beat, pauses + a frame sheet (--transcript words.json)
   wecut recipe list|show|apply|from-project   templates: the shape of an edit, applied to new clips
+  wecut recipe pack <recipe> --write template.wecut.json   include default music for another device
+  wecut recipe unpack <bundle> --write templates/name      import into a new directory
   wecut validate <project.json>     check a project without rendering
   wecut preview <project.json>      render a few still frames to look at (--at 1,5,9)
   wecut render <project.json>       render the video (--preset draft|final|high)

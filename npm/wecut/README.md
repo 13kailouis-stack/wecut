@@ -4,6 +4,8 @@ Free, open-source video editing engine for AI agents. An agent writes a small JS
 
 Needs FFmpeg 6+ with libass (`npx -y wecut doctor` checks it).
 
+Starting with 0.2.0, receive a template from another device with `wecut recipe unpack received.wecut.json --write templates/my-style`. The package includes default music. Apply the returned recipe to new footage, then preview and render. Export with `recipe pack recipes/my-style.json --write shared.wecut.json`. MCP equivalents: `wecut_recipe_unpack` and `wecut_recipe_pack`. [Workflow and supported edits](https://github.com/13kailouis-stack/wecut/blob/main/docs/template-authoring.md).
+
 ```sh
 npx -y wecut guide        # the full guide for agents: workflow, format, templates
 npx -y wecut doctor

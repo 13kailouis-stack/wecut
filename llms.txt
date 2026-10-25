@@ -15,7 +15,8 @@ Every command prints one JSON object. Exit codes: 0 ok, 2 invalid input, 3 missi
 - [Project JSON Schema](https://raw.githubusercontent.com/13kailouis-stack/wecut/main/schema/wecut.project.schema.json): the full project format (`wecut schema`).
 - [Recipe JSON Schema](https://raw.githubusercontent.com/13kailouis-stack/wecut/main/schema/wecut.recipe.schema.json): the template format `wecut.recipe/1` (`wecut recipe schema`).
 
-- [Template authoring status](https://raw.githubusercontent.com/13kailouis-stack/wecut/main/docs/template-authoring.md): agent authoring, existing human editor, format differences and the planned bridge.
+- [Cross-device templates](https://raw.githubusercontent.com/13kailouis-stack/wecut/main/docs/template-authoring.md): human visual editing, portable packages with music, agent import/apply/render, supported edits and release requirements.
+- [Bundle JSON Schema](https://raw.githubusercontent.com/13kailouis-stack/wecut/main/schema/wecut.bundle.schema.json): portable template envelope (0.2.0+).
 
 ## Examples
 

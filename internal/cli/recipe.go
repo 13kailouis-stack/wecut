@@ -27,9 +27,13 @@ import (
 //	wecut recipe from-project <project|->     save a finished project as a recipe
 func (a *app) recipe(args []string) int {
 	if len(args) == 0 {
-		return a.fail(exitInput, nil, spec.Issue{Code: "E_USAGE", Message: "give a recipe command", Hint: "list, show, schema, validate, apply, from-project"})
+		return a.fail(exitInput, nil, spec.Issue{Code: "E_USAGE", Message: "give a recipe command", Hint: "list, show, schema, validate, apply, from-project, pack, unpack"})
 	}
 	switch args[0] {
+	case "pack":
+		return a.recipeBundle(args[1:], false)
+	case "unpack":
+		return a.recipeBundle(args[1:], true)
 	case "list":
 		return a.recipeList(args[1:])
 	case "show":
@@ -44,7 +48,7 @@ func (a *app) recipe(args []string) int {
 	case "from-project":
 		return a.recipeFromProject(args[1:])
 	}
-	return a.fail(exitInput, nil, spec.Issue{Code: "E_USAGE", Message: fmt.Sprintf("unknown recipe command %q", args[0]), Hint: "list, show, schema, validate, apply, from-project"})
+	return a.fail(exitInput, nil, spec.Issue{Code: "E_USAGE", Message: fmt.Sprintf("unknown recipe command %q", args[0]), Hint: "list, show, schema, validate, apply, from-project, pack, unpack"})
 }
 
 // readJSON reads a workspace file, or stdin for "-".

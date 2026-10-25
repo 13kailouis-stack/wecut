@@ -47,6 +47,18 @@ func annotations(readOnly bool) object {
 // tools is the full tool list, in a fixed order so clients can cache it.
 var tools = []object{
 	{
+		"name": "wecut_recipe_pack", "title": "Package a template for another device",
+		"description": "Save a recipe and its default music in one portable .wecut.json file. Fonts ship with WeCut. Does not send files or upload anything. Destination must not exist.",
+		"inputSchema": object{"type": "object", "additionalProperties": false, "required": []string{"file", "write"}, "properties": object{"file": object{"type": "string", "description": "Recipe name or JSON file."}, "write": object{"type": "string", "description": "New package file in the workspace."}}},
+		"annotations": annotations(false),
+	},
+	{
+		"name": "wecut_recipe_unpack", "title": "Import a template from another device",
+		"description": "Import a received .wecut.json package and included music into a NEW workspace directory. Returns recipe file, sections and text slots for recipe_apply. Never executes template text or downloads assets.",
+		"inputSchema": object{"type": "object", "additionalProperties": false, "required": []string{"file", "write"}, "properties": object{"file": object{"type": "string", "description": "Received package path."}, "write": object{"type": "string", "description": "New directory, e.g. templates/my-style."}}},
+		"annotations": annotations(false),
+	},
+	{
 		"name": "wecut_doctor", "title": "Check FFmpeg",
 		"description": "Check that FFmpeg is installed and has what WeCut needs (libass, xfade, an H.264 encoder). Run once before the first render.",
 		"inputSchema": noArgs, "annotations": annotations(true),
@@ -297,6 +309,18 @@ func (s *Server) callTool(ctx context.Context, name string, raw json.RawMessage,
 		return res, nil
 	case "wecut_recipe_list":
 		return textResult(s.runCLI(ctx, nil, nil, "recipe", "list")), nil
+	case "wecut_recipe_pack", "wecut_recipe_unpack":
+		if a.File == "" || a.Write == "" {
+			return toolError("file and write are required"), nil
+		}
+		command := "pack"
+		if name == "wecut_recipe_unpack" {
+			command = "unpack"
+		}
+		s.heavyMu.Lock()
+		out, code := s.runCLI(ctx, nil, nil, "recipe", command, a.File, "--write", a.Write)
+		s.heavyMu.Unlock()
+		return textResult(out, code), nil
 	case "wecut_recipe_show":
 		if a.Name == "" {
 			return toolError("name is required"), nil

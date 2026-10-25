@@ -124,7 +124,7 @@ func FromEdit(e *engine.Edit, name string) *Recipe {
 	if len(p.Audio) > 0 {
 		a := p.Audio[0]
 		// The template keeps its song, like a CapCut template does.
-		r.Music = &Music{Src: a.Src, From: a.From, Volume: a.Volume, Duck: a.Duck, Loop: a.Loop, FadeIn: a.FadeIn, FadeOut: a.FadeOut}
+		r.Music = &Music{Src: a.Src, At: a.At, Duration: a.Duration, From: a.From, Volume: a.Volume, Duck: a.Duck, Loop: a.Loop, FadeIn: a.FadeIn, FadeOut: a.FadeOut}
 	}
 
 	// Effects that sit on cuts become "on cuts" rules; others keep their time.

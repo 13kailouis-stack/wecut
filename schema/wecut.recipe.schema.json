@@ -64,6 +64,8 @@
         "volume": { "type": "number", "minimum": 0, "maximum": 200 },
         "duck": { "type": "boolean" },
         "loop": { "type": "boolean" },
+        "at": { "type": "number", "minimum": 0, "maximum": 600, "description": "Start time on the output timeline." },
+        "duration": { "type": "number", "exclusiveMinimum": 0, "maximum": 600, "description": "Playback length on the output timeline." },
         "fadeIn": { "type": "number", "minimum": 0 },
         "fadeOut": { "type": "number", "minimum": 0 },
         "bpm": { "type": "number", "description": "Tempo of the original, for choosing music." },

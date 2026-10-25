@@ -4,12 +4,12 @@
   "title": "WeCut",
   "description": "Local video editing for AI agents: cut, caption, analyse, reuse viral formats. FFmpeg, no cloud.",
   "repository": { "url": "https://github.com/13kailouis-stack/wecut", "source": "github" },
-  "version": "0.1.0",
+  "version": "0.2.0",
   "packages": [
     {
       "registryType": "npm",
       "identifier": "wecut",
-      "version": "0.1.0",
+      "version": "0.2.0",
       "transport": { "type": "stdio" },
       "packageArguments": [ { "type": "positional", "value": "mcp" } ]
     }

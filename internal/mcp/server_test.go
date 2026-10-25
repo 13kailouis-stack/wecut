@@ -67,12 +67,33 @@ func TestLegacyHandshakeThenTools(t *testing.T) {
 	if _, modern := list["resultType"]; modern {
 		t.Error("legacy result must not carry resultType")
 	}
-	if n := len(list["tools"].([]any)); n != 13 {
+	if n := len(list["tools"].([]any)); n != 15 {
 		t.Fatalf("%d tools", n)
 	}
 	call := byID(msgs, "3")["result"].(map[string]any)
 	if call["isError"] != false || !strings.Contains(call["content"].([]any)[0].(map[string]any)["text"].(string), "montserrat") {
 		t.Fatalf("tools/call: %v", call)
+	}
+}
+
+func TestPortableRecipeTools(t *testing.T) {
+	root := t.TempDir()
+	pack := session(t, root,
+		`{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-11-25"}}`,
+		`{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"wecut_recipe_pack","arguments":{"file":"podcast-punch","write":"share.wecut.json"}}}`,
+	)
+	if result := byID(pack, "2")["result"].(map[string]any); result["isError"] != false {
+		t.Fatalf("pack: %v", result)
+	}
+	unpack := session(t, root,
+		`{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-11-25"}}`,
+		`{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"wecut_recipe_unpack","arguments":{"file":"share.wecut.json","write":"imported"}}}`,
+	)
+	if result := byID(unpack, "2")["result"].(map[string]any); result["isError"] != false {
+		t.Fatalf("unpack: %v", result)
+	}
+	if _, err := os.Stat(filepath.Join(root, "imported", "recipe.json")); err != nil {
+		t.Fatal(err)
 	}
 }
 

@@ -313,6 +313,7 @@ func Apply(r *Recipe, in Input, m media.Set) (*spec.Project, []spec.Issue, []spe
 	if src, from := MusicSource(r, in); src != "" {
 		tr := spec.Track{Src: src, From: from}
 		if mu := r.Music; mu != nil {
+			tr.At, tr.Duration = mu.At, mu.Duration
 			tr.Volume, tr.Duck, tr.Loop, tr.FadeIn, tr.FadeOut = mu.Volume, mu.Duck, mu.Loop, mu.FadeIn, mu.FadeOut
 		}
 		p.Audio = append(p.Audio, tr)

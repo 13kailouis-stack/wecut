@@ -93,15 +93,17 @@ type CaptionStyle struct {
 // song inside a CapCut template: a workspace audio file, or a video whose
 // sound is used. The music passed at apply time replaces it; "none" drops it.
 type Music struct {
-	Src     string   `json:"src,omitempty"`
-	From    float64  `json:"from,omitempty"` // start point in the track, e.g. the drop
-	Volume  *float64 `json:"volume,omitempty"`
-	Duck    bool     `json:"duck,omitempty"`
-	Loop    bool     `json:"loop,omitempty"`
-	FadeIn  float64  `json:"fadeIn,omitempty"`
-	FadeOut float64  `json:"fadeOut,omitempty"`
-	BPM     float64  `json:"bpm,omitempty"`
-	Note    string   `json:"note,omitempty"` // e.g. "add the trending sound in the app when posting"
+	At       float64  `json:"at,omitempty"`       // output start time
+	Duration *float64 `json:"duration,omitempty"` // output playback length
+	Src      string   `json:"src,omitempty"`
+	From     float64  `json:"from,omitempty"` // start point in the track, e.g. the drop
+	Volume   *float64 `json:"volume,omitempty"`
+	Duck     bool     `json:"duck,omitempty"`
+	Loop     bool     `json:"loop,omitempty"`
+	FadeIn   float64  `json:"fadeIn,omitempty"`
+	FadeOut  float64  `json:"fadeOut,omitempty"`
+	BPM      float64  `json:"bpm,omitempty"`
+	Note     string   `json:"note,omitempty"` // e.g. "add the trending sound in the app when posting"
 }
 
 // EffectRule places an effect: at every cut, at every section change, or
@@ -213,6 +215,12 @@ func Validate(r *Recipe) []spec.Issue {
 		}
 	}
 	if m := r.Music; m != nil {
+		if m.At < 0 || m.At > spec.MaxDuration {
+			add("E_VALUE", "/music/at", "at must be 0 to 600", "")
+		}
+		if m.Duration != nil && (*m.Duration <= 0 || *m.Duration > spec.MaxDuration) {
+			add("E_VALUE", "/music/duration", "duration must be more than 0 and at most 600", "")
+		}
 		if m.Volume != nil && (*m.Volume < 0 || *m.Volume > 200) {
 			add("E_VALUE", "/music/volume", "volume must be 0 to 200", "")
 		}

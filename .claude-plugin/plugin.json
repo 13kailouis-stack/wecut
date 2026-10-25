@@ -1,7 +1,7 @@
 {
   "name": "wecut",
   "displayName": "WeCut",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Cut, caption and render short-form video on this machine with FFmpeg, analyse a video that went viral and reuse its format as a template. MCP server plus an agent skill. No cloud, no API key.",
   "author": { "name": "Wefluence", "url": "https://wefluence.id" },
   "homepage": "https://github.com/13kailouis-stack/wecut",

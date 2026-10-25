@@ -224,7 +224,7 @@ Yes. An agent can write and revise project JSON from your instructions, validate
 
 A recipe can retain a music path, but does not bundle the audio file. Extraction captures a reusable structure rather than a lossless copy of every project feature. Review the applied recipe before reusing it in bulk.
 
-The Wefluence Creator app already has a visual editor and a "Jadikan template" action. Its mobile template format is separate from this engine's recipes; visual import/export of engine recipes is not implemented yet. See [template authoring status](docs/template-authoring.md) for the existing flows and the proposed bridge.
+The Wefluence Creator companion adds **Kirim ke agent** to a saved project's menu: export a recipe with music, then send it to an agent on another device. In the 0.2.0 source/build, `wecut recipe unpack received.wecut.json --write templates/my-style` imports it; `recipe pack` creates a package from an engine recipe. Published npm 0.1.0 does not have these commands. See [cross-device template authoring](docs/template-authoring.md) for supported edits, limits and rollout requirements. Visual import back into the app is not implemented.
 
 ## Compared with other ways to edit video from an agent
 
@@ -286,7 +286,7 @@ tools/release/     builds all platforms, npm packages and release archives into 
 
 Agent and registry manifests: `server.json` (MCP Registry), `.claude-plugin/` (Claude Code plugin and marketplace), `gemini-extension.json` and `GEMINI.md` (Gemini CLI), `glama.json`, `llms.txt`, `AGENTS.md` (for agents changing this code).
 
-Release build: `go run ./tools/release -version 0.1.0` (nothing is published; see `.github/workflows/release.yml`).
+Release build: `go run ./tools/release -version 0.2.0` (nothing is published; see `.github/workflows/release.yml`).
 
 Tests: `go test ./...` (the CLI tests render real video and are skipped without FFmpeg). Golden FFmpeg plans live in `internal/engine/testdata`; after an intended change run `go test ./internal/engine -update` and render the examples to check them.
 
