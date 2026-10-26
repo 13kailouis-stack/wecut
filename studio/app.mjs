@@ -1,9 +1,14 @@
+import { splitClip, createHistory } from './editing.mjs?v=desktop-2';
+import { timelineEditor } from './timeline.mjs?v=desktop-2';
 import { initialState, duration, totalDuration, locate, validate, toBundle, filters, fonts, MAX_AUDIO_BYTES } from './model.mjs';
 
 const $ = (id) => document.getElementById(id);
 const state = initialState();
 let selectedClip = 0, selectedText = 0, tab = 'clip', time = 0, playing = false, anchor = 0, frame = 0, exporting = false;
-let statusTimer, dragId, importBusy = false;
+let statusTimer, importBusy = false, restoring = false;
+const history = createHistory(state);
+const thumbnailCache = new Map();
+const tracks = timelineEditor({state, select: selectTrack, seek: seekTo, pause, changed: () => { checkpoint(); render(); }, getSelection: () => ({kind: tab === 'clip' ? 'clip' : tab === 'text' ? 'text' : 'music', index: tab === 'text' ? selectedText : tab === 'clip' ? selectedClip : 0})});
 const video = $('video'), photo = $('photo'), musicPlayer = $('musicPlayer');
 const escape = (value) => String(value).replace(/[&<>"']/g, (v) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[v]));
 const fmt = (n) => `${String(Math.floor(Math.max(0, n) / 60)).padStart(2, '0')}:${String(Math.floor(Math.max(0, n) % 60)).padStart(2, '0')}`;
@@ -60,6 +65,7 @@ async function addFiles(files) {
         const meta = await readMetadata(file, kind);
         state.clips.push({ file, kind, ...meta, from: 0, to: Math.min(meta.sourceDuration, 10), duration: 5, fit: 'cover', mute: false });
         selectedClip = state.clips.length - 1;
+        makeThumbnail(state.clips[selectedClip]);
       } catch (e) { errors.push(e.message); }
     }
   } finally { importBusy = false; $('mediaFiles').value = ''; }
@@ -75,27 +81,21 @@ function reorder(index, destination) {
 }
 function renderLists() {
   $('clipCount').textContent = state.clips.length;
-  $('mediaList').replaceChildren(); $('timeline').replaceChildren();
+  $('mediaList').replaceChildren();
   if (!state.clips.length) {
     $('mediaList').append(node('div', 'Belum ada media. Mulai dari video atau foto milikmu.', 'empty-library'));
-    $('timeline').append(node('p', 'Klip yang kamu tambahkan akan muncul di sini.', 'hint'));
+
   }
   state.clips.forEach((c, i) => {
+    c.thumbnail ||= thumbnailCache.get(c.url);
     const item = node('button', undefined, `media-item${i === selectedClip ? ' selected' : ''}`);
-    const thumb = c.kind === 'image' ? node('img') : node('span', '▶');
-    thumb.className = 'media-thumb'; if (c.kind === 'image') { thumb.src = c.url; thumb.alt = ''; } else { thumb.style.display = 'grid'; thumb.style.placeItems = 'center'; thumb.style.color = '#fff'; }
+    const thumb = (c.thumbnail || c.kind === 'image') ? node('img') : node('span', '▶');
+    thumb.className = 'media-thumb'; if (c.thumbnail || c.kind === 'image') { thumb.src = c.thumbnail || c.url; thumb.alt = ''; } else { thumb.style.display = 'grid'; thumb.style.placeItems = 'center'; thumb.style.color = '#fff'; }
     const info = node('span', undefined, 'media-info'); info.append(node('strong', c.file.name), node('small', `Klip ${i + 1} · ${duration(c).toFixed(1)} dtk`));
     item.append(thumb, info); item.addEventListener('click', () => selectClip(i)); $('mediaList').append(item);
-    const card = node('button', undefined, `timeline-card${i === selectedClip ? ' selected' : ''}`);
-    card.style.width = `${clamp(duration(c) * 12, 105, 170)}px`;
-    card.append(node('strong', `${c.kind === 'image' ? 'Foto' : 'Klip'} ${i + 1}`), node('small', `${duration(c).toFixed(1)} dtk · ${c.mute ? 'tanpa suara' : 'suara asli'}`));
-    card.draggable = true;
-    card.addEventListener('dragstart', () => { dragId = i; });
-    card.addEventListener('dragover', (e) => e.preventDefault());
-    card.addEventListener('drop', (e) => { e.preventDefault(); if (Number.isInteger(dragId)) reorder(dragId, i); dragId = null; });
-    card.addEventListener('dragend', () => { dragId = null; });
-    card.addEventListener('click', () => selectClip(i)); $('timeline').append(card);
+
   });
+  tracks.render(); tracks.position(time);
 }
 
 const input = (id, label, value, attrs = '') => `<label>${label}<input id="${id}" value="${escape(value)}" ${attrs}></label>`;
@@ -119,7 +119,7 @@ function renderProperties() {
       bind('clipFit', 'change', (e) => { c.fit = e.target.value; refreshPreview(); });
       bind('clipMute', 'change', (e) => { c.mute = e.target.checked; renderLists(); refreshPreview(); });
       bind('moveLeft', 'click', () => reorder(selectedClip, selectedClip - 1)); bind('moveRight', 'click', () => reorder(selectedClip, selectedClip + 1));
-      bind('removeClip', 'click', () => { pause(); URL.revokeObjectURL(c.url); state.clips.splice(selectedClip, 1); selectedClip = Math.max(0, selectedClip - 1); time = Math.min(time, totalDuration(state)); render(); });
+      bind('removeClip', 'click', () => { pause(); state.clips.splice(selectedClip, 1); selectedClip = Math.max(0, selectedClip - 1); time = Math.min(time, totalDuration(state)); render(); });
     }
     bind('filter', 'change', (e) => { state.filter = e.target.value; refreshPreview(); });
     bind('filterAmount', 'input', (e) => { state.filterAmount = num(e.target.value); refreshPreview(); });
@@ -154,7 +154,7 @@ function renderProperties() {
     editNumber('musicAt', m, 'at', () => 0, () => Math.max(0, totalDuration(state) - .1));
     editNumber('musicDuration', m, 'duration', () => .1, () => Math.min(600, m.sourceDuration - m.from));
     bind('musicVolume', 'input', (e) => { m.volume = num(e.target.value); musicPlayer.volume = m.volume / 100; });
-    bind('removeMusic', 'click', () => { pause(); URL.revokeObjectURL(m.url); musicPlayer.removeAttribute('src'); state.music = null; renderProperties(); });
+    bind('removeMusic', 'click', () => { pause(); musicPlayer.removeAttribute('src'); state.music = null; renderProperties(); });
   }
 }
 
@@ -163,7 +163,7 @@ function addText() {
   if (state.texts.length >= 100) { status('Maksimal 100 isian teks.'); return; }
   pause(); const total = totalDuration(state); time = Math.min(time, Math.max(0, total - .5));
   state.texts.push({ text: 'Tulis judulmu di sini', font: 'poppins', size: 64, color: '#FFFFFF', box: true, background: '#171717', start: time, end: Math.min(time + 3, total), x: .5, y: .25 });
-  selectedText = state.texts.length - 1; tab = 'text'; renderProperties(); refreshPreview(); $('textValue')?.focus();
+  selectedText = state.texts.length - 1; tab = 'text'; renderProperties(); refreshPreview(); tracks.render(); tracks.position(time); checkpoint(); $('textValue')?.focus();
 }
 function sizeStage() {
   const [a, b] = state.ratio.split(':').map(Number); const box = $('dropZone').getBoundingClientRect();
@@ -189,6 +189,7 @@ function renderTexts() {
   });
 }
 function refreshPreview() {
+  tracks.position(time);
   const total = totalDuration(state); time = clamp(time, 0, total);
   $('scrub').max = total; $('scrub').value = time; $('timeLabel').textContent = `${fmt(time)} / ${fmt(total)}`;
   const point = locate(state, Math.min(time, Math.max(0, total - .001)));
@@ -224,7 +225,7 @@ function play() {
   if (time >= totalDuration(state) - .02) time = 0;
   playing = true; anchor = performance.now() - time * 1000; $('playButton').textContent = 'Ⅱ'; $('playButton').setAttribute('aria-label', 'Jeda preview'); refreshPreview(); frame = requestAnimationFrame(tick);
 }
-function render() { renderLists(); renderProperties(); refreshPreview(); }
+function render() { renderLists(); renderProperties(); refreshPreview(); checkpoint(); }
 
 async function chooseMusic(file) {
   if (!file) return;
@@ -234,9 +235,10 @@ async function chooseMusic(file) {
   pause(); importBusy = true;
   try {
     const metadata = await readMetadata(file, 'audio');
-    if (state.music) URL.revokeObjectURL(state.music.url);
+
     state.music = { file, ...metadata, from: 0, at: 0, duration: Math.min(metadata.sourceDuration, totalDuration(state), 600), volume: 50 };
-    musicPlayer.src = metadata.url; tab = 'music'; renderProperties(); status('Musik ini akan ikut di dalam paket template.');
+    makeWaveform(state.music);
+    musicPlayer.src = metadata.url; tab = 'music'; render(); status('Musik ini akan ikut di dalam paket template.');
   } catch (e) { dialog('Musik belum bisa dibaca', [e.message]); }
   finally { importBusy = false; }
   $('musicFile').value = '';
@@ -276,11 +278,116 @@ $('scrub').addEventListener('input', (e) => { pause(); time = num(e.target.value
 $('projectName').addEventListener('input', (e) => { state.name = e.target.value; });
 $('ratio').addEventListener('change', (e) => { state.ratio = e.target.value; refreshPreview(); });
 $('resolution').addEventListener('change', (e) => { state.res = num(e.target.value); }); $('fps').addEventListener('change', (e) => { state.fps = num(e.target.value); });
-document.querySelectorAll('[data-tab]').forEach((b) => b.addEventListener('click', () => { tab = b.dataset.tab; renderProperties(); refreshPreview(); }));
+document.querySelectorAll('[data-tab]').forEach((b) => b.addEventListener('click', () => { tab = b.dataset.tab; renderProperties(); tracks.render(); refreshPreview(); }));
 $('exportButton').addEventListener('click', beginExport);
 $('helpButton').addEventListener('click', () => dialog('Dari browser ke perangkat agent', ['1. Pilih video/foto contoh, potong klip dan atur urutannya.', '2. Tambahkan teks dan musik. Geser teks langsung di preview.', '3. Unduh template. Kirim file itu dan footage baru lewat chat agent.', '4. Agent mengimpor paket dan membuat video di komputernya sendiri.', 'Browser ini tidak mengunggah media. Alamat localhost hanya untuk perangkatmu. Halaman editor dapat dihosting sebagai situs statis; tautan template publik membutuhkan penyimpanan file tersendiri.']));
 new ResizeObserver(refreshPreview).observe($('dropZone'));
 document.addEventListener('visibilitychange', () => { if (document.hidden) pause(); });
 window.addEventListener('beforeunload', (e) => { if (state.clips.length) { e.preventDefault(); e.returnValue = ''; } });
 video.addEventListener('loadedmetadata', refreshPreview);
+
+function checkpoint() {
+  if (!restoring) history.record(state);
+  $('undo').disabled = !history.canUndo; $('redo').disabled = !history.canRedo;
+}
+function restore(direction) {
+  if (importBusy || exporting) return;
+  const snapshot = history[direction](); if (!snapshot) return;
+  pause(); restoring = true; Object.assign(state, snapshot);
+  selectedClip = Math.max(0, Math.min(selectedClip, state.clips.length - 1)); selectedText = Math.max(0, Math.min(selectedText, state.texts.length - 1));
+  $('projectName').value = state.name; $('ratio').value = state.ratio; $('resolution').value = state.res; $('fps').value = state.fps;
+  time = Math.min(time, totalDuration(state)); render(); restoring = false;
+}
+function seekTo(value) { pause(); time = clamp(value, 0, totalDuration(state)); refreshPreview(); }
+function selectTrack(kind, index) {
+  pause(); tab = kind === 'clip' ? 'clip' : kind === 'text' ? 'text' : 'music';
+  if (kind === 'clip') selectedClip = index;
+  else if (kind === 'text') { selectedText = index; time = state.texts[index].start; }
+  renderProperties(); tracks.render(); refreshPreview();
+}
+function splitSelected() {
+  pause(); const point = locate(state, time);
+  if (!point || !splitClip(state, point.index, point.local)) { status('Letakkan playhead di dalam klip, minimal 0,5 detik dari tepinya.'); return; }
+  selectedClip = point.index + 1; tab = 'clip'; render();
+}
+function deleteSelected() {
+  pause();
+  if (tab === 'text') { state.texts.splice(selectedText, 1); selectedText = Math.max(0, selectedText - 1); }
+  else if (tab === 'music') { state.music = null; musicPlayer.removeAttribute('src'); }
+  else { state.clips.splice(selectedClip, 1); selectedClip = Math.max(0, selectedClip - 1); }
+  time = Math.min(time, totalDuration(state)); render();
+}
+async function makeThumbnail(clip) {
+  if (clip.kind !== 'video') return;
+  const v = document.createElement('video'); v.preload = 'metadata'; v.muted = true;
+  let timer;
+  try {
+    await new Promise((resolve, reject) => { timer = setTimeout(reject, 10000); v.onloadedmetadata = () => { v.currentTime = Math.min(.15, v.duration / 2); }; v.onseeked = resolve; v.onerror = reject; v.src = clip.url; });
+    const canvas = document.createElement('canvas'); canvas.width = 160; canvas.height = Math.round(160 * v.videoHeight / v.videoWidth);
+    canvas.getContext('2d').drawImage(v, 0, 0, canvas.width, canvas.height); clip.thumbnail = canvas.toDataURL('image/jpeg', .65);
+    thumbnailCache.set(clip.url, clip.thumbnail);
+    renderLists(); refreshPreview();
+  } catch { /* The source remains usable without a thumbnail. */ }
+  finally { clearTimeout(timer); v.removeAttribute('src'); v.load(); }
+}
+async function makeWaveform(music) {
+  if (music.file.size > 16 * 1024 * 1024 || music.sourceDuration > 600) return;
+  let context;
+  try {
+    context = new AudioContext();
+    const decoded = await context.decodeAudioData(await music.file.arrayBuffer());
+    const samples = decoded.getChannelData(0), count = 160, stride = Math.max(1, Math.floor(samples.length / count));
+    music.peaks = Array.from({length:count}, (_, i) => { let peak = 0; for (let j = i * stride; j < Math.min(samples.length, (i + 1) * stride); j += 8) peak = Math.max(peak, Math.abs(samples[j])); return peak; });
+    if (state.music === music) { tracks.render(); tracks.position(time); }
+  } catch { /* Audio preview/export works even if waveform decoding is unsupported. */ }
+  finally { if (context) await context.close(); }
+}
+function showAsset(section) {
+  for (const name of ['media', 'audio', 'text', 'filter']) $('asset' + name[0].toUpperCase() + name.slice(1)).hidden = name !== section;
+  document.querySelectorAll('[data-asset]').forEach(b => b.classList.toggle('active', b.dataset.asset === section));
+}
+document.querySelectorAll('[data-asset]').forEach(b => b.addEventListener('click', () => showAsset(b.dataset.asset)));
+$('importAudio').addEventListener('click', () => $('musicFile').click());
+for (const [key, label] of [['none','Original'],['warm','Hangat'],['cool','Dingin'],['rose','Mawar'],['pale','Pudar'],['dark','Gelap']]) {
+  const b = node('button', undefined, 'filter-preset'); b.append(node('span', '◐'), node('small', label));
+  b.addEventListener('click', () => { state.filter = key; tab = 'clip'; render(); }); $('filterPresets').append(b);
+}
+$('undo').addEventListener('click', () => restore('undo')); $('redo').addEventListener('click', () => restore('redo'));
+$('split').addEventListener('click', splitSelected); $('deleteSelection').addEventListener('click', deleteSelected);
+$('frameBack').addEventListener('click', () => seekTo(time - 1 / state.fps)); $('frameNext').addEventListener('click', () => seekTo(time + 1 / state.fps));
+$('fullscreen').addEventListener('click', () => { if (document.fullscreenElement) document.exitFullscreen(); else $('dropZone').requestFullscreen().catch(() => status('Layar penuh tidak tersedia di browser ini.')); });
+function zoomTo(value) { $('timelineZoom').value = clamp(value, 20, 200); tracks.zoom(Number($('timelineZoom').value)); tracks.position(time); }
+$('timelineZoom').addEventListener('input', e => zoomTo(Number(e.target.value)));
+$('zoomIn').addEventListener('click', () => zoomTo(Number($('timelineZoom').value) + 20)); $('zoomOut').addEventListener('click', () => zoomTo(Number($('timelineZoom').value) - 20));
+$('fitTimeline').addEventListener('click', () => zoomTo(($('timelineScroll').clientWidth - 120) / Math.max(1, totalDuration(state))));
+for (const name of ['input', 'change']) document.addEventListener(name, e => { if (['scrub', 'timelineZoom'].includes(e.target.id)) return; checkpoint(); tracks.render(); tracks.position(time); });
+document.addEventListener('keydown', e => {
+  if ($('dialog').open || e.target.closest('input,textarea,select,[contenteditable]')) return;
+  const mod = e.ctrlKey || e.metaKey;
+  if (mod && e.key.toLowerCase() === 'z') { e.preventDefault(); restore(e.shiftKey ? 'redo' : 'undo'); }
+  else if (mod && e.key.toLowerCase() === 'y') { e.preventDefault(); restore('redo'); }
+  else if (mod && e.key.toLowerCase() === 'b') { e.preventDefault(); splitSelected(); }
+  else if (e.code === 'Space') { e.preventDefault(); play(); }
+  else if (e.key === 'Delete' || e.key === 'Backspace') { e.preventDefault(); deleteSelected(); }
+  else if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') { e.preventDefault(); seekTo(time + (e.key === 'ArrowLeft' ? -1 : 1) / state.fps); }
+});
+$('timelineResizer').addEventListener('pointerdown', e => {
+  e.preventDefault(); const handle = e.currentTarget; handle.setPointerCapture(e.pointerId);
+  const change = event => document.documentElement.style.setProperty('--timeline-height', `${clamp(window.innerHeight - event.clientY - 22, 170, window.innerHeight * .6)}px`);
+  const end = () => { handle.removeEventListener('pointermove', change); handle.removeEventListener('pointerup', end); handle.removeEventListener('pointercancel', end); };
+  handle.addEventListener('pointermove', change); handle.addEventListener('pointerup', end); handle.addEventListener('pointercancel', end);
+});
+$('timelineResizer').addEventListener('keydown', e => { if (!['ArrowUp', 'ArrowDown'].includes(e.key)) return; e.preventDefault(); const height = document.querySelector('.timeline-panel').clientHeight; document.documentElement.style.setProperty('--timeline-height', `${clamp(height + (e.key === 'ArrowUp' ? 20 : -20), 170, window.innerHeight * .6)}px`); });
+const icons = {
+  undo:'M8 5 3 10l5 5M3 10h10a6 6 0 0 1 0 12', redo:'m16 5 5 5-5 5m5-5H11a6 6 0 0 0 0 12',
+  split:'M9 9 20 20M9 15 20 4M3 6a3 3 0 1 0 6 0 3 3 0 1 0-6 0M3 18a3 3 0 1 0 6 0 3 3 0 1 0-6 0',
+  deleteSelection:'M3 6h18M9 6V3h6v3M6 6l1 15h10l1-15M10 10v7m4-7v7',
+  frameBack:'M5 5v14m13-14-9 7 9 7Z', frameNext:'M19 5v14M6 5l9 7-9 7Z', fullscreen:'M8 3H3v5m13-5h5v5M3 16v5h5m13-5v5h-5',
+  media:'M3 4h18v16H3ZM3 15l5-5 5 5 3-3 5 5M16 8h.01', audio:'M9 18V5l12-2v13M9 5v5l12-2M3 18a3 2 0 1 0 6 0 3 2 0 1 0-6 0m12-2a3 2 0 1 0 6 0 3 2 0 1 0-6 0',
+  text:'M4 4h16M12 4v16m-4 0h8M4 4v4m16-4v4', filter:'M10 12a6 6 0 1 0 0 .01M20 12a6 6 0 1 0 0 .01',
+};
+for (const [key, path] of Object.entries(icons)) {
+  const target = $(key) || document.querySelector(`[data-asset="${key}"] span`);
+  if (target) target.innerHTML = `<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="${path}"/></svg>`;
+}
 render();

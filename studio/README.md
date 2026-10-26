@@ -2,6 +2,16 @@
 
 A visual template editor for humans, served as static files. Video, photos and music are read in the user's browser. The exported `.wecut.json` travels to an agent on another device, where WeCut and FFmpeg render new footage.
 
+## Desktop workspace
+
+The workspace follows familiar desktop editor placement: media/audio/text/filter tabs at the upper left, player in the centre, properties at the right, and a full-width timeline below. Panels scroll independently. Drag the divider above the timeline to resize it. Desktop layout needs at least 760px of width; this is not a mobile editor.
+
+Video sections, individual text layers and the music track appear at their actual times. Drag a video block to reorder; drag text or audio to move its timing. Drag block edges to trim. Click the time ruler to seek, use the zoom slider or **Sesuaikan** to fit the project, and select a block to inspect its settings. Video thumbnails use one representative frame repeated across a clip; audio waveforms are decoded locally when the browser supports the source (up to 16 MiB and ten minutes).
+
+Shortcuts outside text fields: **Space** play/pause, **← / →** one frame, **Ctrl/Cmd+B** split at the playhead, **Delete** remove the selected item, **Ctrl/Cmd+Z** undo, **Ctrl/Cmd+Shift+Z** redo. Undo retains up to 50 editing states in memory; it is not autosave. Trimming video can leave text outside the new duration; export validation asks you to correct those timings.
+
+The layout is informed by the [official CapCut desktop workspace reference](https://www.capcut.com/resource/capcut-for-laptop). WeCut retains its own branding and supported controls; this is not complete CapCut feature parity.
+
 ## Run locally
 
 From the repository root:
@@ -40,7 +50,7 @@ The agent needs WeCut **0.2.0+**. The published npm 0.1.0 lacks bundle import; u
 
 ```sh
 node --check studio/app.mjs
-node --test studio/model.test.mjs
+node --test studio/model.test.mjs studio/editing.test.mjs
 go build -o studio-test-engine ./cmd/wecut
 node studio/check-engine.mjs ./studio-test-engine
 ```

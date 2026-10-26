@@ -39,7 +39,8 @@ jobs:
       - run: go run ./cmd/wecut doctor
       - run: node --check npm/wecut/bin/wecut.js
       - run: node --check studio/app.mjs
-      - run: node --test studio/model.test.mjs
+      - run: node --check studio/timeline.mjs
+      - run: node --test studio/model.test.mjs studio/editing.test.mjs
       - name: Studio template interoperability
         shell: bash
         run: |

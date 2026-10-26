@@ -7,42 +7,40 @@
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; connect-src 'none'; img-src 'self' blob: data:; media-src 'self' blob:; style-src 'self' 'unsafe-inline'; script-src 'self'; font-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'">
   <title>WeCut Studio — template untuk agent</title>
   <link rel="stylesheet" href="styles.css">
-  <script type="module" src="app.mjs"></script>
+  <link rel="stylesheet" href="desktop.css?v=desktop-2">
+  <script type="module" src="app.mjs?v=desktop-2"></script>
 </head>
 <body>
   <header class="topbar">
-    <a class="brand" href="./" aria-label="WeCut Studio"><span class="brandmark" aria-hidden="true">W</span><strong>WeCut <span>Studio</span></strong><small>Beta</small></a>
+    <a class="brand" href="./" aria-label="WeCut Studio"><span class="brandmark" aria-hidden="true">W</span><strong>WeCut <span>Studio</span></strong></a>
     <div class="project-name"><label class="sr-only" for="projectName">Nama template</label><input id="projectName" value="Template saya" maxlength="120"></div>
-    <button id="exportButton" class="primary">Unduh template <span aria-hidden="true">↗</span></button>
+    <span class="session-state">● Lokal · belum disimpan</span><button id="helpButton" class="text-button">Panduan</button><button id="exportButton" class="primary">Ekspor template ↗</button>
   </header>
-  <div class="local-bar"><span class="local-dot" aria-hidden="true"></span><span>Media tetap di browser ini. Tidak diunggah ke server.</span><button id="helpButton" class="text-button">Cara pakai</button></div>
   <main class="workspace">
     <aside class="library panel">
-      <div class="panel-heading"><h2>Bahan template</h2><span id="clipCount" class="count">0</span></div>
-      <button id="addMedia" class="secondary full">＋ Tambah video / foto</button>
+      <nav class="asset-tabs" aria-label="Bahan"><button data-asset="media" class="active"><span>▣</span>Media</button><button data-asset="audio"><span>♫</span>Audio</button><button data-asset="text"><span>T</span>Teks</button><button data-asset="filter"><span>◐</span>Filter</button></nav><div class="asset-body"><div id="assetMedia"><div class="panel-heading"><h2>Media lokal</h2><span id="clipCount" class="count">0</span></div>
+      <button id="addMedia" class="secondary full">＋ Impor media</button>
       <input id="mediaFiles" type="file" accept="video/*,image/jpeg,image/png,image/webp" multiple hidden>
-      <p class="hint">Gunakan klip contoh untuk menyusun gaya. Agent akan menggantinya dengan footage baru.</p>
+      <p class="hint">Berkas tetap di perangkatmu.</p>
       <div id="mediaList" class="media-list"><div class="empty-library">Belum ada media.<br>Mulai dari video atau foto milikmu.</div></div>
-      <div class="library-foot"><span class="label">Alur kerja</span><p>Edit di sini.<br>Kirim paket lewat chat.<br>Agent membuat videonya.</p></div>
+      </div><div id="assetAudio" hidden><h2>Audio lokal</h2><p class="hint">Musik bawaan ikut dalam template.</p><button id="importAudio" class="secondary full">＋ Impor audio</button></div><div id="assetText" hidden><h2>Teks</h2><button id="addText" class="text-preset"><strong>Aa</strong><span>Tambahkan teks default</span></button><p class="hint">Ubah font, warna, dan posisi di panel kanan.</p></div><div id="assetFilter" hidden><h2>Filter</h2><div id="filterPresets" class="filter-presets"></div></div></div>
     </aside>
     <section class="editor">
-      <div class="preview-toolbar"><h1>Preview template</h1><label class="ratio-label">Kanvas <select id="ratio"><option>9:16</option><option>16:9</option><option>1:1</option><option>4:5</option></select></label></div>
+      <div class="preview-toolbar"><h1>Player</h1><label class="ratio-label">Kanvas <select id="ratio"><option>9:16</option><option>16:9</option><option>1:1</option><option>4:5</option></select></label></div>
       <div class="preview-area" id="dropZone">
         <div id="emptyPreview" class="empty-preview"><span class="empty-symbol" aria-hidden="true">＋</span><h2>Mulai dari satu klip.</h2><p>Tarik video ke sini, atau pilih dari perangkatmu.<br>Susun sekali. Pakai lagi bersama agent.</p><button id="pickFirst" class="secondary">Pilih video atau foto</button></div>
         <div id="stage" class="stage" hidden><video id="video" playsinline preload="metadata"></video><img id="photo" alt="Klip yang sedang diedit" hidden><div id="tint" class="tint"></div><div id="textLayer" class="text-layer"></div></div>
       </div>
       <audio id="musicPlayer" preload="metadata"></audio>
-      <div class="transport"><button id="playButton" class="play" aria-label="Putar preview">▶</button><span id="timeLabel" class="time-label">00:00 / 00:00</span><label class="sr-only" for="scrub">Posisi preview</label><input id="scrub" type="range" min="0" max="0" step="0.01" value="0"><button id="addText" class="text-button">＋ Teks</button></div>
-      <div class="timeline-heading"><h2>Susunan klip</h2><span>Geser kartu untuk mengurutkan</span></div>
-      <div id="timeline" class="timeline"><p class="hint">Klip yang kamu tambahkan akan muncul di sini.</p></div>
-      <p class="preview-note">Preview panduan. Periksa hasil render dari agent sebelum dipublikasikan.</p>
+      <div class="transport"><span id="timeLabel" class="time-label">00:00 / 00:00</span><button id="frameBack" class="icon-button" title="Frame sebelumnya (←)" aria-label="Frame sebelumnya">Ⅰ‹</button><button id="playButton" class="play" aria-label="Putar preview">▶</button><button id="frameNext" class="icon-button" title="Frame berikutnya (→)" aria-label="Frame berikutnya">›Ⅰ</button><button id="fullscreen" class="icon-button" title="Layar penuh" aria-label="Layar penuh">⛶</button></div><label class="sr-only" for="scrub">Posisi preview</label><input id="scrub" type="range" min="0" max="0" step="0.01" value="0">
     </section>
     <aside class="inspector panel">
-      <div class="tabs" role="tablist" aria-label="Pengaturan"><button id="tabClip" role="tab" aria-selected="true" data-tab="clip">Klip</button><button id="tabText" role="tab" aria-selected="false" data-tab="text">Teks</button><button id="tabMusic" role="tab" aria-selected="false" data-tab="music">Musik</button></div>
+      <div class="tabs" role="tablist" aria-label="Pengaturan"><button id="tabClip" role="tab" aria-selected="true" data-tab="clip">Video</button><button id="tabText" role="tab" aria-selected="false" data-tab="text">Teks</button><button id="tabMusic" role="tab" aria-selected="false" data-tab="music">Audio</button></div>
       <div id="properties" class="properties"></div>
       <details class="output-settings"><summary>Pengaturan hasil</summary><label>Resolusi<select id="resolution"><option value="480">480p</option><option value="720">720p</option><option value="1080" selected>1080p</option></select></label><label>Frame rate<select id="fps"><option>24</option><option>25</option><option selected>30</option><option>60</option></select></label><p class="hint">Video final dibuat di perangkat agent. Studio hanya mengunduh paket template.</p></details>
     </aside>
   </main>
+  <section class="timeline-panel" aria-label="Timeline"><div class="timeline-resizer" id="timelineResizer" role="separator" aria-label="Tinggi timeline" aria-orientation="horizontal" tabindex="0"></div><div class="timeline-tools"><button id="undo" class="icon-button" aria-label="Urungkan" title="Urungkan (Ctrl+Z)">↶</button><button id="redo" class="icon-button" aria-label="Ulangi" title="Ulangi (Ctrl+Shift+Z)">↷</button><span class="tool-separator"></span><button id="split" class="icon-button" aria-label="Pisahkan klip" title="Pisahkan klip (Ctrl+B)">✂</button><button id="deleteSelection" class="icon-button" aria-label="Hapus pilihan" title="Hapus pilihan (Delete)">⌫</button><span class="timeline-tool-hint">Timeline</span><span class="zoom-tools"><button id="zoomOut" class="icon-button" aria-label="Perkecil timeline">−</button><label class="sr-only" for="timelineZoom">Zoom timeline</label><input id="timelineZoom" type="range" min="20" max="200" value="70"><button id="zoomIn" class="icon-button" aria-label="Perbesar timeline">＋</button><button id="fitTimeline" class="text-button">Sesuaikan</button></span></div><div class="timeline-scroll" id="timelineScroll"><div id="timeline" class="timeline"></div></div></section>
   <footer><span>WeCut by Wefluence</span><span>Sesi ini belum disimpan. Unduh template sebelum menutup tab.</span><a href="https://github.com/13kailouis-stack/wecut" target="_blank" rel="noreferrer">Engine & panduan ↗</a></footer>
   <input id="musicFile" type="file" accept="audio/*,video/mp4,video/webm,video/quicktime" hidden>
   <div id="status" role="status" class="status" hidden></div>
