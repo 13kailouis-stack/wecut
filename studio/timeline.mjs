@@ -9,7 +9,8 @@ export function timelineEditor({ state, select, seek, changed, pause, getSelecti
     root.replaceChildren();
     const total = totalDuration(state), width = Math.max(root.parentElement.clientWidth - 108, Math.max(total + 2, 10) * scale);
     const ruler = el('div', '', 'ruler'); ruler.style.width = `${width}px`;
-    for (let t = 0; t <= width / scale; t += scale < 35 ? 5 : scale < 80 ? 2 : 1) { const tick = el('span', `${Math.floor(t / 60).toString().padStart(2, '0')}:${(t % 60).toString().padStart(2, '0')}`, 'tick'); tick.style.left = `${t * scale}px`; ruler.append(tick); }
+    const step = [1, 2, 5, 10, 15, 30, 60, 120].find(n => n * scale >= 50) || 120;
+    for (let t = 0; t <= width / scale; t += step) { const tick = el('span', `${Math.floor(t / 60).toString().padStart(2, '0')}:${(t % 60).toString().padStart(2, '0')}`, 'tick'); tick.style.left = `${t * scale}px`; ruler.append(tick); }
     ruler.addEventListener('pointerdown', e => scrub(e, ruler)); root.append(ruler);
     const selection = getSelection();
     function row(kind, label, items) {

@@ -1,5 +1,5 @@
-import { splitClip, createHistory } from './editing.mjs?v=desktop-2';
-import { timelineEditor } from './timeline.mjs?v=desktop-2';
+import { splitClip, createHistory } from './editing.mjs?v=desktop-3';
+import { timelineEditor } from './timeline.mjs?v=desktop-3';
 import { initialState, duration, totalDuration, locate, validate, toBundle, filters, fonts, MAX_AUDIO_BYTES } from './model.mjs';
 
 const $ = (id) => document.getElementById(id);
@@ -141,7 +141,7 @@ function renderProperties() {
     editNumber('textStart', t, 'start', () => 0, () => Math.max(0, t.end - .1));
     editNumber('textEnd', t, 'end', () => t.start + .1, () => totalDuration(state));
     ['x', 'y'].forEach((key) => bind(`text${key.toUpperCase()}`, 'change', (e) => { t[key] = clamp(num(e.target.value) / 100, 0, 1); refreshPreview(); }));
-    bind('removeText', 'click', () => { state.texts.splice(selectedText, 1); selectedText = Math.max(0, selectedText - 1); renderProperties(); refreshPreview(); });
+    bind('removeText', 'click', () => { pause(); state.texts.splice(selectedText, 1); selectedText = Math.max(0, selectedText - 1); render(); });
   } else {
     const m = state.music;
     p.innerHTML = '<h3>Musik bawaan</h3><p class="hint">Musik ikut di dalam paket. Agent dapat mempertahankan, mengganti, atau mematikannya.</p><button id="chooseMusic" class="secondary full">Pilih musik / audio video</button>';
@@ -154,7 +154,7 @@ function renderProperties() {
     editNumber('musicAt', m, 'at', () => 0, () => Math.max(0, totalDuration(state) - .1));
     editNumber('musicDuration', m, 'duration', () => .1, () => Math.min(600, m.sourceDuration - m.from));
     bind('musicVolume', 'input', (e) => { m.volume = num(e.target.value); musicPlayer.volume = m.volume / 100; });
-    bind('removeMusic', 'click', () => { pause(); musicPlayer.removeAttribute('src'); state.music = null; renderProperties(); });
+    bind('removeMusic', 'click', () => { pause(); musicPlayer.removeAttribute('src'); state.music = null; render(); });
   }
 }
 
@@ -182,7 +182,7 @@ function renderTexts() {
       const box = $('stage').getBoundingClientRect(); const startX = e.clientX, startY = e.clientY, x = t.x, y = t.y;
       const move = (event) => { t.x = clamp(x + (event.clientX - startX) / box.width, 0, 1); t.y = clamp(y + (event.clientY - startY) / box.height, 0, 1); n.style.left = `${t.x * 100}%`; n.style.top = `${t.y * 100}%`; if ($('textX')) $('textX').value = Math.round(t.x * 100); if ($('textY')) $('textY').value = Math.round(t.y * 100); };
       n.addEventListener('pointermove', move);
-      const done = () => { n.removeEventListener('pointermove', move); refreshPreview(); };
+      const done = () => { n.removeEventListener('pointermove', move); checkpoint(); refreshPreview(); };
       n.addEventListener('pointerup', done, { once: true }); n.addEventListener('pointercancel', done, { once: true });
     });
     layer.append(n);
@@ -356,7 +356,7 @@ $('undo').addEventListener('click', () => restore('undo')); $('redo').addEventLi
 $('split').addEventListener('click', splitSelected); $('deleteSelection').addEventListener('click', deleteSelected);
 $('frameBack').addEventListener('click', () => seekTo(time - 1 / state.fps)); $('frameNext').addEventListener('click', () => seekTo(time + 1 / state.fps));
 $('fullscreen').addEventListener('click', () => { if (document.fullscreenElement) document.exitFullscreen(); else $('dropZone').requestFullscreen().catch(() => status('Layar penuh tidak tersedia di browser ini.')); });
-function zoomTo(value) { $('timelineZoom').value = clamp(value, 20, 200); tracks.zoom(Number($('timelineZoom').value)); tracks.position(time); }
+function zoomTo(value) { $('timelineZoom').value = clamp(Math.floor(value), 1, 200); tracks.zoom(Number($('timelineZoom').value)); tracks.position(time); }
 $('timelineZoom').addEventListener('input', e => zoomTo(Number(e.target.value)));
 $('zoomIn').addEventListener('click', () => zoomTo(Number($('timelineZoom').value) + 20)); $('zoomOut').addEventListener('click', () => zoomTo(Number($('timelineZoom').value) - 20));
 $('fitTimeline').addEventListener('click', () => zoomTo(($('timelineScroll').clientWidth - 120) / Math.max(1, totalDuration(state))));
