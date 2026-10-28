@@ -1,6 +1,7 @@
 import { splitClip, createHistory } from './editing.mjs?v=desktop-3';
 import { timelineEditor } from './timeline.mjs?v=desktop-3';
 import { initialState, duration, totalDuration, locate, validate, toBundle, filters, fonts, MAX_AUDIO_BYTES } from './model.mjs';
+import { cloneVideo, templateBundle } from './clone.mjs?v=clone-3';
 
 const $ = (id) => document.getElementById(id);
 const state = initialState();
@@ -343,11 +344,63 @@ async function makeWaveform(music) {
   finally { if (context) await context.close(); }
 }
 function showAsset(section) {
-  for (const name of ['media', 'audio', 'text', 'filter']) $('asset' + name[0].toUpperCase() + name.slice(1)).hidden = name !== section;
+  for (const name of ['media', 'audio', 'text', 'filter', 'clone']) $('asset' + name[0].toUpperCase() + name.slice(1)).hidden = name !== section;
   document.querySelectorAll('[data-asset]').forEach(b => b.classList.toggle('active', b.dataset.asset === section));
 }
 document.querySelectorAll('[data-asset]').forEach(b => b.addEventListener('click', () => showAsset(b.dataset.asset)));
 $('importAudio').addEventListener('click', () => $('musicFile').click());
+
+// Clone: a finished video becomes a template, analysed on this device.
+let cloned = null, cloning = false;
+$('cloneVideo').addEventListener('click', () => { if (!cloning) $('cloneFile').click(); });
+$('cloneFile').addEventListener('change', async (event) => {
+  const file = event.target.files[0]; event.target.value = '';
+  if (!file) return;
+  cloning = true; pause(); $('cloneResult').replaceChildren();
+  const progress = $('cloneProgress'); progress.hidden = false;
+  try {
+    cloned = await cloneVideo(file, (f, label) => { progress.textContent = `${label} ${Math.round(f * 100)}%`; });
+    progress.hidden = true; renderClone();
+  } catch (e) { progress.hidden = true; dialog('Video belum bisa dijadikan template', [e.message]); }
+  finally { cloning = false; }
+});
+function renderClone() {
+  const box = $('cloneResult'), r = cloned.recipe;
+  const head = node('div', undefined, 'panel-heading'); head.append(node('h2', r.name), node('span', `${cloned.slots.length} slot`, 'count'));
+  const info = node('p', `${r.maxDuration.toFixed(1)} dtk · ${r.output.ratio}${r.captions ? ' · teks otomatis' : ''}${r.overlays ? ' · slot logo' : ''}${r.music ? ' · musik asli' : ''}`, 'hint');
+  const slots = node('div', undefined, 'clone-slots');
+  for (const s of cloned.slots) {
+    const item = node('div', undefined, 'clone-slot');
+    const img = node('img'); img.src = s.thumbnail; img.alt = '';
+    const text = node('div'); text.append(node('strong', `Slot ${s.n} · ${s.dur.toFixed(2)} dtk${s.join ? ' → ' + s.join : ''}`), node('span', s.about));
+    item.append(img, text); slots.append(item);
+  }
+  const words = node('div', undefined, 'clone-texts');
+  (r.texts || []).forEach((t) => {
+    // Without OCR in the browser, signs and screens in the footage can look
+    // like laid-over text; the headline card and its label are found
+    // reliably, so only they start on.
+    t._use ??= t.slot === 'headline' || t.slot === 'label';
+    const label = node('label');
+    const head = node('span', undefined, 'clone-text-head');
+    const use = node('input'); use.type = 'checkbox'; use.checked = t._use;
+    const area = node('textarea'); area.value = t.text; area.rows = Math.min(5, t.text.split('\n').length + 1); area.disabled = !t._use;
+    use.addEventListener('change', () => { t._use = use.checked; area.disabled = !use.checked; });
+    head.append(use, node('span', `Teks “${t.slot}” · ${(t.start ?? 0).toFixed(1)}–${(t.end ?? r.maxDuration).toFixed(1)} dtk${t.background && t.background !== 'none' ? ' · kartu' : ''}`));
+    area.addEventListener('input', () => { t.text = area.value; });
+    label.append(head, area); words.append(label);
+  });
+  const hints = node('ul', undefined, 'clone-hints'); (cloned.hints || []).forEach((h) => hints.append(node('li', h)));
+  const get = node('button', 'Unduh template ↗', 'primary full');
+  get.addEventListener('click', async () => {
+    try {
+      const bundle = await templateBundle(cloned, encode, MAX_AUDIO_BYTES);
+      download(`${r.name}.wecut.json`, JSON.stringify(bundle));
+      dialog('Template siap', ['Kirim berkas .wecut.json ke agent bersama footage barumu: satu klip per slot, kata-kata untuk tiap teks, dan transkrip untuk teks otomatis.', 'Agent: wecut recipe unpack berkas.wecut.json --write templates/nama, lalu wecut recipe apply. Perlu WeCut 0.3.0.']);
+    } catch (e) { dialog('Template belum bisa diunduh', [e.message]); }
+  });
+  box.replaceChildren(head, info, get, node('h3', 'Slot media'), slots, ...(r.texts?.length ? [node('h3', 'Teks (centang yang dipakai, ubah katanya)'), words] : []), node('h3', 'Catatan'), hints);
+}
 for (const [key, label] of [['none','Original'],['warm','Hangat'],['cool','Dingin'],['rose','Mawar'],['pale','Pudar'],['dark','Gelap']]) {
   const b = node('button', undefined, 'filter-preset'); b.append(node('span', '◐'), node('small', label));
   b.addEventListener('click', () => { state.filter = key; tab = 'clip'; render(); }); $('filterPresets').append(b);

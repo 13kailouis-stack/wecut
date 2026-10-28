@@ -4,11 +4,11 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="description" content="Buat template video di browser, bawa musiknya, lalu kirim ke AI agent untuk dirender di perangkat agent.">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; connect-src 'none'; img-src 'self' blob: data:; media-src 'self' blob:; style-src 'self' 'unsafe-inline'; script-src 'self'; font-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; connect-src 'self'; img-src 'self' blob: data:; media-src 'self' blob:; style-src 'self' 'unsafe-inline'; script-src 'self' 'wasm-unsafe-eval'; font-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'">
   <title>WeCut Studio — template untuk agent</title>
   <link rel="stylesheet" href="styles.css">
-  <link rel="stylesheet" href="desktop.css?v=desktop-3">
-  <script type="module" src="app.mjs?v=desktop-3"></script>
+  <link rel="stylesheet" href="desktop.css?v=clone-4">
+  <script type="module" src="app.mjs?v=clone-5"></script>
 </head>
 <body>
   <header class="topbar">
@@ -18,12 +18,12 @@
   </header>
   <main class="workspace">
     <aside class="library panel">
-      <nav class="asset-tabs" aria-label="Bahan"><button data-asset="media" class="active"><span>▣</span>Media</button><button data-asset="audio"><span>♫</span>Audio</button><button data-asset="text"><span>T</span>Teks</button><button data-asset="filter"><span>◐</span>Filter</button></nav><div class="asset-body"><div id="assetMedia"><div class="panel-heading"><h2>Media lokal</h2><span id="clipCount" class="count">0</span></div>
+      <nav class="asset-tabs" aria-label="Bahan"><button data-asset="media" class="active"><span>▣</span>Media</button><button data-asset="audio"><span>♫</span>Audio</button><button data-asset="text"><span>T</span>Teks</button><button data-asset="filter"><span>◐</span>Filter</button><button data-asset="clone"><span>⧉</span>Klon</button></nav><div class="asset-body"><div id="assetMedia"><div class="panel-heading"><h2>Media lokal</h2><span id="clipCount" class="count">0</span></div>
       <button id="addMedia" class="secondary full">＋ Impor media</button>
       <input id="mediaFiles" type="file" accept="video/*,image/jpeg,image/png,image/webp" multiple hidden>
       <p class="hint">Berkas tetap di perangkatmu.</p>
       <div id="mediaList" class="media-list"><div class="empty-library">Belum ada media.<br>Mulai dari video atau foto milikmu.</div></div>
-      </div><div id="assetAudio" hidden><h2>Audio lokal</h2><p class="hint">Musik bawaan ikut dalam template.</p><button id="importAudio" class="secondary full">＋ Impor audio</button></div><div id="assetText" hidden><h2>Teks</h2><button id="addText" class="text-preset"><strong>Aa</strong><span>Tambahkan teks default</span></button><p class="hint">Ubah font, warna, dan posisi di panel kanan.</p></div><div id="assetFilter" hidden><h2>Filter</h2><div id="filterPresets" class="filter-presets"></div></div></div>
+      </div><div id="assetAudio" hidden><h2>Audio lokal</h2><p class="hint">Musik bawaan ikut dalam template.</p><button id="importAudio" class="secondary full">＋ Impor audio</button></div><div id="assetText" hidden><h2>Teks</h2><button id="addText" class="text-preset"><strong>Aa</strong><span>Tambahkan teks default</span></button><p class="hint">Ubah font, warna, dan posisi di panel kanan.</p></div><div id="assetFilter" hidden><h2>Filter</h2><div id="filterPresets" class="filter-presets"></div></div><div id="assetClone" hidden><h2>Template dari video</h2><p class="hint">Pilih video yang sudah jadi. Potongan, transisi, bingkai, kartu teks, teks otomatis, dan logonya dibaca di perangkat ini, lalu jadi template dengan slot media.</p><button id="cloneVideo" class="secondary full">＋ Pilih video jadi</button><input id="cloneFile" type="file" accept="video/*" hidden><p id="cloneProgress" class="hint" hidden></p><div id="cloneResult"></div></div></div>
     </aside>
     <section class="editor">
       <div class="preview-toolbar"><h1>Player</h1><label class="ratio-label">Kanvas <select id="ratio"><option>9:16</option><option>16:9</option><option>1:1</option><option>4:5</option></select></label></div>

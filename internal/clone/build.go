@@ -311,6 +311,11 @@ func (a *Analyzer) Build(o Options) *Result {
 			if l.BoxArea != nil {
 				sl.MaxWidth = r2(clampf(l.BoxArea.W+0.02, 0.2, 1))
 			}
+			if n == 1 {
+				// A one-line label stays one line: room for longer words or a
+				// wider font than the original's.
+				sl.MaxWidth = r2(clampf(math.Max(sl.MaxWidth*1.8, 0.6), 0.2, 0.96))
+			}
 		} else if words != "" {
 			sl.MaxWidth = r2(clampf(bl.Box.W+0.14, 0.2, 0.96))
 		} else {

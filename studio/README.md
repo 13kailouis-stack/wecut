@@ -12,6 +12,12 @@ Shortcuts outside text fields: **Space** play/pause, **← / →** one frame, **
 
 The layout is informed by the [official CapCut desktop workspace reference](https://www.capcut.com/resource/capcut-for-laptop). WeCut retains its own branding and supported controls; this is not complete CapCut feature parity.
 
+## Template from a finished video (Klon)
+
+The **Klon** tab turns a finished video into a template on the user's device: the same detectors as `wecut clone` run as WebAssembly (`engine/clone.wasm`), fed by frames the page decodes with its own video element. It lists the media slots with a thumbnail, length, framing and transition, the text slots (the headline card and its label start ticked; tick others and type their words, since the browser has no OCR), captions, the logo slot and notes, then downloads a `.wecut.json` package with the original's sound included only when it is music. A 30 s video takes about a minute. Rebuild the engine after changing `internal/clone` with `go run ./tools/wasm`; `node --test studio/clone.test.mjs` runs it under Node.
+
+The page fetches only its own files (`connect-src 'self'`) and needs `'wasm-unsafe-eval'` to start WebAssembly; nothing is uploaded.
+
 ## Run locally
 
 From the repository root:

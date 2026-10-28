@@ -620,14 +620,21 @@ func (a *Analyzer) textResults(p *Plan) {
 		}
 	}
 	var kept []*Block
+	home := map[*Block]Box{} // each logo's own box, so merging never chains
 	for _, bl := range blocks {
 		merged := false
 		for _, k := range kept {
 			if k.Kind != "logo" {
 				continue
 			}
-			near := k.Box.grow(k.Box.H, k.Box.H*0.8)
-			if near.iou(bl.Box) > 0 && math.Min(k.End, bl.End)-math.Max(k.Start, bl.Start) > 0.5*(bl.End-bl.Start) {
+			hb, ok := home[k]
+			if !ok {
+				hb = k.Box
+				home[k] = hb
+			}
+			near := hb.grow(hb.H, hb.H*0.8)
+			small := bl.Box.H <= hb.H*1.5 && bl.Box.W <= hb.W*2 && len(bl.Lines) <= 2
+			if small && near.iou(bl.Box) > 0 && bl.End-bl.Start >= 0.5*(k.End-k.Start) && math.Min(k.End, bl.End)-math.Max(k.Start, bl.Start) > 0.5*(bl.End-bl.Start) {
 				k.Box = k.Box.union(bl.Box)
 				k.Lines = append(k.Lines, bl.Lines...)
 				k.Start, k.End = math.Min(k.Start, bl.Start), math.Max(k.End, bl.End)

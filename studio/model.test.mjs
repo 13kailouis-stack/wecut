@@ -50,9 +50,12 @@ test('locate uses source trim durations and image durations', () => {
   assert.equal(toRecipe(s).sections[1].shot, 5);
 });
 
-test('page forbids upload connections and ships fonts locally', () => {
+test('page connects to nothing but its own files and ships fonts locally', () => {
   const html = fs.readFileSync(new URL('./index.html', import.meta.url), 'utf8');
-  assert.ok(html.includes("connect-src 'none'"));
+  // 'self' only, to load the clone engine (engine/clone.wasm); no other host.
+  const connect = /connect-src ([^;]+);/.exec(html)[1].trim();
+  assert.equal(connect, "'self'");
+  assert.ok(!/https?:/.test(/Content-Security-Policy" content="([^"]+)"/.exec(html)[1]));
   const css = fs.readFileSync(new URL('./styles.css', import.meta.url), 'utf8');
   assert.ok(!/url\(https?:/.test(css));
   for (const f of ['roboto-700.ttf', 'poppins-700.ttf', 'montserrat-700.ttf']) assert.ok(fs.existsSync(new URL(`./fonts/${f}`, import.meta.url)));

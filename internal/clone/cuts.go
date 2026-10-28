@@ -207,11 +207,15 @@ func (a *Analyzer) detectEvents() []Event {
 		}
 		i := int(math.Round(e.At * fps))
 		lo, hi := max(0, i-int(0.5*fps)), min(n-1, i+int(0.5*fps))
-		var around []float64
-		for j := lo; j <= hi; j++ {
-			around = append(around, st[j].sharp)
+		// Blurrier than both shots usually are, not just than one of them.
+		side := func(a, b int) float64 {
+			var v []float64
+			for j := max(0, a); j <= min(n-1, b); j++ {
+				v = append(v, st[j].sharp)
+			}
+			return median(v)
 		}
-		ref := median(around)
+		ref := math.Min(side(i-int(1.0*fps), lo-1), side(hi+1, i+int(1.0*fps)))
 		s, f := i, i
 		for s > lo && st[s-1].sharp < 0.6*ref {
 			s--

@@ -40,6 +40,11 @@ jobs:
       - run: node --check npm/wecut/bin/wecut.js
       - run: node --check studio/app.mjs
       - run: node --check studio/timeline.mjs
+      - run: node --check studio/clone.mjs
+      - name: Browser clone engine (WebAssembly) builds and runs
+        run: |
+          go run ./tools/wasm
+          node --test studio/clone.test.mjs
       - run: node --test studio/model.test.mjs studio/editing.test.mjs
       - name: Studio template interoperability
         shell: bash
