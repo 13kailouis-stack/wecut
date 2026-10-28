@@ -48,6 +48,36 @@ Taruh video di folder kerja, tulis proyek, lalu `validate`, `preview`, `render`.
 4. Di npmjs.com, atur trusted publisher ke `.github/workflows/release.yml` untuk ketujuh paket. Sesudah itu rilis berikutnya cukup push tag `v0.1.1`, tanpa token npm.
 5. Sebelum rilis otomatis pertama, kunci action di workflow ke commit SHA.
 
+## Rilis 0.3.0 (kloning video jadi template), disiapkan 28 Okt 2026
+
+Paket sudah dibangun di `dist/` (jangan dihapus sebelum publish selesai): tujuh tarball npm di `dist/npm/tarballs/`, arsip GitHub di `dist/release/` + `SHA256SUMS`. Diuji: tarball win32-x64 + peluncur dipasang di folder kosong, `npx wecut version` = 0.3.0, `wecut clone` jalan, MCP berisi 16 alat termasuk `wecut_clone`, `npm publish --dry-run` diterima. CI commit `b118c26` hijau di Linux, macOS, Windows. Di npm baru ada 0.1.0 (0.2.0 tidak pernah terbit), jadi 0.3.0 langsung menggantikannya.
+
+Jalankan dari folder repo di terminal sendiri (butuh konfirmasi 2FA npm di browser):
+
+```
+npm login
+npm publish dist/npm/tarballs/wefluence-wecut-linux-x64-0.3.0.tgz --access public
+npm publish dist/npm/tarballs/wefluence-wecut-linux-arm64-0.3.0.tgz --access public
+npm publish dist/npm/tarballs/wefluence-wecut-darwin-x64-0.3.0.tgz --access public
+npm publish dist/npm/tarballs/wefluence-wecut-darwin-arm64-0.3.0.tgz --access public
+npm publish dist/npm/tarballs/wefluence-wecut-win32-x64-0.3.0.tgz --access public
+npm publish dist/npm/tarballs/wefluence-wecut-win32-arm64-0.3.0.tgz --access public
+npm publish dist/npm/tarballs/wecut-0.3.0.tgz --access public
+```
+
+Paket platform dulu, peluncur `wecut` terakhir. npm memakai "staged publishing": beberapa menit pertama `npm view wecut` bisa masih 0.1.0 atau 404, itu normal. Cek: `npx -y wecut@0.3.0 version`.
+
+Lalu MCP Registry (`server.json` sudah 0.3.0; harus setelah npm terbit karena registry memeriksa paket npm-nya):
+
+```
+mcp-publisher login github
+mcp-publisher publish
+```
+
+Cek: `https://registry.modelcontextprotocol.io/v0.1/servers/io.github.13kailouis-stack%2Fwecut/versions/latest`.
+
+Jangan push tag `v0.3.0` setelah publish manual: tag itu menjalankan `release.yml`, yang akan mencoba menerbitkan versi yang sama lagi dan gagal. Push tag hanya dipakai kalau trusted publishing sudah diatur di npm untuk ketujuh paket dan langkah manual di atas TIDAK dijalankan.
+
 ## Supaya agent menemukan dan memakai WeCut
 
 File di repo (dibaca agent, registry dan mesin pencari AI):

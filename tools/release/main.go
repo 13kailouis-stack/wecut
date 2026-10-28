@@ -46,7 +46,7 @@ var targets = []target{
 const (
 	repo        = "https://github.com/13kailouis-stack/wecut"
 	mcpName     = "io.github.13kailouis-stack/wecut"
-	description = "Free video editing engine for AI agents: cut, caption and render short-form video locally with FFmpeg, and reuse a viral video's format as a template. CLI and MCP server."
+	description = "Free video editing engine for AI agents: cut, caption and render short-form video locally with FFmpeg, and clone a finished video into a CapCut-style template. CLI and MCP server."
 )
 
 func main() {
@@ -127,7 +127,7 @@ func main() {
 		"version":     *version,
 		"description": description,
 		"keywords": []string{"mcp", "mcp-server", "model-context-protocol", "ai-agent", "ai-agents", "agent-skills", "claude", "claude-code", "cursor", "llm",
-			"video", "video-editing", "video-editor", "ffmpeg", "captions", "subtitles", "karaoke", "short-form-video", "shorts", "youtube-shorts", "reels", "tiktok", "clipping", "viral-video", "templates"},
+			"video", "video-editing", "video-editor", "ffmpeg", "captions", "subtitles", "karaoke", "short-form-video", "shorts", "youtube-shorts", "reels", "tiktok", "clipping", "viral-video", "templates", "capcut-template", "video-template"},
 		"license":              "Apache-2.0",
 		"homepage":             repo,
 		"repository":           map[string]string{"type": "git", "url": "git+" + repo + ".git"},

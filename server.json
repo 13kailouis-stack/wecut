@@ -2,7 +2,7 @@
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
   "name": "io.github.13kailouis-stack/wecut",
   "title": "WeCut",
-  "description": "Local video editing for AI agents: cut, caption, analyse, reuse viral formats. FFmpeg, no cloud.",
+  "description": "Local video editing for AI agents: cut, caption, clone a video into a template. FFmpeg, no cloud.",
   "repository": { "url": "https://github.com/13kailouis-stack/wecut", "source": "github" },
   "version": "0.3.0",
   "packages": [
