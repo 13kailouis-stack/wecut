@@ -85,6 +85,9 @@ func TestRecipeSchemaMatchesTypes(t *testing.T) {
 	check("captions", both(keys("properties", "captions", "properties"), look), CaptionStyle{})
 	check("music", keys("properties", "music", "properties"), Music{})
 	check("effect", keys("properties", "effects", "items", "properties"), EffectRule{})
+	check("shot", keys("$defs", "shot", "properties"), Shot{})
+	check("overlay", keys("properties", "overlays", "items", "properties"), OverlaySlot{})
+	check("source", keys("properties", "source", "properties"), Source{})
 }
 
 func TestValidateCatchesMistakes(t *testing.T) {

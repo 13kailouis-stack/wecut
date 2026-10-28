@@ -63,6 +63,8 @@ func Run(ctx context.Context, args []string, stdin io.Reader, stdout, stderr io.
 		return a.probe(rest)
 	case "analyze":
 		return a.analyze(rest)
+	case "clone":
+		return a.clone(rest)
 	case "recipe":
 		return a.recipe(rest)
 	case "validate":
@@ -88,7 +90,7 @@ func Run(ctx context.Context, args []string, stdin io.Reader, stdout, stderr io.
 	case "example":
 		return a.example(rest)
 	}
-	return a.fail(exitInput, nil, spec.Issue{Code: "E_USAGE", Message: fmt.Sprintf("unknown command %q", cmd), Hint: "Commands: guide, doctor, probe, analyze, recipe, validate, preview, render, schema, list, example, mcp, version. Run `wecut help`."})
+	return a.fail(exitInput, nil, spec.Issue{Code: "E_USAGE", Message: fmt.Sprintf("unknown command %q", cmd), Hint: "Commands: guide, doctor, probe, analyze, clone, recipe, validate, preview, render, schema, list, example, mcp, version. Run `wecut help`."})
 }
 
 const usage = `wecut: video editing engine for AI agents. Renders on this machine with FFmpeg.
@@ -98,6 +100,8 @@ Usage:
   wecut doctor                      check FFmpeg, encoders and filters
   wecut probe <file>...             duration, size, fps and audio of media files
   wecut analyze <video>             cuts, pace, hook, beat, pauses + a frame sheet (--transcript words.json)
+  wecut clone <video>               turn a finished video into a template with its exact cuts, transitions,
+                                    framing, text cards, captions and logo (--name, --read words.json)
   wecut recipe list|show|apply|from-project   templates: the shape of an edit, applied to new clips
   wecut recipe pack <recipe> --write template.wecut.json   include default music for another device
   wecut recipe unpack <bundle> --write templates/name      import into a new directory

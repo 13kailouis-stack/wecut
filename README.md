@@ -147,6 +147,14 @@ Prebuilt for Linux, macOS and Windows on x64 and arm64. Set `WECUT_BINARY` to us
 - Templates ("recipes"): the shape of an edit, applied to new clips, words and music; save your own from any project
 - MP4 (H.264 + AAC, faststart) or GIF output
 
+## Clone a video into a template
+
+```sh
+wecut clone media/viral.mp4 --name news-card   # -> recipes/news-card.json + out/clone/news-card/compare.jpg
+```
+
+`clone` turns a finished video into a template the way an editor would have built it: every cut and transition (flash, fade, dissolve, zoom, blur) at its exact time, each shot's framing (full screen, or shown whole on black or blurred bars) and push-in, the text cards with their colours, box, size, line spacing, padding and timing, the caption style and position, the logo, and a talk that already plays under the opening B-roll. Each shot is a media slot, like a CapCut template. Words are read with Tesseract when it is installed, or by the agent from the text crops. The comparison sheet puts the original beside the template filled with numbered stand-ins, so a person or a model can check it at a glance. People fill the slots in WeCut Studio; agents with `wecut recipe apply`. Details and the format: [docs/clone.md](docs/clone.md). Cloning needs the **0.3.0 source/build**; the published npm 0.1.0 does not have it yet.
+
 ## Analyse a video, reuse its format
 
 ```sh

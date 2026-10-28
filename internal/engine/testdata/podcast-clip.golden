@@ -70,9 +70,9 @@ mp4
 /w/out/tmp
 
 # graph
-[0:v]setpts=PTS-STARTPTS,scale=1080:1920:force_original_aspect_ratio=increase:flags=bicubic,crop=1080:1920:(iw-1080)*0.42:(ih-1920)*0.5,fps=30,format=yuv420p,setsar=1,tpad=stop_mode=clone:stop_duration=1,trim=duration=26.8,setpts=PTS-STARTPTS[v0];
+[0:v]setpts=PTS-STARTPTS,scale=1080:1920:force_original_aspect_ratio=increase:flags=bicubic,crop=1080:1920:(iw-1080)*0.42:(ih-1920)*0.5,fps=30,format=yuv420p,setsar=1,tpad=stop_mode=clone:stop_duration=1,trim=duration=26.8,setpts=PTS-STARTPTS,settb=AVTB[v0];
 [0:a]asetpts=PTS-STARTPTS,aresample=48000,aformat=sample_fmts=fltp:channel_layouts=stereo,apad=whole_dur=26.8,atrim=duration=26.8[a0];
-[1:v]setpts=PTS-STARTPTS,scale=1242:2208:force_original_aspect_ratio=increase:flags=bicubic,crop=1080:1920:(iw-1080)*0.42:(ih-1920)*0.5,fps=30,format=yuv420p,setsar=1,tpad=stop_mode=clone:stop_duration=1,trim=duration=16.5,setpts=PTS-STARTPTS[v1];
+[1:v]setpts=PTS-STARTPTS,scale=1242:2208:force_original_aspect_ratio=increase:flags=bicubic,crop=1080:1920:(iw-1080)*0.42:(ih-1920)*0.5,fps=30,format=yuv420p,setsar=1,tpad=stop_mode=clone:stop_duration=1,trim=duration=16.5,setpts=PTS-STARTPTS,settb=AVTB[v1];
 [1:a]asetpts=PTS-STARTPTS,aresample=48000,aformat=sample_fmts=fltp:channel_layouts=stereo,apad=whole_dur=16.5,atrim=duration=16.5[a1];
 [v0][a0][v1][a1]concat=n=2:v=1:a=1[vj1][aj2];
 [vj1]lutyuv=y='val*0.22+183.3':u='val*0.22+99.84':v='val*0.22+99.84':enable='between(t,26.6,26.9)'[vf3];

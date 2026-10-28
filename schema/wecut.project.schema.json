@@ -60,6 +60,7 @@
           "properties": { "x": { "$ref": "#/$defs/fraction" }, "y": { "$ref": "#/$defs/fraction" } }
         },
         "zoom": { "type": "number", "minimum": 1, "maximum": 5, "default": 1, "description": "Cover only: punch in. Combine with focus." },
+        "zoomTo": { "type": "number", "minimum": 1, "maximum": 5, "description": "Cover only, video or photo: the zoom glides from zoom (default 1) to this over the clip, a slow push in (or out when smaller). Not with motion." },
         "rotate": { "enum": [0, 90, 180, 270, -90], "description": "Clockwise degrees." },
         "flip": { "type": "boolean", "description": "Mirror left-right." },
         "fadeIn": { "type": "number", "minimum": 0, "maximum": 10, "description": "Fade from black, seconds." },
@@ -92,7 +93,8 @@
         "letterSpacing": { "type": "number", "minimum": -10, "maximum": 50 },
         "uppercase": { "type": "boolean" },
         "italic": { "type": "boolean" },
-        "align": { "enum": ["left", "center", "right"], "description": "With left, x is the left edge; with right, x is the right edge." }
+        "align": { "enum": ["left", "center", "right"], "description": "With left, x is the left edge; with right, x is the right edge." },
+        "box": { "enum": ["line", "card"], "default": "line", "description": "How background is drawn: a box behind each line, or one card behind the whole block (news headline cards)." }
       }
     },
 
@@ -106,6 +108,9 @@
         "x": { "$ref": "#/$defs/fraction", "default": 0.5 },
         "y": { "$ref": "#/$defs/fraction", "default": 0.5 },
         "rotate": { "type": "number", "minimum": -360, "maximum": 360, "description": "Clockwise degrees." },
+        "maxWidth": { "type": "number", "minimum": 0.1, "maximum": 1, "default": 0.88, "description": "Widest a line may get, as a fraction of the canvas width, before it wraps." },
+        "lineHeight": { "type": "number", "minimum": 0.6, "maximum": 3, "description": "Lay the text out line by line this many times the size apart (1.2 is tight, like an editor's text box). A background then becomes one exact card sized to the text (box card) or one box per line." },
+        "padding": { "type": "array", "minItems": 1, "maxItems": 2, "items": { "type": "number", "minimum": 0, "maximum": 300 }, "description": "With lineHeight: space between the text and its card, in pixels at 1080; [all] or [x, y]. Default 0.32 x size." },
         "in": { "$ref": "#/$defs/animIn" },
         "out": { "$ref": "#/$defs/animOut" },
         "emphasis": { "type": "array", "maxItems": 10, "items": { "type": "string", "minLength": 1 }, "description": "Words or phrases to colour differently (case-insensitive), like the red words in a headline card. Not with the typing animation." },

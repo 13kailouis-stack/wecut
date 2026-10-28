@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://raw.githubusercontent.com/13kailouis-stack/wecut/main/schema/wecut.recipe.schema.json",
   "title": "WeCut recipe (format 1)",
-  "description": "The shape of an edit without its content: sections fed by roles, text slots, caption and music style, effects. `wecut recipe apply` turns a recipe plus new clips, words and music into a project. Section text times are seconds from the start of the section; recipe-level text times are seconds of the whole video.",
+  "description": "The shape of an edit without its content: sections fed by roles, text slots, caption and music style, effects, picture slots such as a logo. A section may list its shots one by one (exact cut lengths, like the slots of a CapCut template; `wecut clone` writes these) or describe them loosely so they stretch to any footage. `wecut recipe apply` turns a recipe plus new clips, words, pictures and music into a project. Section text times are seconds from the start of the section; recipe-level text times are seconds of the whole video.",
   "type": "object",
   "required": ["recipe", "sections"],
   "additionalProperties": false,
@@ -37,7 +37,12 @@
           "mute": { "type": "boolean", "description": "Silence the footage's own sound in this section, so only the music plays." },
           "join": { "$ref": "#/$defs/transition", "description": "Between shots inside the section. Absent = hard cut." },
           "transitionOut": { "$ref": "#/$defs/transition", "description": "Into the next section." },
-          "texts": { "type": "array", "items": { "$ref": "#/$defs/slot" } }
+          "texts": { "type": "array", "items": { "$ref": "#/$defs/slot" } },
+          "shots": {
+            "type": "array", "maxItems": 100, "items": { "$ref": "#/$defs/shot" },
+            "description": "Exact cuts, one media slot each. Replaces duration, shot, zoom and join. Clips fill them one per slot (fill=each) or one after another (fill=sequence)."
+          },
+          "audio": { "enum": ["own", "next"], "default": "own", "description": "next: this section's footage is silent and the next section's sound starts under it, carrying on into that footage (a J-cut: the talk begins over B-roll and a headline card)." }
         }
       }
     },
@@ -84,6 +89,37 @@
         }
       }
     },
+    "overlays": {
+      "type": "array", "maxItems": 50,
+      "description": "Picture slots laid over the video, such as a logo. The picture is passed at apply time as overlays.<slot>.",
+      "items": {
+        "type": "object", "required": ["slot"], "additionalProperties": false,
+        "properties": {
+          "slot": { "type": "string", "description": "Name the picture is passed under, e.g. logo." },
+          "about": { "type": "string" },
+          "src": { "type": "string", "description": "Default picture in the workspace, used when none is passed." },
+          "start": { "type": "number", "minimum": 0 },
+          "end": { "type": "number" },
+          "fromEnd": { "type": "number", "exclusiveMinimum": 0, "description": "Show only for the last this-many seconds." },
+          "x": { "type": "number", "minimum": 0, "maximum": 1, "description": "Centre of the picture." },
+          "y": { "type": "number", "minimum": 0, "maximum": 1 },
+          "width": { "type": "number", "minimum": 0.02, "maximum": 1, "description": "Fraction of the canvas width." },
+          "opacity": { "type": "number", "minimum": 0, "maximum": 100 },
+          "fadeIn": { "type": "number", "minimum": 0 },
+          "fadeOut": { "type": "number", "minimum": 0 }
+        }
+      }
+    },
+    "source": {
+      "type": "object", "additionalProperties": false,
+      "description": "Where a cloned recipe came from. Information only.",
+      "properties": {
+        "file": { "type": "string" },
+        "duration": { "type": "number" },
+        "used": { "type": "number", "description": "Seconds of the original that were cloned (a platform outro is left out)." },
+        "tool": { "type": "string" }
+      }
+    },
     "filters": {
       "type": "array",
       "items": {
@@ -117,7 +153,22 @@
         "letterSpacing": { "type": "number" },
         "uppercase": { "type": "boolean" },
         "italic": { "type": "boolean" },
-        "align": { "enum": ["left", "center", "right"] }
+        "align": { "enum": ["left", "center", "right"] },
+        "box": { "enum": ["line", "card"], "description": "card: one box behind the whole block, like a news headline card." }
+      }
+    },
+    "shot": {
+      "type": "object", "required": ["dur"], "additionalProperties": false,
+      "properties": {
+        "dur": { "type": "number", "minimum": 0.1, "maximum": 600, "description": "Seconds on screen, including the overlap of a join into the next shot." },
+        "about": { "type": "string", "description": "What footage fits the slot." },
+        "fit": { "enum": ["cover", "contain"] },
+        "zoom": { "type": "number", "minimum": 1, "maximum": 5 },
+        "zoomTo": { "type": "number", "minimum": 1, "maximum": 5, "description": "The zoom glides from zoom to this over the shot." },
+        "focus": { "type": "object", "properties": { "x": { "type": "number" }, "y": { "type": "number" } } },
+        "continue": { "type": "boolean", "description": "Carry on the clip of the shot before (its next seconds) instead of taking the next clip, like a punch-in on one take." },
+        "join": { "$ref": "#/$defs/transition", "description": "Into the next shot of this section." },
+        "ref": { "type": "number", "description": "Where this shot sits in the source video, in seconds (clone)." }
       }
     },
     "slot": {
@@ -133,8 +184,12 @@
         "x": { "type": "number", "minimum": 0, "maximum": 1 },
         "y": { "type": "number", "minimum": 0, "maximum": 1 },
         "rotate": { "type": "number" },
+        "maxWidth": { "type": "number", "minimum": 0.1, "maximum": 1, "description": "Wrap lines at this fraction of the canvas width." },
+        "lineHeight": { "type": "number", "minimum": 0.6, "maximum": 3, "description": "Exact line spacing (times the size); the background becomes a card sized to the text." },
+        "padding": { "type": "array", "minItems": 1, "maxItems": 2, "items": { "type": "number" }, "description": "Card padding in px at 1080: [all] or [x, y]." },
         "in": { "type": "object" },
         "out": { "type": "object" },
+        "emphasis": { "type": "array", "items": { "type": "string" }, "description": "Words of the default text to colour, used only with the default text." },
         "emphasisColor": { "type": "string", "description": "Colour for the words passed as emphasis." }
       }
     }

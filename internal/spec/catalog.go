@@ -202,6 +202,7 @@ var (
 	AnimIn      = []string{"fade", "pop", "up", "type"}
 	AnimOut     = []string{"fade", "down", "shrink"}
 	Aligns      = []string{"left", "center", "right"}
+	Boxes       = []string{"line", "card"}
 )
 
 // Limits keep a render from eating the host machine.

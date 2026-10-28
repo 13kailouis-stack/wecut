@@ -135,6 +135,20 @@ var tools = []object{
 		"annotations": annotations(false),
 	},
 	{
+		"name": "wecut_clone", "title": "Turn a video into a template",
+		"description": "Clone a finished video into a reusable template (a recipe with exact shots, like a CapCut template): every cut and transition (flash, fade, dissolve, zoom, blur), each shot's framing (full screen, or shown whole on black or blurred bars) and zoom, the text cards with their colours, box, font size, line spacing and timing, the caption style and position, the logo slot, and the original's sound. Saves recipes/<name>.json (and recipes/<name>/music.m4a when the sound is music), and returns the media slots, the comparison sheet (original left, template right) and the text crops as images. Words are read with Tesseract when installed; otherwise read the crops yourself and run again with read. Copies structure only: the footage and words of the original never go into the template.",
+		"inputSchema": object{
+			"type": "object", "additionalProperties": false, "required": []string{"file"},
+			"properties": object{
+				"file":  object{"type": "string", "description": "The finished video, in the workspace."},
+				"name":  object{"type": "string", "description": "Template name (default: the file name)."},
+				"read":  object{"type": "object", "description": "Words you read from the crops, by crop id: {\"text1\": [\"first line\", \"second line\"], \"caption1\": [\"WORD\"]}. Line breaks are kept.", "additionalProperties": object{"type": "array", "items": object{"type": "string"}}},
+				"force": object{"type": "boolean", "description": "Replace a recipe of the same name."},
+			},
+		},
+		"annotations": annotations(false),
+	},
+	{
 		"name": "wecut_recipe_list", "title": "List recipes",
 		"description": "Recipes are templates: the shape of an edit without its content (sections such as hook and body, text slots, caption and music style). Lists the built-in ones and the workspace's own (recipes/*.json).",
 		"inputSchema": noArgs, "annotations": annotations(true),
@@ -172,6 +186,8 @@ var tools = []object{
 				"transcript": object{"type": "string", "description": "Word timings of captionSrc (or of the source used longest)."},
 				"captionSrc": object{"type": "string"},
 				"music":      object{"type": "string", "description": "Audio file, a video whose sound is used, or \"none\"."},
+				"overlays":   object{"type": "object", "description": "A picture per overlay slot, e.g. {\"logo\": \"media/logo.png\"}; \"none\" leaves it out.", "additionalProperties": object{"type": "string"}},
+				"fill":       object{"type": "string", "enum": []string{"auto", "each", "sequence"}, "description": "Exact-shot templates (from wecut_clone): each = one clip per slot, sequence = clips play on through the slots, auto (default) = each when there are enough clips."},
 				"output":     object{"type": "string", "description": "Render target (.mp4 or .gif)."},
 				"write":      object{"type": "string", "description": "Save the project here (.json)."},
 			},
@@ -202,6 +218,8 @@ type toolArgs struct {
 	Transcript  string          `json:"transcript"`
 	Frames      int             `json:"frames"`
 	Write       string          `json:"write"`
+	Read        json.RawMessage `json:"read"`
+	Force       bool            `json:"force"`
 }
 
 func toolError(msg string) map[string]any {
@@ -304,6 +322,61 @@ func (s *Server) callTool(ctx context.Context, name string, raw json.RawMessage,
 				if data, err := os.ReadFile(filepath.Join(s.cfg.Root, filepath.FromSlash(sheet))); err == nil {
 					res["content"] = append(res["content"].([]object), object{"type": "image", "mimeType": "image/jpeg", "data": base64.StdEncoding.EncodeToString(data)})
 				}
+			}
+		}
+		return res, nil
+	case "wecut_clone":
+		if a.File == "" {
+			return toolError("file is required"), nil
+		}
+		args := []string{"clone", a.File}
+		if a.Name != "" {
+			args = append(args, "--name", a.Name)
+		}
+		if a.Force {
+			args = append(args, "--force")
+		}
+		if len(a.Read) > 0 && string(a.Read) != "null" {
+			// The words go in through a file the CLI reads like any input.
+			f, err := os.CreateTemp(s.cfg.Root, ".wecut-read-*.json")
+			if err != nil {
+				return toolError(err.Error()), nil
+			}
+			f.Write(a.Read)
+			f.Close()
+			defer os.Remove(f.Name())
+			args = append(args, "--read", filepath.Base(f.Name()))
+		}
+		s.heavyMu.Lock()
+		out, code := s.runCLI(ctx, nil, nil, args...)
+		s.heavyMu.Unlock()
+		res := textResult(out, code)
+		if sc, ok := res["structuredContent"].(map[string]any); ok && code == 0 {
+			var files []string
+			for _, k := range []string{"compare", "sheet"} {
+				if f, ok := sc[k].(string); ok {
+					files = append(files, f)
+				}
+			}
+			if texts, ok := sc["texts"].([]any); ok {
+				for _, t := range texts {
+					if m, ok := t.(map[string]any); ok {
+						if f, ok := m["crop"].(string); ok && len(files) < 8 {
+							files = append(files, f)
+						}
+					}
+				}
+			}
+			for _, f := range files {
+				data, err := os.ReadFile(filepath.Join(s.cfg.Root, filepath.FromSlash(f)))
+				if err != nil {
+					continue
+				}
+				mime := "image/jpeg"
+				if strings.HasSuffix(f, ".png") {
+					mime = "image/png"
+				}
+				res["content"] = append(res["content"].([]object), object{"type": "image", "mimeType": mime, "data": base64.StdEncoding.EncodeToString(data)})
 			}
 		}
 		return res, nil

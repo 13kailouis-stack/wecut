@@ -7,7 +7,7 @@ description: Cut, caption and edit videos locally with the `wecut` CLI (FFmpeg o
 
 `wecut` renders a JSON project into an MP4 (or GIF) with the FFmpeg installed on this machine. You describe the edit; WeCut does the video work. It never calls a network service.
 
-If `wecut` is not on PATH, use `npx -y wecut` (Node 16+) in its place everywhere below. If WeCut is connected as an MCP server, the same steps are the tools `wecut_doctor`, `wecut_probe`, `wecut_validate`, `wecut_preview` (returns the frames as images), `wecut_render`, `wecut_list`, `wecut_schema`, `wecut_example`, `wecut_analyze` (returns the frame sheet as an image), `wecut_recipe_list`, `wecut_recipe_show`, `wecut_recipe_apply` and `wecut_recipe_from_project`; pass a project as `project` (object) or `projectFile` (path).
+If `wecut` is not on PATH, use `npx -y wecut` (Node 16+) in its place everywhere below. If WeCut is connected as an MCP server, the same steps are the tools `wecut_doctor`, `wecut_probe`, `wecut_validate`, `wecut_preview` (returns the frames as images), `wecut_render`, `wecut_list`, `wecut_schema`, `wecut_example`, `wecut_analyze` (returns the frame sheet as an image), `wecut_clone` (video to template; returns the comparison sheet and text crops as images), `wecut_recipe_list`, `wecut_recipe_show`, `wecut_recipe_apply` and `wecut_recipe_from_project`; pass a project as `project` (object) or `projectFile` (path).
 
 ## Workflow
 
@@ -62,6 +62,7 @@ If you need a transcript: `wecut doctor` reports `local_transcription: true` whe
 
 A **recipe** is the shape of an edit without its content: sections (for example a 5 s hook with a headline card, then the talk), text slots, caption and music style, effects. Applying it to new clips, words and music gives a project.
 
+0. **Clone a video that worked (fastest):** `wecut clone media/viral.mp4 --name my-style` writes `recipes/my-style.json` with the original's exact shots as media slots, its transitions, framing and zoom, the text cards (size, colour, card, line spacing, timing), the caption style and the logo slot, plus `compare` (original left, template right, one image) and the text crops. Look at `compare`: if a card's words are placeholders or misread, read the crops and run again with `--force --read words.json` (`{"text1": ["line one", "line two"]}`). Then apply it like any recipe: one clip per slot (`"fill": "each"`) or one long take for all slots (`"fill": "sequence"`), `texts` per slot, `transcript` for captions, `overlays: {"logo": "media/logo.png"}`. A hook with `audio: "next"` wants B-roll clips with role `hook` and the talk with role `body`.
 1. **Analyse a video that worked:** `wecut analyze media/viral.mp4` returns shots and pace, cuts in the first 3 s, flashes, tempo, pauses, a silent platform outro (leave it out), and `sheet`: one frame per shot in a single image. Look at the sheet for the headline card, text style, framing and caption style.
 2. **Pick or write a recipe:** `wecut recipe list` (built-in: news-headline, news-headline-blur, quote-hook, vlog-phrases, podcast-punch, photo-slideshow, plus the workspace's `recipes/*.json`). `wecut recipe show <name>` lists its roles and text slots. To write one, follow `wecut recipe schema`.
 3. **Apply it:**

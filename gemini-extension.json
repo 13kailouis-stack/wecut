@@ -1,6 +1,6 @@
 {
   "name": "wecut",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Edit, caption and render video locally with FFmpeg; analyse viral videos and reuse their format as templates.",
   "mcpServers": {
     "wecut": { "command": "npx", "args": ["-y", "wecut", "mcp"] }

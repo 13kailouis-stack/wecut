@@ -44,9 +44,10 @@ type Clip struct {
 	Speed      float64     `json:"speed,omitempty"`    // 0.25..4 (default 1)
 	Volume     *float64    `json:"volume,omitempty"`   // percent, 0..200 (default 100)
 	Mute       bool        `json:"mute,omitempty"`
-	Fit        string      `json:"fit,omitempty"`   // overrides output.fit
-	Focus      *Point      `json:"focus,omitempty"` // cover crop centre (default 0.5, 0.5)
-	Zoom       float64     `json:"zoom,omitempty"`  // >= 1, cover only (default 1)
+	Fit        string      `json:"fit,omitempty"`    // overrides output.fit
+	Focus      *Point      `json:"focus,omitempty"`  // cover crop centre (default 0.5, 0.5)
+	Zoom       float64     `json:"zoom,omitempty"`   // >= 1, cover only (default 1)
+	ZoomTo     float64     `json:"zoomTo,omitempty"` // >= 1, cover only: zoom glides from zoom to this over the clip
 	Rotate     int         `json:"rotate,omitempty"`
 	Flip       bool        `json:"flip,omitempty"`
 	FadeIn     float64     `json:"fadeIn,omitempty"`
@@ -83,6 +84,9 @@ type Look struct {
 	Uppercase         *bool    `json:"uppercase,omitempty"`
 	Italic            *bool    `json:"italic,omitempty"`
 	Align             string   `json:"align,omitempty"` // left, center, right
+	// Box is how a background is drawn: "line" (default) puts a box behind
+	// each line, "card" one box behind the whole block, like a news card.
+	Box string `json:"box,omitempty"`
 }
 
 type Text struct {
@@ -92,8 +96,18 @@ type Text struct {
 	X      *float64 `json:"x,omitempty"`
 	Y      *float64 `json:"y,omitempty"`
 	Rotate float64  `json:"rotate,omitempty"`
-	In     *Anim    `json:"in,omitempty"`
-	Out    *Anim    `json:"out,omitempty"`
+	// MaxWidth is the widest a line may get, as a fraction of the canvas
+	// width, before it wraps (default 0.88).
+	MaxWidth float64 `json:"maxWidth,omitempty"`
+	// LineHeight lays the text out line by line, this many times the font
+	// size apart (e.g. 1.2), instead of the font's own spacing. A
+	// background then becomes one exact card (or one box per line).
+	LineHeight float64 `json:"lineHeight,omitempty"`
+	// Padding around the text inside its card, in pixels at 1080: one
+	// value for all sides, or [x, y]. Used with lineHeight.
+	Padding []float64 `json:"padding,omitempty"`
+	In      *Anim     `json:"in,omitempty"`
+	Out     *Anim     `json:"out,omitempty"`
 	// Emphasis colours these words or phrases (case-insensitive) in
 	// EmphasisColor, like the red words in a headline card.
 	Emphasis      []string `json:"emphasis,omitempty"`

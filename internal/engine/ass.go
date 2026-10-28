@@ -26,6 +26,8 @@ type look struct {
 	Upper     bool
 	Italic    bool
 	Align     string
+	Card      bool // one box behind the whole block instead of one per line
+	Anchor    int  // \an position, 0 = from Align (middle row)
 }
 
 func resolveLook(l spec.Look, base spec.TextStyle, scale float64) look {
@@ -83,6 +85,7 @@ func resolveLook(l spec.Look, base spec.TextStyle, scale float64) look {
 	if l.Align != "" {
 		r.Align = l.Align
 	}
+	r.Card = l.Box == "card" && r.Bg != ""
 	r.Size *= scale
 	r.Spacing *= scale
 	return r
@@ -130,6 +133,13 @@ func (l look) styleLine(name string, W int) string {
 		shadow = math.Max(2, math.Round(fs*0.05))
 		backCol = assColor("#000000", 62*l.Opacity/100)
 	}
+	if l.Card {
+		// BorderStyle 4 (libass): one box in BackColour around the whole
+		// event, Outline is its padding.
+		border, shadow = 4, 0
+		outline = math.Max(6, math.Round(fs*0.32))
+		backCol = outlineCol
+	}
 	an := map[string]int{"left": 4, "center": 5, "right": 6}[l.Align]
 	margin := int(math.Round(float64(W) * 0.06))
 	primary := assColor(l.Color, l.Opacity)
@@ -167,10 +177,16 @@ type assDoc struct {
 }
 
 func (d *assDoc) event(start, end float64, style, text string) {
+	d.eventM(start, end, style, 0, text)
+}
+
+// eventM writes an event whose lines wrap at the canvas width minus margin
+// on each side (0 = the style's margins).
+func (d *assDoc) eventM(start, end float64, style string, margin int, text string) {
 	if end-start < 0.01 {
 		return
 	}
-	d.events = append(d.events, fmt.Sprintf("Dialogue: 0,%s,%s,%s,,0,0,0,,%s", assTime(start), assTime(end), style, text))
+	d.events = append(d.events, fmt.Sprintf("Dialogue: 0,%s,%s,%s,,%d,%d,0,,%s", assTime(start), assTime(end), style, margin, margin, text))
 }
 
 func (d *assDoc) String() string {
@@ -227,7 +243,14 @@ func buildASS(e *Edit) (string, []string) {
 			}
 			body = emphasize(text, t.Emphasis, color, l.Color)
 		}
-		d.textEvents(name, l, t.Start, end, x*float64(e.W), y*float64(e.H), t.Rotate, text, body, t.In, t.Out)
+		if t.LineHeight > 0 && t.Rotate == 0 && d.layoutText(e, &e.P.Texts[i], name, l, scale, t.Start, end, x*float64(e.W), y*float64(e.H)) {
+			continue
+		}
+		margin := 0
+		if t.MaxWidth > 0 {
+			margin = max(1, int(math.Round(float64(e.W)*(1-t.MaxWidth)/2)))
+		}
+		d.textEvents(name, l, t.Start, end, x*float64(e.W), y*float64(e.H), t.Rotate, margin, text, body, t.In, t.Out)
 	}
 	if c := e.P.Captions; c != nil && len(e.Words) > 0 {
 		d.captions(e, c, scale)
@@ -242,6 +265,119 @@ func buildASS(e *Edit) (string, []string) {
 		}
 	}
 	return d.String(), keys
+}
+
+// layoutText draws a text line by line at an exact spacing, measuring each
+// line with the font's own widths, and draws its background as vector
+// rectangles sized to the measured text: one card behind the block, or one
+// box per line. It reports false (draw it the plain way) when the font
+// cannot be measured.
+func (d *assDoc) layoutText(e *Edit, t *spec.Text, name string, l look, scale, start, end, px, py float64) bool {
+	m, err := metricsFor(l.Font.Key)
+	if err != nil {
+		return false
+	}
+	fs := math.Max(1, l.Size)
+	text := t.Text
+	if l.Upper {
+		text = strings.ToUpper(text)
+	}
+	padX, padY := fs*0.32, fs*0.32
+	if len(t.Padding) > 0 {
+		padX, padY = t.Padding[0]*scale, t.Padding[0]*scale
+		if len(t.Padding) > 1 {
+			padY = t.Padding[1] * scale
+		}
+	}
+	maxW := float64(e.W) * 0.88
+	if t.MaxWidth > 0 {
+		maxW = float64(e.W) * t.MaxWidth
+	}
+	if l.Bg != "" {
+		maxW -= 2 * padX
+	}
+	lines := m.wrap(text, fs, l.Spacing, math.Max(fs, maxW))
+	n := len(lines)
+	pitch := t.LineHeight * fs
+	k := fs / m.upm
+	asc, capH, cell := m.winAsc*k, m.capH*k, fs*l.Font.Em
+
+	type placed struct {
+		text     string
+		x0, w, b float64 // left edge, width, baseline
+	}
+	var ps []placed
+	for i, ln := range lines {
+		w := m.width(ln, fs, l.Spacing)
+		b := py + capH/2 - float64(n-1)*pitch/2 + float64(i)*pitch
+		x0 := px
+		switch l.Align {
+		case "center":
+			x0 = px - w/2
+		case "right":
+			x0 = px - w
+		}
+		ps = append(ps, placed{ln, x0, w, b})
+	}
+
+	// The background first, so the letters draw over it.
+	if l.Bg != "" {
+		box := l
+		box.Bg, box.Card, box.Stroke, box.Shadow, box.Anchor = "", false, "", false, 5
+		box.Color, box.Opacity = l.Bg, l.BgOpacity*l.Opacity/100
+		bname := name + "B"
+		d.styles = append(d.styles, box.styleLine(bname, e.W))
+		rect := func(x0, y0, x1, y1 float64) {
+			w, h := math.Round(x1-x0), math.Round(y1-y0)
+			draw := fmt.Sprintf(`{\p1}m 0 0 l %s 0 %s %s 0 %s{\p0}`, num(w), num(w), num(h), num(h))
+			d.textEvents(bname, box, start, end, round1((x0+x1)/2), round1((y0+y1)/2), 0, 0, "", draw, animOnly(t.In), animOnly(t.Out))
+		}
+		if l.Card || n == 1 {
+			x0, x1 := math.Inf(1), math.Inf(-1)
+			for _, p := range ps {
+				x0, x1 = math.Min(x0, p.x0), math.Max(x1, p.x0+p.w)
+			}
+			rect(x0-padX, ps[0].b-capH-padY, x1+padX, ps[n-1].b+padY)
+		} else {
+			for _, p := range ps {
+				if strings.TrimSpace(p.text) != "" {
+					rect(p.x0-padX, p.b-capH-padY, p.x0+p.w+padX, p.b+padY)
+				}
+			}
+		}
+	}
+
+	txt := l
+	txt.Bg, txt.Card, txt.Anchor = "", false, 5
+	tname := name + "L"
+	d.styles = append(d.styles, txt.styleLine(tname, e.W))
+	color := t.EmphasisColor
+	if color == "" {
+		color = "#E53935"
+	}
+	for _, p := range ps {
+		if strings.TrimSpace(p.text) == "" {
+			continue
+		}
+		body := escapeASS(p.text)
+		if len(t.Emphasis) > 0 {
+			body = emphasize(p.text, t.Emphasis, color, l.Color)
+		}
+		// \an5 puts the middle of the line's cell (winAscent above the
+		// baseline to winDescent below) at the point.
+		cy := p.b - asc + cell/2
+		d.textEvents(tname, txt, start, end, round1(p.x0+p.w/2), round1(cy), 0, 0, p.text, body, t.In, t.Out)
+	}
+	return true
+}
+
+// animOnly keeps an animation for a background box; typing has no letters
+// to reveal there, so the box fades in instead.
+func animOnly(a *spec.Anim) *spec.Anim {
+	if a == nil || a.Type != "type" {
+		return a
+	}
+	return &spec.Anim{Type: "fade", Duration: math.Min(0.3, animDur(a))}
 }
 
 // emphasize escapes text and colours every case-insensitive match of the
@@ -280,7 +416,8 @@ func emphasize(text string, phrases []string, color, base string) string {
 // textEvents writes one text with optional in/out animations. An animation
 // gets its own event so in and out can both move the text. body is the
 // escaped (and maybe coloured) text; text is the raw text for typing.
-func (d *assDoc) textEvents(style string, l look, start, end, px, py, rot float64, text, body string, in, out *spec.Anim) {
+func (d *assDoc) textEvents(style string, l look, start, end, px, py, rot float64, margin int, text, body string, in, out *spec.Anim) {
+	event := func(start, end float64, style, text string) { d.eventM(start, end, style, margin, text) }
 	inDur, outDur := 0.0, 0.0
 	if in != nil {
 		inDur = animDur(in)
@@ -293,6 +430,9 @@ func (d *assDoc) textEvents(style string, l look, start, end, px, py, rot float6
 		inDur, outDur = inDur*k, outDur*k
 	}
 	an := map[string]int{"left": 4, "center": 5, "right": 6}[l.Align]
+	if l.Anchor > 0 {
+		an = l.Anchor
+	}
 	head := func(pos string) string {
 		s := fmt.Sprintf(`{\an%d%s`, an, pos)
 		if rot != 0 {
@@ -307,30 +447,30 @@ func (d *assDoc) textEvents(style string, l look, start, end, px, py, rot float6
 		ms := int(math.Round(inDur * 1000))
 		switch in.Type {
 		case "fade":
-			d.event(start, start+inDur, style, head(pos)+fmt.Sprintf(`\fad(%d,0)}`, ms)+body)
+			event(start, start+inDur, style, head(pos)+fmt.Sprintf(`\fad(%d,0)}`, ms)+body)
 		case "pop":
 			a, b := ms*6/10, ms
-			d.event(start, start+inDur, style, head(pos)+fmt.Sprintf(`\fad(%d,0)\fscx40\fscy40\t(0,%d,\fscx112\fscy112)\t(%d,%d,\fscx100\fscy100)}`, min(120, ms/2), a, a, b)+body)
+			event(start, start+inDur, style, head(pos)+fmt.Sprintf(`\fad(%d,0)\fscx40\fscy40\t(0,%d,\fscx112\fscy112)\t(%d,%d,\fscx100\fscy100)}`, min(120, ms/2), a, a, b)+body)
 		case "up":
 			mv := fmt.Sprintf(`\move(%s,%s,%s,%s,0,%d)`, num(round1(px)), num(round1(py+shift)), num(round1(px)), num(round1(py)), ms)
-			d.event(start, start+inDur, style, head(mv)+fmt.Sprintf(`\fad(%d,0)}`, ms/2)+body)
+			event(start, start+inDur, style, head(mv)+fmt.Sprintf(`\fad(%d,0)}`, ms/2)+body)
 		case "type":
-			d.event(start, start+inDur, style, head(pos)+"}"+typewriter(text, ms, l.Opacity))
+			event(start, start+inDur, style, head(pos)+"}"+typewriter(text, ms, l.Opacity))
 		}
 		start += inDur
 	}
 	midEnd := end - outDur
-	d.event(start, midEnd, style, head(pos)+"}"+body)
+	event(start, midEnd, style, head(pos)+"}"+body)
 	if out != nil && outDur > 0 {
 		ms := int(math.Round(outDur * 1000))
 		switch out.Type {
 		case "fade":
-			d.event(midEnd, end, style, head(pos)+fmt.Sprintf(`\fad(0,%d)}`, ms)+body)
+			event(midEnd, end, style, head(pos)+fmt.Sprintf(`\fad(0,%d)}`, ms)+body)
 		case "down":
 			mv := fmt.Sprintf(`\move(%s,%s,%s,%s,0,%d)`, num(round1(px)), num(round1(py)), num(round1(px)), num(round1(py+shift)), ms)
-			d.event(midEnd, end, style, head(mv)+fmt.Sprintf(`\fad(0,%d)}`, ms)+body)
+			event(midEnd, end, style, head(mv)+fmt.Sprintf(`\fad(0,%d)}`, ms)+body)
 		case "shrink":
-			d.event(midEnd, end, style, head(pos)+fmt.Sprintf(`\t(0,%d,\fscx10\fscy10)\fad(0,%d)}`, ms, ms/2)+body)
+			event(midEnd, end, style, head(pos)+fmt.Sprintf(`\t(0,%d,\fscx10\fscy10)\fad(0,%d)}`, ms, ms/2)+body)
 		}
 	}
 }

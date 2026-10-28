@@ -28,6 +28,7 @@ On macOS use `brew install ffmpeg-full`; the plain `ffmpeg` formula has no libas
 | `internal/spec` | project types, strict decoding with "did you mean" hints, validation, the catalog of styles, fonts, transitions |
 | `internal/engine` | timeline, captions, `.ass` builder, FFmpeg graph compiler. Pure: no I/O |
 | `internal/analyze` | shots, pace, tempo, pauses from FFmpeg measurements. Pure |
+| `internal/clone` | video to template: cuts, transitions, framing, zoom, text cards, captions, logo from grey frames and full-size stills. Pure, no I/O (runs as WebAssembly too). Tune it with `wecut clone --debug` |
 | `internal/recipe` | template format `wecut.recipe/1`: validate, apply, derive from a project |
 | `internal/ff` | finding, probing and running FFmpeg |
 | `internal/cli` | the commands; each prints one JSON object (`guide` and `schema` print a document) |

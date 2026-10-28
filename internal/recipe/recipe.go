@@ -4,9 +4,14 @@
 // captions) but holds no footage, no words and no music, so it can be
 // applied to new material again and again.
 //
-// Recipes come from three places: written by an agent after `wecut analyze`
-// on a video that worked, made from a finished project (`wecut recipe
+// Recipes come from four places: cloned from a finished video (`wecut
+// clone`, which measures every cut, card, caption and logo), written by an
+// agent after `wecut analyze`, made from a finished project (`wecut recipe
 // from-project`, the "save as template" of an editor), or written by hand.
+//
+// A section either lists its shots one by one (exact cut lengths, like a
+// CapCut template's slots) or describes them loosely (shot = about this
+// long), which stretches to any amount of footage.
 package recipe
 
 import (
@@ -32,6 +37,17 @@ type Recipe struct {
 	Music       *Music        `json:"music,omitempty"`
 	Effects     []EffectRule  `json:"effects,omitempty"`
 	Filters     []spec.Filter `json:"filters,omitempty"`
+	Overlays    []OverlaySlot `json:"overlays,omitempty"`
+	Source      *Source       `json:"source,omitempty"`
+}
+
+// Source records where a cloned recipe came from, so a person can find the
+// original again. It plays no part in applying the recipe.
+type Source struct {
+	File     string  `json:"file,omitempty"`
+	Duration float64 `json:"duration,omitempty"` // of the original video
+	Used     float64 `json:"used,omitempty"`     // seconds cloned (a platform outro is left out)
+	Tool     string  `json:"tool,omitempty"`
 }
 
 type Output struct {
@@ -57,23 +73,70 @@ type Section struct {
 	Join          *spec.Transition `json:"join,omitempty"`          // between shots inside the section (default: hard cut)
 	TransitionOut *spec.Transition `json:"transitionOut,omitempty"` // into the next section
 	Texts         []Slot           `json:"texts,omitempty"`         // timed against this section
+	// Shots lists the section's cuts one by one. When present it replaces
+	// duration, shot, zoom and join: each entry is filled with footage of
+	// exactly that length.
+	Shots []Shot `json:"shots,omitempty"`
+	// Audio "next" plays the next section's sound under this one: the talk
+	// starts while B-roll is on screen and carries on into the next
+	// section's footage without a jump (a J-cut). This section's own
+	// sound is dropped.
+	Audio string `json:"audio,omitempty"`
+}
+
+// Shot is one cut of a section with exact timing: a media slot.
+type Shot struct {
+	Dur    float64     `json:"dur"`              // seconds on screen, including a join into the next shot
+	About  string      `json:"about,omitempty"`  // what footage fits, e.g. "landscape talk footage"
+	Fit    string      `json:"fit,omitempty"`    // overrides the section's fit
+	Zoom   float64     `json:"zoom,omitempty"`   // cover: punch in
+	ZoomTo float64     `json:"zoomTo,omitempty"` // cover: zoom glides from zoom to this
+	Focus  *spec.Point `json:"focus,omitempty"`
+	// Continue carries on the footage of the shot before (the next seconds
+	// of the same clip), like a punch-in on one take, instead of taking
+	// the next clip.
+	Continue bool             `json:"continue,omitempty"`
+	Join     *spec.Transition `json:"join,omitempty"` // into the next shot of this section
+	Ref      *float64         `json:"ref,omitempty"`  // where this shot sits in the source video (seconds)
+}
+
+// OverlaySlot is a picture laid over the video, such as a logo, whose file
+// is passed at apply time (overlays.<slot>). Src is an optional default.
+type OverlaySlot struct {
+	Slot    string   `json:"slot"`
+	About   string   `json:"about,omitempty"`
+	Src     string   `json:"src,omitempty"`
+	Start   float64  `json:"start,omitempty"`
+	End     *float64 `json:"end,omitempty"`
+	FromEnd *float64 `json:"fromEnd,omitempty"`
+	X       *float64 `json:"x,omitempty"`
+	Y       *float64 `json:"y,omitempty"`
+	Width   float64  `json:"width,omitempty"`
+	Opacity *float64 `json:"opacity,omitempty"`
+	FadeIn  float64  `json:"fadeIn,omitempty"`
+	FadeOut float64  `json:"fadeOut,omitempty"`
 }
 
 // Slot is a text whose words are filled in when the recipe is applied.
 // Times are seconds from the start of its section (or of the video for
 // recipe-level slots); FromEnd places it that many seconds before the end.
 type Slot struct {
-	Slot    string     `json:"slot"`
-	About   string     `json:"about,omitempty"`
-	Text    string     `json:"text,omitempty"` // example or default words
-	Start   float64    `json:"start,omitempty"`
-	End     *float64   `json:"end,omitempty"`
-	FromEnd *float64   `json:"fromEnd,omitempty"`
-	X       *float64   `json:"x,omitempty"`
-	Y       *float64   `json:"y,omitempty"`
-	Rotate  float64    `json:"rotate,omitempty"`
-	In      *spec.Anim `json:"in,omitempty"`
-	Out     *spec.Anim `json:"out,omitempty"`
+	Slot       string     `json:"slot"`
+	About      string     `json:"about,omitempty"`
+	Text       string     `json:"text,omitempty"` // example or default words
+	Start      float64    `json:"start,omitempty"`
+	End        *float64   `json:"end,omitempty"`
+	FromEnd    *float64   `json:"fromEnd,omitempty"`
+	X          *float64   `json:"x,omitempty"`
+	Y          *float64   `json:"y,omitempty"`
+	Rotate     float64    `json:"rotate,omitempty"`
+	MaxWidth   float64    `json:"maxWidth,omitempty"`
+	LineHeight float64    `json:"lineHeight,omitempty"`
+	Padding    []float64  `json:"padding,omitempty"`
+	In         *spec.Anim `json:"in,omitempty"`
+	Out        *spec.Anim `json:"out,omitempty"`
+	// Emphasis are the default words to colour, used with the default text.
+	Emphasis []string `json:"emphasis,omitempty"`
 	// EmphasisColor colours the words passed as emphasis when applying.
 	EmphasisColor string `json:"emphasisColor,omitempty"`
 	spec.Look
@@ -118,6 +181,7 @@ type EffectRule struct {
 var (
 	EffectOn = []string{"cuts", "sections", "time"}
 	Motions  = append(append([]string{}, spec.Motions...), "alternate")
+	Audios   = []string{"own", "next"}
 )
 
 // Validate checks a recipe on its own (no media involved).
@@ -200,6 +264,70 @@ func Validate(r *Recipe) []spec.Issue {
 		for j := range s.Texts {
 			out = append(out, validateSlot(&s.Texts[j], fmt.Sprintf("%s/texts/%d", p, j), slots)...)
 		}
+		if s.Audio != "" && !slices.Contains(Audios, s.Audio) {
+			add("E_VALUE", p+"/audio", "audio must be own or next", "")
+		}
+		if s.Audio == "next" && i == len(r.Sections)-1 {
+			add("E_VALUE", p+"/audio", "the last section has no next section to take sound from", "")
+		}
+		if len(s.Shots) > spec.MaxClips {
+			add("E_LIMIT", p+"/shots", fmt.Sprintf("at most %d shots", spec.MaxClips), "")
+		}
+		for j, sh := range s.Shots {
+			q := fmt.Sprintf("%s/shots/%d", p, j)
+			if sh.Dur < 0.1 || sh.Dur > spec.MaxDuration {
+				add("E_VALUE", q+"/dur", "dur must be 0.1 to 600 seconds", "")
+			}
+			if sh.Fit != "" && sh.Fit != "cover" && sh.Fit != "contain" {
+				add("E_VALUE", q+"/fit", "fit must be cover or contain", "")
+			}
+			if sh.Zoom != 0 && (sh.Zoom < 1 || sh.Zoom > 5) {
+				add("E_VALUE", q+"/zoom", "zoom must be 1 to 5", "")
+			}
+			if sh.ZoomTo != 0 && (sh.ZoomTo < 1 || sh.ZoomTo > 5) {
+				add("E_VALUE", q+"/zoomTo", "zoomTo must be 1 to 5", "")
+			}
+			if f := sh.Focus; f != nil && (f.X < 0 || f.X > 1 || f.Y < 0 || f.Y > 1) {
+				add("E_VALUE", q+"/focus", "focus x and y must be 0 to 1", "")
+			}
+			if j == 0 && sh.Continue {
+				add("E_VALUE", q+"/continue", "the first shot of a section has no shot before it to continue", "")
+			}
+			if t := sh.Join; t != nil {
+				if _, ok := spec.Transitions[t.Type]; !ok {
+					add("E_VALUE", q+"/join/type", "unknown transition "+t.Type, "Run `wecut list transitions`.")
+				}
+				if t.Duration != 0 && (t.Duration < 0.1 || t.Duration > 3) {
+					add("E_VALUE", q+"/join/duration", "transition duration must be 0.1 to 3", "")
+				}
+				if j == len(s.Shots)-1 {
+					add("E_VALUE", q+"/join", "the last shot of a section joins the next section with transitionOut", "")
+				}
+			}
+		}
+	}
+	oslots := map[string]bool{}
+	for j, o := range r.Overlays {
+		p := fmt.Sprintf("/overlays/%d", j)
+		switch {
+		case strings.TrimSpace(o.Slot) == "":
+			add("E_VALUE", p+"/slot", "slot name is required", `e.g. "logo".`)
+		case oslots[o.Slot]:
+			add("E_VALUE", p+"/slot", "slot "+o.Slot+" is used twice", "")
+		}
+		oslots[o.Slot] = true
+		if o.Start < 0 || (o.End != nil && *o.End <= o.Start) {
+			add("E_VALUE", p+"/end", "end must be after start", "")
+		}
+		if o.Width != 0 && (o.Width < 0.02 || o.Width > 1) {
+			add("E_VALUE", p+"/width", "width must be 0.02 to 1", "")
+		}
+		if strings.Contains(o.Src, "://") {
+			add("E_VALUE", p+"/src", "src must be a file in the workspace", "")
+		}
+	}
+	if len(r.Overlays) > spec.MaxOverlays {
+		add("E_LIMIT", "/overlays", fmt.Sprintf("at most %d overlays", spec.MaxOverlays), "")
 	}
 	for j := range r.Texts {
 		out = append(out, validateSlot(&r.Texts[j], fmt.Sprintf("/texts/%d", j), slots)...)
@@ -273,6 +401,9 @@ func validateSlot(s *Slot, p string, seen map[string]bool) []spec.Issue {
 		if _, ok := spec.TextStyleByKey(s.Style); !ok {
 			add("E_VALUE", p+"/style", "unknown style "+s.Style, "Run `wecut list styles`.")
 		}
+	}
+	if s.MaxWidth != 0 && (s.MaxWidth < 0.1 || s.MaxWidth > 1) {
+		add("E_VALUE", p+"/maxWidth", "maxWidth must be 0.1 to 1", "")
 	}
 	if s.EmphasisColor != "" && !isHex(s.EmphasisColor) {
 		add("E_VALUE", p+"/emphasisColor", "invalid colour", "Use #RRGGBB.")

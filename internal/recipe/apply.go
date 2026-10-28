@@ -34,6 +34,12 @@ type Input struct {
 	CaptionSrc string              `json:"captionSrc,omitempty"` // default: the source used longest
 	Music      string              `json:"music,omitempty"`      // replaces the recipe's track; "none" = no music
 	Output     string              `json:"output,omitempty"`     // default out/<recipe name>.mp4
+	// Overlays gives a picture per overlay slot (e.g. {"logo":
+	// "media/logo.png"}); "none" leaves a slot out.
+	Overlays map[string]string `json:"overlays,omitempty"`
+	// Fill says how clips go into exact shots: each (one clip per slot),
+	// sequence (one after another) or auto (default).
+	Fill string `json:"fill,omitempty"`
 }
 
 type piece struct {
@@ -48,6 +54,7 @@ type built struct {
 	clip    spec.Clip
 	dur     float64
 	section int
+	join    *spec.Transition // exact shots: into the next shot
 }
 
 // Apply builds a project from a recipe and new material. m must hold every
@@ -61,6 +68,10 @@ func Apply(r *Recipe, in Input, m media.Set) (*spec.Project, []spec.Issue, []spe
 	}
 	if len(in.Clips) == 0 {
 		fail("/clips", "give at least one clip", `e.g. {"src": "media/talk.mp4", "from": 12, "to": 70}`)
+		return nil, nil, errs
+	}
+	if in.Fill != "" && !contains(Fills, in.Fill) {
+		fail("/fill", "fill must be auto, each or sequence", "")
 		return nil, nil, errs
 	}
 
@@ -115,13 +126,57 @@ func Apply(r *Recipe, in Input, m media.Set) (*spec.Project, []spec.Issue, []spe
 		maxTotal = 60
 	}
 	var clips []built
+	var leads []leadAudio
+	borrowed := map[int]bool{}
+	lastGot := map[int][]built{}
 	total := 0.0
 	for si, s := range r.Sections {
 		q := queues[s.Role]
 		if len(q) == 0 { // borrow from the next section that has footage
+			borrowed[si] = true
 			for sj := si + 1; sj < len(r.Sections) && len(q) == 0; sj++ {
 				q = queues[r.Sections[sj].Role]
 			}
+		}
+		// The section before plays this one's sound (a J-cut): its first
+		// clip lends that many opening seconds and starts later.
+		if pg := lastGot[si-1]; si > 0 && r.Sections[si-1].Audio == "next" && len(pg) > 0 && len(q) > 0 {
+			prev := r.Sections[si-1]
+			lead := sectionLength(pg)
+			if t := prev.TransitionOut; t != nil {
+				lead -= joinDur(t)
+			}
+			pc := q[0]
+			switch {
+			case borrowed[si-1]:
+				// It showed this footage itself: keep its own sound.
+				for k := range clips {
+					if clips[k].section == si-1 {
+						clips[k].clip.Mute = false
+					}
+				}
+			case pc.kind != "video" || !m[pc.src].HasAudio:
+				warn(fmt.Sprintf("/sections/%d/audio", si-1), fmt.Sprintf("section %s wants the sound of section %s, but its first clip has no sound", prev.Role, s.Role))
+			case pc.to-pc.from < lead+0.3:
+				warn(fmt.Sprintf("/sections/%d/audio", si-1), fmt.Sprintf("the first %s clip is too short to also play under %s", s.Role, prev.Role))
+			case lead > 0.1:
+				leads = append(leads, leadAudio{section: si - 1, src: pc.src, from: round3(pc.from), dur: round3(lead)})
+				pc.from += lead
+			}
+		}
+		if len(s.Shots) > 0 {
+			got, filled := fillShots(s, si, q, in.Fill, warn)
+			if len(got) == 0 {
+				warn(fmt.Sprintf("/sections/%d", si), "section "+s.Role+" got no footage and was left out")
+				continue
+			}
+			if s.FadeIn > 0 {
+				got[0].clip.FadeIn = math.Min(s.FadeIn, got[0].dur/2)
+			}
+			lastGot[si] = got
+			clips = append(clips, got...)
+			total += filled
+			continue
 		}
 		want := maxTotal - total
 		if s.Duration > 0 {
@@ -180,7 +235,7 @@ func Apply(r *Recipe, in Input, m media.Set) (*spec.Project, []spec.Issue, []spe
 			if s.Zoom > 1 && k%2 == 1 && s.Fit != "contain" {
 				c.Zoom = s.Zoom
 			}
-			if s.Mute {
+			if s.Mute || s.Audio == "next" {
 				c.Mute = true
 			}
 			if c.Duration != nil && s.Motion != "" { // image
@@ -193,6 +248,7 @@ func Apply(r *Recipe, in Input, m media.Set) (*spec.Project, []spec.Issue, []spe
 		if s.FadeIn > 0 {
 			got[0].clip.FadeIn = math.Min(s.FadeIn, got[0].dur/2)
 		}
+		lastGot[si] = got
 		clips = append(clips, got...)
 		total += filled
 	}
@@ -208,6 +264,9 @@ func Apply(r *Recipe, in Input, m media.Set) (*spec.Project, []spec.Issue, []spe
 		t := sec.TransitionOut
 		if clips[k].section == clips[k+1].section {
 			t = sec.Join
+			if len(sec.Shots) > 0 {
+				t = clips[k].join
+			}
 		}
 		if t != nil {
 			d := t.Duration
@@ -255,7 +314,7 @@ func Apply(r *Recipe, in Input, m media.Set) (*spec.Project, []spec.Issue, []spe
 		t, ok := in.Texts[sl.Slot]
 		words := t.Text
 		if !ok || strings.TrimSpace(words) == "" {
-			words = sl.Text
+			words, t.Emphasis = sl.Text, sl.Emphasis
 		}
 		if strings.TrimSpace(words) == "" {
 			warn(path, fmt.Sprintf("slot %q has no text and was left out; pass texts.%s", sl.Slot, sl.Slot))
@@ -275,6 +334,7 @@ func Apply(r *Recipe, in Input, m media.Set) (*spec.Project, []spec.Issue, []spe
 		}
 		p.Texts = append(p.Texts, spec.Text{
 			Text: words, Start: round3(start), End: spec.F(round3(end)), X: sl.X, Y: sl.Y, Rotate: sl.Rotate,
+			MaxWidth: sl.MaxWidth, LineHeight: sl.LineHeight, Padding: sl.Padding,
 			In: sl.In, Out: sl.Out, Emphasis: t.Emphasis, EmphasisColor: sl.EmphasisColor, Look: sl.Look,
 		})
 	}
@@ -308,6 +368,15 @@ func Apply(r *Recipe, in Input, m media.Set) (*spec.Project, []spec.Issue, []spe
 			words, _ := json.Marshal(in.Transcript)
 			p.Captions = &spec.Captions{Words: words, Src: src, Mode: c.Mode, Highlight: c.Highlight, MaxWords: c.MaxWords, MaxDuration: c.MaxDuration, X: c.X, Y: c.Y, Look: c.Look}
 		}
+	}
+
+	// Sound borrowed from the next section, under the section before it.
+	for _, l := range leads {
+		st, ok := secStart[l.section]
+		if !ok {
+			continue
+		}
+		p.Audio = append(p.Audio, spec.Track{Src: l.src, From: l.from, At: round3(st), Duration: spec.F(l.dur)})
 	}
 
 	if src, from := MusicSource(r, in); src != "" {
@@ -360,6 +429,50 @@ func Apply(r *Recipe, in Input, m media.Set) (*spec.Project, []spec.Issue, []spe
 	}
 	p.Filters = append(p.Filters, r.Filters...)
 
+	// Picture slots such as a logo.
+	for j, o := range r.Overlays {
+		path := fmt.Sprintf("/overlays/%d", j)
+		src, given := in.Overlays[o.Slot]
+		if !given {
+			src = o.Src
+		}
+		switch {
+		case src == "none":
+			continue
+		case src == "":
+			warn(path, fmt.Sprintf("overlay slot %q (%s) has no picture and was left out; pass overlays.%s", o.Slot, orDefault(o.About, "a picture"), o.Slot))
+			continue
+		}
+		if info, ok := m[src]; !ok || info.Kind != "image" {
+			fail(path, fmt.Sprintf("overlay %q must be a png, jpg or webp image in the workspace: %s", o.Slot, src), "")
+			continue
+		}
+		start, end := o.Start, total
+		if o.End != nil {
+			end = math.Min(*o.End, total)
+		}
+		if o.FromEnd != nil {
+			start, end = math.Max(0, total-*o.FromEnd), total
+		}
+		if end-start < 0.2 {
+			warn(path, fmt.Sprintf("overlay slot %q does not fit in the video and was left out", o.Slot))
+			continue
+		}
+		ov := spec.Overlay{Src: src, Start: round3(start), X: o.X, Y: o.Y, Width: o.Width, Opacity: o.Opacity, FadeIn: o.FadeIn, FadeOut: o.FadeOut}
+		if end < total-0.01 {
+			ov.End = spec.F(round3(end))
+		}
+		p.Overlays = append(p.Overlays, ov)
+	}
+	for slot := range in.Overlays {
+		if !hasOverlay(r, slot) {
+			warn("/overlays/"+slot, fmt.Sprintf("the recipe has no overlay slot %q; that picture was not used", slot))
+		}
+	}
+	if len(errs) > 0 {
+		return nil, warns, errs
+	}
+
 	if issues := spec.Validate(p); len(issues) > 0 {
 		return nil, warns, issues
 	}
@@ -378,6 +491,47 @@ func MusicSource(r *Recipe, in Input) (string, float64) {
 		return r.Music.Src, r.Music.From
 	}
 	return "", 0
+}
+
+// OverlaySources lists the pictures a recipe will lay over the video, so a
+// caller can probe them before Apply.
+func OverlaySources(r *Recipe, in Input) []string {
+	var out []string
+	for _, o := range r.Overlays {
+		src, given := in.Overlays[o.Slot]
+		if !given {
+			src = o.Src
+		}
+		if src != "" && src != "none" {
+			out = append(out, src)
+		}
+	}
+	return out
+}
+
+func hasOverlay(r *Recipe, slot string) bool {
+	for _, o := range r.Overlays {
+		if o.Slot == slot {
+			return true
+		}
+	}
+	return false
+}
+
+func contains(list []string, v string) bool {
+	for _, s := range list {
+		if s == v {
+			return true
+		}
+	}
+	return false
+}
+
+func orDefault(s, d string) string {
+	if s == "" {
+		return d
+	}
+	return s
 }
 
 // split cuts length into shots of about shot seconds (0 = one piece).

@@ -1,6 +1,6 @@
 # WeCut
 
-> WeCut is a free, open-source video editing engine for AI agents. The agent writes a small JSON project (clips, texts, captions, music, transitions); `wecut` renders it to MP4 or GIF with the FFmpeg already on the machine. It can also analyse a video that went viral and turn its format into a reusable template ("recipe") for new footage. Runs locally as a CLI (`npx -y wecut`) or as an MCP server (`npx -y wecut mcp`). No cloud, no API key, no GPU, no telemetry.
+> WeCut is a free, open-source video editing engine for AI agents. The agent writes a small JSON project (clips, texts, captions, music, transitions); `wecut` renders it to MP4 or GIF with the FFmpeg already on the machine. It can also clone a finished video into a reusable template ("recipe", `wecut clone`): exact cuts as media slots, transitions, framing, zoom, text cards, captions and logo, like a CapCut template, for new footage. Runs locally as a CLI (`npx -y wecut`) or as an MCP server (`npx -y wecut mcp`). No cloud, no API key, no GPU, no telemetry.
 
 Use WeCut when a user asks an agent to: cut a long video into shorts, reels or TikToks; add captions, karaoke subtitles or word-by-word captions; trim, join or speed up clips; reframe to 9:16, 1:1, 4:5 or 16:9; add a headline card, text, logo, music or transitions; turn photos into a slideshow; work out why a viral video works and copy its structure onto new clips; save an edit as a template like CapCut.
 
@@ -15,6 +15,7 @@ Every command prints one JSON object. Exit codes: 0 ok, 2 invalid input, 3 missi
 - [Agent guide (SKILL.md)](https://raw.githubusercontent.com/13kailouis-stack/wecut/main/skills/wecut/SKILL.md): the workflow, the project format, the two clocks, captions, templates, troubleshooting. Also printed by `npx -y wecut guide`.
 - [README](https://raw.githubusercontent.com/13kailouis-stack/wecut/main/README.md): install for every agent and MCP client, features, safety, speed, FAQ.
 - [Project JSON Schema](https://raw.githubusercontent.com/13kailouis-stack/wecut/main/schema/wecut.project.schema.json): the full project format (`wecut schema`).
+- [Clone a video into a template](https://raw.githubusercontent.com/13kailouis-stack/wecut/main/docs/clone.md): what `wecut clone` finds, the template it writes, and how to fill it.
 - [Recipe JSON Schema](https://raw.githubusercontent.com/13kailouis-stack/wecut/main/schema/wecut.recipe.schema.json): the template format `wecut.recipe/1` (`wecut recipe schema`).
 
 - [Cross-device templates](https://raw.githubusercontent.com/13kailouis-stack/wecut/main/docs/template-authoring.md): human visual editing, portable packages with music, agent import/apply/render, supported edits and release requirements.

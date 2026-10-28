@@ -264,6 +264,12 @@ func (v *validator) clip(path string, c *Clip, last bool) {
 	if c.Zoom != 0 {
 		v.rng(path+"/zoom", c.Zoom, 1, 5, "zoom")
 	}
+	if c.ZoomTo != 0 {
+		v.rng(path+"/zoomTo", c.ZoomTo, 1, 5, "zoomTo")
+		if c.Motion != "" {
+			v.add("E_VALUE", path+"/zoomTo", "zoomTo and motion both move the picture; use one", "motion is a preset for photos, zoomTo works on video and photos.")
+		}
+	}
 	if !slices.Contains([]int{0, 90, 180, 270, -90}, c.Rotate) {
 		v.add("E_VALUE", path+"/rotate", fmt.Sprintf("rotate must be 0, 90, 180 or 270 (got %d)", c.Rotate), "")
 	}
@@ -321,6 +327,9 @@ func (v *validator) look(path string, l *Look, styles []string) {
 	if l.Align != "" {
 		v.oneOf(path+"/align", l.Align, Aligns, "align")
 	}
+	if l.Box != "" {
+		v.oneOf(path+"/box", l.Box, Boxes, "box")
+	}
 }
 
 func (v *validator) text(path string, t *Text) {
@@ -330,6 +339,18 @@ func (v *validator) text(path string, t *Text) {
 	v.window(path, t.Start, t.End)
 	v.pos(path, t.X, t.Y)
 	v.rng(path+"/rotate", t.Rotate, -360, 360, "rotate")
+	if t.MaxWidth != 0 {
+		v.rng(path+"/maxWidth", t.MaxWidth, 0.1, 1, "maxWidth")
+	}
+	if t.LineHeight != 0 {
+		v.rng(path+"/lineHeight", t.LineHeight, 0.6, 3, "lineHeight")
+	}
+	if len(t.Padding) > 2 {
+		v.add("E_VALUE", path+"/padding", "padding is one number or [x, y]", "")
+	}
+	for i, p := range t.Padding {
+		v.rng(fmt.Sprintf("%s/padding/%d", path, i), p, 0, 300, "padding")
+	}
 	keys := make([]string, len(TextStyles))
 	for i, s := range TextStyles {
 		keys[i] = s.Key

@@ -105,7 +105,7 @@ func Resolve(p *spec.Project, m media.Set, words []Word) (*Edit, []spec.Issue) {
 				warn(path+"/duration", "duration applies to images only; use from/to for video")
 			}
 			if c.Motion != "" {
-				warn(path+"/motion", "motion applies to images only")
+				warn(path+"/motion", "motion applies to images only; use zoomTo for video")
 			}
 		case "image":
 			t.Dur = 3

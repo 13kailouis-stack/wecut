@@ -12,7 +12,7 @@ import (
 
 // Version of the wecut engine. Release builds set it with
 // -ldflags "-X github.com/13kailouis-stack/wecut.Version=x.y.z".
-var Version = "0.2.0"
+var Version = "0.3.0"
 
 //go:embed schema/wecut.project.schema.json
 var Schema []byte

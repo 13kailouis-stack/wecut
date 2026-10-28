@@ -267,6 +267,9 @@ func (a *app) recipeApply(args []string) int {
 	if src, _ := recipe.MusicSource(r, req.Input); src != "" {
 		uses = append(uses, use{src, "/music"})
 	}
+	for _, src := range recipe.OverlaySources(r, req.Input) {
+		uses = append(uses, use{src, "/overlays"})
+	}
 	set, errs := a.probeAll(root, t, uses, map[string]bool{})
 	if len(errs) > 0 {
 		return a.fail(exitInput, nil, errs...)

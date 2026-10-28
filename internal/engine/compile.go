@@ -97,7 +97,7 @@ func Compile(e *Edit, opt Options) (*Plan, error) {
 	alabels := make([]string, len(e.Clips))
 	for i, c := range e.Clips {
 		var idx int
-		motion := c.Kind == "image" && c.Clip.Motion != "" && clipFit(c.Clip, e.Fit) == "cover"
+		motion := (c.Kind == "image" && c.Clip.Motion != "" || c.Clip.ZoomTo > 0) && clipFit(c.Clip, e.Fit) == "cover"
 		switch {
 		case c.Kind == "video":
 			idx = addInput([]string{"-ss", f3(c.From), "-t", f3(c.To - c.From)}, c.Info.Path)
@@ -337,9 +337,12 @@ func clipVideo(g *graph, e *Edit, c ClipT, idx int, motion bool) string {
 	fit := clipFit(cl, e.Fit)
 	out := fmt.Sprintf("v%d", c.Index)
 	tail := []string{fmt.Sprintf("fps=%d", e.FPS), "format=yuv420p", "setsar=1"}
-	if !motion {
+	if !motion || c.Kind == "video" {
 		tail = append(tail, "tpad=stop_mode=clone:stop_duration=1", fmt.Sprintf("trim=duration=%s", f3(c.Dur)), "setpts=PTS-STARTPTS")
 	}
+	// One time base for every clip: concat outputs microseconds, and an
+	// xfade after a concat refuses inputs whose time bases differ.
+	tail = append(tail, "settb=AVTB")
 	if cl.FadeIn > 0 {
 		tail = append(tail, fmt.Sprintf("fade=t=in:st=0:d=%s", f3(cl.FadeIn)))
 	}
@@ -349,9 +352,23 @@ func clipVideo(g *graph, e *Edit, c ClipT, idx int, motion bool) string {
 
 	switch {
 	case motion:
+		// zoompan on a 2x copy: whole-pixel steps at double size are half a
+		// pixel on the canvas, so slow zooms do not wobble. A photo is one
+		// frame held for every output frame (d=frames); video is one output
+		// frame per input frame (d=1), already at the output rate.
 		frames := max(2, int(math.Round(c.Dur*float64(e.FPS))))
+		d := frames
 		p := fmt.Sprintf("on/%d", frames-1)
+		fx, fy := 0.5, 0.5
+		if cl.Focus != nil {
+			fx, fy = cl.Focus.X, cl.Focus.Y
+		}
 		z, x, y := "1.3", "(iw-iw/zoom)/2", "(ih-ih/zoom)/2"
+		crop := fmt.Sprintf("crop=%d:%d", 2*W, 2*H)
+		if fx != 0.5 || fy != 0.5 {
+			x, y = "(iw-iw/zoom)*"+f3(fx), "(ih-ih/zoom)*"+f3(fy)
+			crop += fmt.Sprintf(":(iw-%d)*%s:(ih-%d)*%s", 2*W, f3(fx), 2*H, f3(fy))
+		}
 		switch cl.Motion {
 		case "in":
 			z = "1+0.3*" + p
@@ -366,10 +383,19 @@ func clipVideo(g *graph, e *Edit, c ClipT, idx int, motion bool) string {
 		case "down":
 			y = "(ih-ih/zoom)*(1-" + p + ")"
 		}
-		chain := append(pre,
+		if cl.ZoomTo > 0 {
+			z0 := math.Max(1, cl.Zoom)
+			z = f3(z0) + "+" + f3(cl.ZoomTo-z0) + "*" + p
+		}
+		var head []string
+		if c.Kind == "video" {
+			d = 1
+			head = append(head, fmt.Sprintf("fps=%d", e.FPS))
+		}
+		chain := append(append(pre, head...),
 			fmt.Sprintf("scale=%d:%d:force_original_aspect_ratio=increase:flags=bicubic", 2*W, 2*H),
-			fmt.Sprintf("crop=%d:%d", 2*W, 2*H),
-			fmt.Sprintf("zoompan=z='%s':x='%s':y='%s':d=%d:s=%dx%d:fps=%d", z, x, y, frames, W, H, e.FPS))
+			crop,
+			fmt.Sprintf("zoompan=z='%s':x='%s':y='%s':d=%d:s=%dx%d:fps=%d", z, x, y, d, W, H, e.FPS))
 		g.add("%s%s[%s]", in, strings.Join(append(chain, tail...), ","), out)
 	case fit == "cover":
 		zoom := math.Max(1, cl.Zoom)

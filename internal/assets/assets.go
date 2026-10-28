@@ -34,3 +34,12 @@ func WriteFonts(dir string, keys []string) error {
 	}
 	return nil
 }
+
+// Font returns the bytes of an embedded font, for measuring text.
+func Font(key string) ([]byte, error) {
+	f, ok := spec.FontByKey(key)
+	if !ok {
+		return nil, fmt.Errorf("unknown font %q", key)
+	}
+	return fonts.ReadFile("fonts/" + f.File)
+}
