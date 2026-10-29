@@ -17,6 +17,14 @@ wecut clone media/viral.mp4 --name news-card
 #    out/clone/news-card/text1.png ... the text crops, to read or check
 ```
 
+Every clone checks itself: the template is rendered with stand-ins, its
+cuts and transitions are measured again, and `timing` in the output lists
+each one beside the original's. Hard cuts land on the same frame (the
+source is read at its own frame rate, up to 60, and the template plays at
+that rate); a transition starts and ends at the same moments, while the
+middle of its effect (a flash's peak, a zoom's blur) can sit a few frames
+apart because the template's effect is not the original editor's.
+
 The template copies structure only. The original's footage never goes into
 it; its words are kept as default text you are expected to replace; its
 sound is offered as default music only when it is music, with a note that a
@@ -131,6 +139,7 @@ around, with a warning.
 | MCP | `wecut_clone` returns the same JSON plus the comparison sheet, the slot sheet and the text crops as images, so a model can check the result and read the words. |
 | Go | `internal/clone` is pure Go with no I/O: feed it grey frames (`AddLow`, `AddHigh`) and samples (`SetAudio`), call `Analyze`, give it the full-size frames it asks for (`Measure`), then `Build`. The same code can run in a browser as WebAssembly, with the page decoding frames. |
 | Files | The recipe is plain JSON with a JSON Schema; `wecut recipe pack` bundles it with its music into one `.wecut.json` for another device or for WeCut Studio. |
+| Studio | The Klon tab clones in the browser and opens the result as a project: the video sits in every slot, the cards on the text tracks, the sound on the music track. **Impor template** opens any recipe or `.wecut.json` with numbered stand-ins; pick a slot and **Isi slot ini** / **Ganti media** to put your own footage in. **Ekspor** keeps the template's shots, transitions, zoom, captions, logo slot and text looks. |
 
 ## Limits
 

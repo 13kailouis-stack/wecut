@@ -58,6 +58,8 @@ func (a *Analyzer) detectEvents() []Event {
 	var evs []Event
 	used := make([]bool, n)
 	maxRun := int(math.Round(0.9 * fps))
+	// Brightness steps per frame shrink as the frame rate grows.
+	step := 6 * 30 / fps
 
 	// Flashes: a short run of bright frames, often with a cut inside it.
 	for i := 1; i < n-1; i++ {
@@ -74,10 +76,10 @@ func (a *Analyzer) detectEvents() []Event {
 		}
 		// Grow over the frames brightening into and fading out of it.
 		s, e := i, j
-		for s > 1 && st[s-1].mean > st[s-2].mean+6 && i-s < int(0.4*fps) {
+		for s > 1 && st[s-1].mean > st[s-2].mean+step && i-s < int(0.4*fps) {
 			s--
 		}
-		for e < n-2 && st[e+1].mean > st[e+2].mean+6 && e-j < int(0.5*fps) {
+		for e < n-2 && st[e+1].mean > st[e+2].mean+step && e-j < int(0.5*fps) {
 			e++
 		}
 		before, after := max(0, s-1), min(n-1, e+1)
@@ -107,10 +109,10 @@ func (a *Analyzer) detectEvents() []Event {
 			continue
 		}
 		s, e := i, j
-		for s > 1 && st[s-1].mean < st[s-2].mean-3 && i-s < int(0.8*fps) {
+		for s > 1 && st[s-1].mean < st[s-2].mean-step/2 && i-s < int(0.8*fps) {
 			s--
 		}
-		for e < n-2 && st[e+1].mean < st[e+2].mean-3 && e-j < int(0.8*fps) {
+		for e < n-2 && st[e+1].mean < st[e+2].mean-step/2 && e-j < int(0.8*fps) {
 			e++
 		}
 		if s == i && e == j && j-i < 2 {

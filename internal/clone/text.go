@@ -491,7 +491,11 @@ func (a *Analyzer) textResults(p *Plan) {
 			continue
 		}
 		steady := a.steady(bl.Box, bl.Start, bl.End)
-		if g.ev || crossesCut(bl.Start, bl.End) || (steady && a.behindMoves(bl.Box, bl.Start, bl.End)) ||
+		// The picture moving behind a block counts only for a block that
+		// spans shots: inside one shot, text on a screen or a sign that the
+		// camera holds on looks the same.
+		oneShot := !crossesCut(bl.Start-0.3, bl.End+0.3)
+		if g.ev || crossesCut(bl.Start, bl.End) || (steady && !oneShot && a.behindMoves(bl.Box, bl.Start, bl.End)) ||
 			(steady && !nearCut(bl.Start) && !nearCut(bl.End) && a.popsIn(bl.Box, bl.Start, bl.End)) {
 			blocks = append(blocks, bl)
 		}

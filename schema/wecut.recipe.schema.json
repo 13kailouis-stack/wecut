@@ -186,7 +186,7 @@
         "rotate": { "type": "number" },
         "maxWidth": { "type": "number", "minimum": 0.1, "maximum": 1, "description": "Wrap lines at this fraction of the canvas width." },
         "lineHeight": { "type": "number", "minimum": 0.6, "maximum": 3, "description": "Exact line spacing (times the size); the background becomes a card sized to the text." },
-        "padding": { "type": "array", "minItems": 1, "maxItems": 2, "items": { "type": "number" }, "description": "Card padding in px at 1080: [all] or [x, y]." },
+        "padding": { "type": "array", "minItems": 1, "maxItems": 4, "items": { "type": "number" }, "description": "Card padding in px at 1080: [all], [x, y] or [top, right, bottom, left]." },
         "in": { "type": "object" },
         "out": { "type": "object" },
         "emphasis": { "type": "array", "items": { "type": "string" }, "description": "Words of the default text to colour, used only with the default text." },

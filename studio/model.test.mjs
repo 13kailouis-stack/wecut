@@ -60,3 +60,33 @@ test('page connects to nothing but its own files and ships fonts locally', () =>
   assert.ok(!/url\(https?:/.test(css));
   for (const f of ['roboto-700.ttf', 'poppins-700.ttf', 'montserrat-700.ttf']) assert.ok(fs.existsSync(new URL(`./fonts/${f}`, import.meta.url)));
 });
+
+test('a template opens as slots and exports with its own detail kept', async () => {
+  const { stateFromTemplate, templateRecipe } = await import('./model.mjs');
+  const recipe = {
+    recipe: '1', name: 'cloned', output: { ratio: '9:16', res: 1080, fps: 30 }, maxDuration: 6.5,
+    sections: [
+      { role: 'hook', fit: 'cover', audio: 'next', transitionOut: { type: 'flash', duration: 0.4 }, shots: [{ dur: 2, zoomTo: 1.1 }, { dur: 2.4 }] },
+      { role: 'body', fit: 'contain', shots: [{ dur: 2.5, about: 'landscape talk' }] },
+    ],
+    texts: [{ slot: 'headline', text: 'Old words', end: 4, x: 0.08, y: 0.7, align: 'left', font: 'anton', size: 70, color: '#111111', background: '#FFFFFF', box: 'card', lineHeight: 1.1, padding: [20, 12] }],
+    captions: { mode: 'pop', y: 0.63 }, overlays: [{ slot: 'logo', x: 0.2, y: 0.08, width: 0.2 }],
+  };
+  const s = stateFromTemplate(recipe, (i, x) => ({ file: null, kind: 'image', placeholder: true, url: 'data:,', duration: x.shot.dur, from: 0, to: 0, sourceDuration: 600 }));
+  assert.equal(s.clips.length, 3);
+  assert.equal(s.clips[0].mute, true); // hook plays the talk's sound
+  assert.equal(s.clips[2].fit, 'contain');
+  assert.equal(s.texts[0].font, 'anton');
+  assert.deepEqual(validate(s), []);
+  s.texts[0].text = 'New words'; s.clips[1].duration = 2.6;
+  const r = templateRecipe(s);
+  assert.equal(r.sections[0].audio, 'next');
+  assert.equal(r.sections[0].shots[0].zoomTo, 1.1);
+  assert.equal(r.sections[0].shots[1].dur, 2.6);
+  assert.equal(r.sections[0].transitionOut.type, 'flash');
+  assert.equal(r.texts[0].text, 'New words');
+  assert.equal(r.texts[0].box, 'card');
+  assert.equal(r.texts[0].lineHeight, 1.1);
+  assert.equal(r.captions.mode, 'pop');
+  assert.equal(r.overlays[0].slot, 'logo');
+});

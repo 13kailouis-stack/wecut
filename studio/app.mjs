@@ -1,7 +1,7 @@
 import { splitClip, createHistory } from './editing.mjs?v=desktop-3';
 import { timelineEditor } from './timeline.mjs?v=desktop-3';
-import { initialState, duration, totalDuration, locate, validate, toBundle, filters, fonts, MAX_AUDIO_BYTES } from './model.mjs';
-import { cloneVideo, templateBundle } from './clone.mjs?v=clone-3';
+import { initialState, duration, totalDuration, locate, validate, toBundle, filters, fonts, engineFonts, stateFromTemplate, textFromSlot, MAX_AUDIO_BYTES } from './model.mjs?v=template-1';
+import { cloneVideo } from './clone.mjs?v=clone-3';
 
 const $ = (id) => document.getElementById(id);
 const state = initialState();
@@ -92,7 +92,7 @@ function renderLists() {
     const item = node('button', undefined, `media-item${i === selectedClip ? ' selected' : ''}`);
     const thumb = (c.thumbnail || c.kind === 'image') ? node('img') : node('span', '▶');
     thumb.className = 'media-thumb'; if (c.thumbnail || c.kind === 'image') { thumb.src = c.thumbnail || c.url; thumb.alt = ''; } else { thumb.style.display = 'grid'; thumb.style.placeItems = 'center'; thumb.style.color = '#fff'; }
-    const info = node('span', undefined, 'media-info'); info.append(node('strong', c.file.name), node('small', `Klip ${i + 1} · ${duration(c).toFixed(1)} dtk`));
+    const info = node('span', undefined, 'media-info'); info.append(node('strong', clipName(c, i)), node('small', `${state.template ? 'Slot' : 'Klip'} ${i + 1} · ${duration(c).toFixed(1)} dtk`));
     item.append(thumb, info); item.addEventListener('click', () => selectClip(i)); $('mediaList').append(item);
 
   });
@@ -110,7 +110,7 @@ function renderProperties() {
   const p = $('properties');
   if (tab === 'clip') {
     const c = state.clips[selectedClip];
-    p.innerHTML = c ? `<h3>Klip ${selectedClip + 1}</h3><p class="hint">${escape(c.file.name)}</p>${c.kind === 'image' ? input('clipDuration', 'Durasi foto (detik)', c.duration, 'type="number" min="0.5" max="60" step="0.1"') : `<div class="two-col">${input('clipFrom', 'Mulai (detik)', c.from, 'type="number" min="0" step="0.1"')}${input('clipTo', 'Sampai (detik)', c.to, 'type="number" step="0.1"')}</div>`}<label>Bingkai<select id="clipFit">${options([['cover', 'Isi kanvas'], ['contain', 'Tampilkan seluruh klip']], c.fit)}</select></label><label class="check"><input id="clipMute" type="checkbox"${c.mute ? ' checked' : ''}> Matikan suara klip</label><div class="reorder"><button id="moveLeft">← Sebelumnya</button><button id="moveRight">Berikutnya →</button></div><button id="removeClip" class="danger">Hapus klip</button><hr class="section-rule">` : '<p class="hint">Pilih video atau foto untuk mulai mengedit.</p>';
+    p.innerHTML = c ? `<h3>${state.template ? 'Slot' : 'Klip'} ${selectedClip + 1}</h3><p class="hint">${escape(clipName(c, selectedClip))}${c.about ? ' · ' + escape(c.about) : ''}</p><button id="replaceClip" class="secondary full">${c.placeholder ? '＋ Isi slot ini' : '⇄ Ganti media'}</button>${c.kind === 'image' ? input('clipDuration', 'Durasi foto (detik)', c.duration, 'type="number" min="0.5" max="60" step="0.1"') : `<div class="two-col">${input('clipFrom', 'Mulai (detik)', c.from, 'type="number" min="0" step="0.1"')}${input('clipTo', 'Sampai (detik)', c.to, 'type="number" step="0.1"')}</div>`}<label>Bingkai<select id="clipFit">${options([['cover', 'Isi kanvas'], ['contain', 'Tampilkan seluruh klip']], c.fit)}</select></label><label class="check"><input id="clipMute" type="checkbox"${c.mute ? ' checked' : ''}> Matikan suara klip</label><div class="reorder"><button id="moveLeft">← Sebelumnya</button><button id="moveRight">Berikutnya →</button></div><button id="removeClip" class="danger">Hapus klip</button><hr class="section-rule">` : '<p class="hint">Pilih video atau foto untuk mulai mengedit.</p>';
     p.innerHTML += `<h3>Warna template</h3><label>Filter<select id="filter">${options([['none', 'Tanpa filter'], ['warm', 'Hangat'], ['cool', 'Dingin'], ['rose', 'Mawar'], ['pale', 'Pudar'], ['dark', 'Gelap']], state.filter)}</select></label>${input('filterAmount', 'Kekuatan', state.filterAmount, 'type="range" min="0" max="100"')}`;
     if (c) {
       const changed = () => { time = clamp(time, 0, totalDuration(state)); renderLists(); };
@@ -118,6 +118,7 @@ function renderProperties() {
       editNumber('clipTo', c, 'to', () => c.from + .5, () => c.sourceDuration, changed);
       editNumber('clipDuration', c, 'duration', () => .5, () => 60, changed);
       bind('clipFit', 'change', (e) => { c.fit = e.target.value; refreshPreview(); });
+      bind('replaceClip', 'click', () => $('replaceFile').click());
       bind('clipMute', 'change', (e) => { c.mute = e.target.checked; renderLists(); refreshPreview(); });
       bind('moveLeft', 'click', () => reorder(selectedClip, selectedClip - 1)); bind('moveRight', 'click', () => reorder(selectedClip, selectedClip + 1));
       bind('removeClip', 'click', () => { pause(); state.clips.splice(selectedClip, 1); selectedClip = Math.max(0, selectedClip - 1); time = Math.min(time, totalDuration(state)); render(); });
@@ -131,7 +132,7 @@ function renderProperties() {
     const t = state.texts[selectedText];
     if (!t) { p.append(node('p', 'Teks menjadi isian yang bisa diganti agent. Geser teks langsung di preview untuk mengatur posisi.', 'hint')); return; }
     const controls = node('div');
-    controls.innerHTML = `<label>Isi teks<textarea id="textValue" maxlength="2000">${escape(t.text)}</textarea></label><div class="two-col"><label>Font<select id="textFont">${options(fonts.map((f) => [f, f[0].toUpperCase() + f.slice(1)]), t.font)}</select></label>${input('textSize', 'Ukuran', t.size, 'type="number" min="8" max="400"')}</div><div class="two-col">${input('textColor', 'Warna teks', t.color, 'type="color"')}${input('textBg', 'Warna latar', t.background, 'type="color"')}</div><label class="check"><input id="textBox" type="checkbox"${t.box ? ' checked' : ''}> Gunakan latar teks</label><div class="two-col">${input('textStart', 'Mulai (detik)', t.start, 'type="number" min="0" step="0.1"')}${input('textEnd', 'Sampai (detik)', t.end, 'type="number" min="0" step="0.1"')}</div><div class="two-col">${input('textX', 'Posisi X (%)', Math.round(t.x * 100), 'type="number" min="0" max="100"')}${input('textY', 'Posisi Y (%)', Math.round(t.y * 100), 'type="number" min="0" max="100"')}</div><p class="hint">Teks ini menjadi isian text${selectedText + 1}. Agent bisa mengganti kata-katanya.</p><button id="removeText" class="danger">Hapus teks</button>`;
+    controls.innerHTML = `<label>Isi teks<textarea id="textValue" maxlength="2000">${escape(t.text)}</textarea></label><div class="two-col"><label>Font<select id="textFont">${options((fonts.includes(t.font) ? fonts : [t.font, ...fonts]).map((f) => [f, f[0].toUpperCase() + f.slice(1)]), t.font)}</select></label>${input('textSize', 'Ukuran', t.size, 'type="number" min="8" max="400"')}</div><div class="two-col">${input('textColor', 'Warna teks', t.color, 'type="color"')}${input('textBg', 'Warna latar', t.background, 'type="color"')}</div><label class="check"><input id="textBox" type="checkbox"${t.box ? ' checked' : ''}> Gunakan latar teks</label><div class="two-col">${input('textStart', 'Mulai (detik)', t.start, 'type="number" min="0" step="0.1"')}${input('textEnd', 'Sampai (detik)', t.end, 'type="number" min="0" step="0.1"')}</div><div class="two-col">${input('textX', 'Posisi X (%)', Math.round(t.x * 100), 'type="number" min="0" max="100"')}${input('textY', 'Posisi Y (%)', Math.round(t.y * 100), 'type="number" min="0" max="100"')}</div><p class="hint">Teks ini menjadi isian text${selectedText + 1}. Agent bisa mengganti kata-katanya.</p><button id="removeText" class="danger">Hapus teks</button>`;
     p.append(controls);
     bind('textValue', 'input', (e) => { t.text = e.target.value; refreshPreview(); });
     bind('textFont', 'change', (e) => { t.font = e.target.value; refreshPreview(); });
@@ -176,8 +177,20 @@ function renderTexts() {
     if (time < t.start || time >= t.end) return;
     const n = node('div', t.text, `preview-text${tab === 'text' && selectedText === i ? ' selected' : ''}`);
     n.style.left = `${t.x * 100}%`; n.style.top = `${t.y * 100}%`; n.style.color = t.color; n.style.fontSize = `${t.size * width / 1080}px`;
-    n.style.fontFamily = `WC-${t.font[0].toUpperCase() + t.font.slice(1)}`;
-    n.style.background = t.box ? t.background + 'd9' : 'transparent';
+    const face = fonts.includes(t.font) ? t.font : 'poppins';
+    n.style.fontFamily = `WC-${face[0].toUpperCase() + face.slice(1)}`;
+    const ex = t.extra || {}, alpha = Math.round(255 * (ex.backgroundOpacity ?? 85) / 100).toString(16).padStart(2, '0');
+    n.style.background = t.box ? t.background + alpha : 'transparent';
+    // A template's text keeps its look in the preview: slant, capitals,
+    // alignment, line spacing, card padding and wrap width.
+    if (t.italic) n.style.fontStyle = 'italic';
+    if (t.uppercase) n.style.textTransform = 'uppercase';
+    if (t.align === 'left') { n.style.transform = 'translate(0,-50%)'; n.style.textAlign = 'left'; }
+    if (t.align === 'right') { n.style.transform = 'translate(-100%,-50%)'; n.style.textAlign = 'right'; }
+    if (ex.lineHeight) n.style.lineHeight = String(ex.lineHeight);
+    if (ex.maxWidth) n.style.maxWidth = `${ex.maxWidth * 100}%`;
+    if (ex.padding?.length) { const k = width / 1080, [px, py] = [ex.padding[1] ?? ex.padding[0], ex.padding[0]]; n.style.padding = `${py * k}px ${px * k}px`; }
+    if (ex.stroke && ex.stroke !== 'none' && !t.box) n.style.webkitTextStroke = `${Math.max(1, t.size * width / 1080 * 0.05)}px ${ex.stroke}`;
     n.addEventListener('pointerdown', (e) => {
       e.preventDefault(); pause(); selectedText = i; tab = 'text'; renderProperties(); n.setPointerCapture(e.pointerId);
       const box = $('stage').getBoundingClientRect(); const startX = e.clientX, startY = e.clientY, x = t.x, y = t.y;
@@ -252,7 +265,7 @@ function beginExport() {
   if (exporting || importBusy) { status('Tunggu proses yang sedang berjalan.'); return; }
   pause(); const errors = validate(state);
   if (errors.length) { dialog('Periksa template dulu', errors); return; }
-  const notes = [`${state.clips.length} bagian video, ${state.texts.length} isian teks, ${totalDuration(state).toFixed(1)} detik.`, 'Footage contoh tidak ikut. Kirim paket ini beserta footage pengganti ke agent di perangkat mana pun.', state.music ? `Musik “${state.music.file.name}” ikut utuh, termasuk bagian di luar potongan. Jika sumber musik berupa video, seluruh gambar videonya juga ikut.` : 'Paket ini tanpa musik bawaan. Suara klip mengikuti pengaturan tiap bagian.', 'Paket berisi kata-kata teksmu sebagai contoh. Periksa isinya sebelum membagikan.'];
+  const notes = [`${state.clips.length} ${state.template ? 'slot media' : 'bagian video'}, ${state.texts.length} isian teks, ${totalDuration(state).toFixed(1)} detik.${state.template ? ' Potongan, transisi, zoom, teks otomatis dan slot logo dari template ikut.' : ''}`, 'Footage contoh tidak ikut. Kirim paket ini beserta footage pengganti ke agent di perangkat mana pun.', state.music ? `Musik “${state.music.file.name}” ikut utuh, termasuk bagian di luar potongan. Jika sumber musik berupa video, seluruh gambar videonya juga ikut.` : 'Paket ini tanpa musik bawaan. Suara klip mengikuti pengaturan tiap bagian.', 'Paket berisi kata-kata teksmu sebagai contoh. Periksa isinya sebelum membagikan.'];
   dialog('Bawa template ke agent', notes, { label: 'Unduh paket template', run: async () => {
     if (exporting) return; exporting = true;
     dialog('Menyiapkan paket', ['Musik dimasukkan langsung dari perangkatmu. Tidak ada unggahan ke server.']);
@@ -260,7 +273,7 @@ function beginExport() {
       const bundle = await toBundle(state, encode);
       const name = state.name.replace(/[^a-z0-9-]/gi, '-').replace(/-+/g, '-').slice(0, 60) || 'template';
       download(`${name}.wecut.json`, JSON.stringify(bundle));
-      dialog('Template siap dikirim', ['Lampirkan berkas .wecut.json dan footage baru ke chat agent.', 'Contoh pesan: “Pakai template ini, ganti video dan teksnya, musik tetap. Kirim preview dulu.”', 'Agent memerlukan WeCut 0.2.0 atau lebih baru. Build 0.2.0 tersedia dari source; npm 0.1.0 belum mendukung paket ini.']);
+      dialog('Template siap dikirim', ['Lampirkan berkas .wecut.json dan footage baru ke chat agent.', 'Contoh pesan: “Pakai template ini, ganti video dan teksnya, musik tetap. Kirim preview dulu.”', state.template ? 'Agent memerlukan WeCut 0.3.0 atau lebih baru.' : 'Agent memerlukan WeCut 0.2.0 atau lebih baru.']);
       const code = node('pre', `wecut recipe unpack ${name}.wecut.json --write templates/my-style\nwecut recipe show templates/my-style/recipe.json`);
       $('dialogContent').append(code);
     } catch (e) { dialog('Paket belum bisa dibuat', [e.message]); }
@@ -350,57 +363,141 @@ function showAsset(section) {
 document.querySelectorAll('[data-asset]').forEach(b => b.addEventListener('click', () => showAsset(b.dataset.asset)));
 $('importAudio').addEventListener('click', () => $('musicFile').click());
 
-// Clone: a finished video becomes a template, analysed on this device.
+// Templates: a cloned video or an imported template opens as a project.
+// Each shot is a clip on the timeline (a slot); its media can be replaced,
+// and the export keeps the template's own detail (exact shots,
+// transitions, zoom, captions, logo slot, text looks).
+function clipName(c, i) { return c.file?.name || (c.placeholder ? `Slot ${i + 1} kosong` : `Klip ${i + 1}`); }
+function replaceState(next) {
+  pause();
+  for (const key of Object.keys(state)) delete state[key];
+  Object.assign(state, next);
+  selectedClip = 0; selectedText = 0; time = 0; tab = 'clip';
+  $('projectName').value = state.name; $('ratio').value = state.ratio;
+  render();
+}
+// slate draws a numbered stand-in for an empty slot.
+function slate(n, seconds, about, ratio) {
+  const [a, b] = ratio.split(':').map(Number), w = 360, h = Math.round(w * b / a);
+  const c = document.createElement('canvas'); c.width = w; c.height = h; const g = c.getContext('2d');
+  const hues = ['#3a4c6e', '#604068', '#366256', '#705434', '#464646', '#683840'];
+  g.fillStyle = hues[(n - 1) % hues.length]; g.fillRect(0, 0, w, h);
+  g.fillStyle = 'rgba(255,255,255,.92)'; g.textAlign = 'center'; g.font = `700 ${Math.round(w / 4)}px Arial`; g.fillText(String(n), w / 2, h / 2);
+  g.font = `600 ${Math.round(w / 16)}px Arial`; g.fillText(`${seconds.toFixed(2)} dtk`, w / 2, h / 2 + w / 9);
+  g.fillStyle = 'rgba(255,255,255,.7)'; g.font = `${Math.round(w / 22)}px Arial`;
+  const words = (about || 'Isi dengan videomu').split(' '); let line = '', y = h / 2 + w / 5;
+  for (const word of words) { if (g.measureText(line + word).width > w * .85) { g.fillText(line, w / 2, y); line = ''; y += w / 18; } line += word + ' '; }
+  g.fillText(line, w / 2, y);
+  return c.toDataURL('image/png');
+}
+function openTemplate(recipe, media, useText) {
+  replaceState(stateFromTemplate(recipe, media, useText));
+  showAsset('media');
+  status(`Template “${state.name}” dibuka: ${state.clips.length} slot. Pilih slot lalu “Ganti media”, ubah teks di tab Teks, lalu Ekspor.`);
+}
+
+// Clone: a finished video becomes a template, analysed on this device,
+// and opens in the editor with the video itself in every slot.
 let cloned = null, cloning = false;
 $('cloneVideo').addEventListener('click', () => { if (!cloning) $('cloneFile').click(); });
 $('cloneFile').addEventListener('change', async (event) => {
   const file = event.target.files[0]; event.target.value = '';
   if (!file) return;
+  if (importBusy || exporting) { status('Tunggu proses yang sedang berjalan.'); return; }
   cloning = true; pause(); $('cloneResult').replaceChildren();
   const progress = $('cloneProgress'); progress.hidden = false;
   try {
     cloned = await cloneVideo(file, (f, label) => { progress.textContent = `${label} ${Math.round(f * 100)}%`; });
-    progress.hidden = true; renderClone();
+    const meta = await readMetadata(file, 'video');
+    const r = cloned.recipe;
+    // Without OCR in the browser, signs and screens in the footage can look
+    // like laid-over text; the headline card and its label are found
+    // reliably, so only they start in the editor. The rest are listed here.
+    for (const t of r.texts || []) {
+      t._use = t.slot === 'headline' || t.slot === 'label';
+      // The browser reads no words; say what to type, in the Studio's language.
+      t.text = { 'Your headline here': 'Tulis judulmu di sini', LABEL: 'LABEL', 'Your text': 'Tulis teks di sini', 'Follow for more': 'Ikuti untuk lanjutannya' }[t.text] ?? t.text.replace(/Your headline here/g, 'Tulis judulmu di sini');
+    }
+    openTemplate(r, (i) => {
+      const s = cloned.slots[i];
+      return { file, kind: 'video', url: meta.url, sourceDuration: meta.sourceDuration, from: s.start, to: Math.min(meta.sourceDuration, s.start + s.dur), duration: s.dur, thumbnail: s.thumbnail };
+    }, (t) => t._use);
+    if (r.music && cloned.music) {
+      state.music = { file, url: meta.url, sourceDuration: meta.sourceDuration, from: 0, at: 0, duration: Math.min(meta.sourceDuration, totalDuration(state)), volume: 100 };
+      makeWaveform(state.music); render();
+    }
+    progress.hidden = true; renderClone(); showAsset('clone');
   } catch (e) { progress.hidden = true; dialog('Video belum bisa dijadikan template', [e.message]); }
   finally { cloning = false; }
 });
 function renderClone() {
   const box = $('cloneResult'), r = cloned.recipe;
   const head = node('div', undefined, 'panel-heading'); head.append(node('h2', r.name), node('span', `${cloned.slots.length} slot`, 'count'));
-  const info = node('p', `${r.maxDuration.toFixed(1)} dtk · ${r.output.ratio}${r.captions ? ' · teks otomatis' : ''}${r.overlays ? ' · slot logo' : ''}${r.music ? ' · musik asli' : ''}`, 'hint');
+  const info = node('p', `${r.maxDuration.toFixed(1)} dtk · ${r.output.ratio}${r.captions ? ' · teks otomatis' : ''}${r.overlays ? ' · slot logo' : ''}${r.music ? ' · musik asli' : ''}. Sudah dibuka di editor: tiap potongan jadi satu slot di timeline.`, 'hint');
   const slots = node('div', undefined, 'clone-slots');
-  for (const s of cloned.slots) {
-    const item = node('div', undefined, 'clone-slot');
+  cloned.slots.forEach((s, i) => {
+    const item = node('button', undefined, 'clone-slot');
     const img = node('img'); img.src = s.thumbnail; img.alt = '';
     const text = node('div'); text.append(node('strong', `Slot ${s.n} · ${s.dur.toFixed(2)} dtk${s.join ? ' → ' + s.join : ''}`), node('span', s.about));
-    item.append(img, text); slots.append(item);
-  }
+    item.append(img, text); item.addEventListener('click', () => { if (state.template && i < state.clips.length) selectClip(i); }); slots.append(item);
+  });
   const words = node('div', undefined, 'clone-texts');
   (r.texts || []).forEach((t) => {
-    // Without OCR in the browser, signs and screens in the footage can look
-    // like laid-over text; the headline card and its label are found
-    // reliably, so only they start on.
-    t._use ??= t.slot === 'headline' || t.slot === 'label';
     const label = node('label');
     const head = node('span', undefined, 'clone-text-head');
-    const use = node('input'); use.type = 'checkbox'; use.checked = t._use;
-    const area = node('textarea'); area.value = t.text; area.rows = Math.min(5, t.text.split('\n').length + 1); area.disabled = !t._use;
-    use.addEventListener('change', () => { t._use = use.checked; area.disabled = !use.checked; });
-    head.append(use, node('span', `Teks “${t.slot}” · ${(t.start ?? 0).toFixed(1)}–${(t.end ?? r.maxDuration).toFixed(1)} dtk${t.background && t.background !== 'none' ? ' · kartu' : ''}`));
-    area.addEventListener('input', () => { t.text = area.value; });
-    label.append(head, area); words.append(label);
+    const use = node('input'); use.type = 'checkbox'; use.checked = !!t._use;
+    use.addEventListener('change', () => {
+      t._use = use.checked;
+      const at = state.texts.findIndex((x) => x.extra?.slot === t.slot);
+      if (use.checked && at < 0) state.texts.push(textFromSlot(t, totalDuration(state)));
+      if (!use.checked && at >= 0) state.texts.splice(at, 1);
+      selectedText = Math.max(0, Math.min(selectedText, state.texts.length - 1)); render();
+    });
+    head.append(use, node('span', `“${t.slot}” · ${(t.start ?? 0).toFixed(1)}–${(t.end ?? r.maxDuration).toFixed(1)} dtk${t.background && t.background !== 'none' ? ' · kartu' : ''}`));
+    label.append(head); words.append(label);
   });
   const hints = node('ul', undefined, 'clone-hints'); (cloned.hints || []).forEach((h) => hints.append(node('li', h)));
-  const get = node('button', 'Unduh template ↗', 'primary full');
-  get.addEventListener('click', async () => {
-    try {
-      const bundle = await templateBundle(cloned, encode, MAX_AUDIO_BYTES);
-      download(`${r.name}.wecut.json`, JSON.stringify(bundle));
-      dialog('Template siap', ['Kirim berkas .wecut.json ke agent bersama footage barumu: satu klip per slot, kata-kata untuk tiap teks, dan transkrip untuk teks otomatis.', 'Agent: wecut recipe unpack berkas.wecut.json --write templates/nama, lalu wecut recipe apply. Perlu WeCut 0.3.0.']);
-    } catch (e) { dialog('Template belum bisa diunduh', [e.message]); }
-  });
-  box.replaceChildren(head, info, get, node('h3', 'Slot media'), slots, ...(r.texts?.length ? [node('h3', 'Teks (centang yang dipakai, ubah katanya)'), words] : []), node('h3', 'Catatan'), hints);
+  box.replaceChildren(head, info, node('h3', 'Slot media'), slots, ...(r.texts?.length ? [node('h3', 'Teks yang ditemukan (centang = masuk editor)'), words] : []), node('h3', 'Catatan'), hints);
 }
+
+// Replace the selected clip's media, keeping its slot length.
+$('replaceFile').addEventListener('change', async (event) => {
+  const file = event.target.files[0]; event.target.value = '';
+  const c = state.clips[selectedClip];
+  if (!file || !c) return;
+  const kind = /^image\//.test(file.type) || /\.(jpe?g|png|webp)$/i.test(file.name) ? 'image' : 'video';
+  const want = duration(c);
+  try {
+    const meta = await readMetadata(file, kind);
+    Object.assign(c, { file, kind, ...meta, placeholder: false, thumbnail: undefined, from: 0, to: kind === 'video' ? Math.min(meta.sourceDuration, want) : c.to, duration: want });
+    if (kind === 'video' && meta.sourceDuration < want - .05) status(`Video ini ${meta.sourceDuration.toFixed(1)} dtk, slotnya ${want.toFixed(1)} dtk. Slot jadi lebih pendek.`);
+    makeThumbnail(c); render();
+  } catch (e) { dialog('Media belum bisa dipakai', [e.message]); }
+});
+
+// Import a template package (.wecut.json) or a recipe (.json): its slots
+// open as numbered stand-ins to fill.
+$('importTemplate').addEventListener('click', () => $('templateFile').click());
+$('templateFile').addEventListener('change', async (event) => {
+  const file = event.target.files[0]; event.target.value = '';
+  if (!file) return;
+  try {
+    const data = JSON.parse(await file.text());
+    const recipe = data.bundle === 'wecut.bundle/1' ? data.recipe : data;
+    if (!recipe || recipe.recipe !== '1' || !Array.isArray(recipe.sections) || !recipe.sections.length) throw new Error('Ini bukan template WeCut (wecut.recipe/1 atau paket .wecut.json).');
+    const ratio = ['9:16', '16:9', '1:1', '4:5'].includes(recipe.output?.ratio) ? recipe.output.ratio : '9:16';
+    openTemplate(recipe, (i, x) => ({ file: null, kind: 'image', placeholder: true, url: slate(i + 1, x.shot.dur || 3, x.shot.about || x.section.about, ratio), sourceDuration: 600, from: 0, to: 0, duration: x.shot.dur || x.section.duration || 3 }));
+    // The package's own music, if it carries one.
+    const src = recipe.music?.src || '', asset = (data.assets || []).find((a) => src === `assets/${a.name}`);
+    if (asset) {
+      const bytes = Uint8Array.from(atob(asset.data), (ch) => ch.charCodeAt(0));
+      const music = new File([bytes], asset.name, { type: /\.(mp4|mov|webm)$/i.test(asset.name) ? 'video/mp4' : 'audio/mpeg' });
+      const meta = await readMetadata(music, 'audio');
+      state.music = { file: music, ...meta, from: recipe.music.from || 0, at: recipe.music.at || 0, duration: Math.min(meta.sourceDuration, recipe.music.duration || totalDuration(state)), volume: recipe.music.volume ?? 100 };
+      makeWaveform(state.music); render();
+    }
+  } catch (e) { dialog('Template belum bisa dibuka', [e.message]); }
+});
 for (const [key, label] of [['none','Original'],['warm','Hangat'],['cool','Dingin'],['rose','Mawar'],['pale','Pudar'],['dark','Gelap']]) {
   const b = node('button', undefined, 'filter-preset'); b.append(node('span', '◐'), node('small', label));
   b.addEventListener('click', () => { state.filter = key; tab = 'clip'; render(); }); $('filterPresets').append(b);

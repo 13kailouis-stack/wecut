@@ -282,19 +282,22 @@ func (d *assDoc) layoutText(e *Edit, t *spec.Text, name string, l look, scale, s
 	if l.Upper {
 		text = strings.ToUpper(text)
 	}
-	padX, padY := fs*0.32, fs*0.32
-	if len(t.Padding) > 0 {
-		padX, padY = t.Padding[0]*scale, t.Padding[0]*scale
-		if len(t.Padding) > 1 {
-			padY = t.Padding[1] * scale
-		}
+	// Padding: [all], [x, y], or [top, right, bottom, left] like CSS.
+	pt, pr, pb, pl := fs*0.32, fs*0.32, fs*0.32, fs*0.32
+	switch p := t.Padding; len(p) {
+	case 1:
+		pt, pr, pb, pl = p[0]*scale, p[0]*scale, p[0]*scale, p[0]*scale
+	case 2:
+		pl, pr, pt, pb = p[0]*scale, p[0]*scale, p[1]*scale, p[1]*scale
+	case 4:
+		pt, pr, pb, pl = p[0]*scale, p[1]*scale, p[2]*scale, p[3]*scale
 	}
 	maxW := float64(e.W) * 0.88
 	if t.MaxWidth > 0 {
 		maxW = float64(e.W) * t.MaxWidth
 	}
 	if l.Bg != "" {
-		maxW -= 2 * padX
+		maxW -= pl + pr
 	}
 	lines := m.wrap(text, fs, l.Spacing, math.Max(fs, maxW))
 	n := len(lines)
@@ -337,11 +340,11 @@ func (d *assDoc) layoutText(e *Edit, t *spec.Text, name string, l look, scale, s
 			for _, p := range ps {
 				x0, x1 = math.Min(x0, p.x0), math.Max(x1, p.x0+p.w)
 			}
-			rect(x0-padX, ps[0].b-capH-padY, x1+padX, ps[n-1].b+padY)
+			rect(x0-pl, ps[0].b-capH-pt, x1+pr, ps[n-1].b+pb)
 		} else {
 			for _, p := range ps {
 				if strings.TrimSpace(p.text) != "" {
-					rect(p.x0-padX, p.b-capH-padY, p.x0+p.w+padX, p.b+padY)
+					rect(p.x0-pl, p.b-capH-pt, p.x0+p.w+pr, p.b+pb)
 				}
 			}
 		}

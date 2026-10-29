@@ -345,8 +345,8 @@ func (v *validator) text(path string, t *Text) {
 	if t.LineHeight != 0 {
 		v.rng(path+"/lineHeight", t.LineHeight, 0.6, 3, "lineHeight")
 	}
-	if len(t.Padding) > 2 {
-		v.add("E_VALUE", path+"/padding", "padding is one number or [x, y]", "")
+	if n := len(t.Padding); n == 3 || n > 4 {
+		v.add("E_VALUE", path+"/padding", "padding is one number, [x, y] or [top, right, bottom, left]", "")
 	}
 	for i, p := range t.Padding {
 		v.rng(fmt.Sprintf("%s/padding/%d", path, i), p, 0, 300, "padding")

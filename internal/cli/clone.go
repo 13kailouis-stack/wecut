@@ -126,7 +126,9 @@ func (a *app) clone(args []string) int {
 		return a.fail(exitRender, warnings, spec.Issue{Code: "E_RENDER", Message: err.Error()})
 	}
 
-	lowFPS := math.Min(30, math.Round(info.FPS))
+	// Timing frames at the source's own rate (up to 60), so every cut lands
+	// on the frame where it really is.
+	lowFPS := math.Min(60, math.Round(info.FPS))
 	if lowFPS < 10 {
 		lowFPS = 30
 	}
@@ -260,7 +262,7 @@ func (a *app) clone(args []string) int {
 		b, _ := json.Marshal(map[string]any{"debug": d, "plan": res.Plan})
 		os.WriteFile(filepath.Join(outAbs, "debug.json"), b, 0o644)
 	}
-	compareRel, err := a.compareSheet(ctx, c, root, t, src, res, info.Width, info.Height, outDir)
+	compareRel, timing, err := a.compareSheet(ctx, c, root, t, src, res, info.Width, info.Height, outDir)
 	if err != nil {
 		warnings = append(warnings, spec.Issue{Code: "W_COMPARE", Message: "comparison sheet: " + err.Error()})
 	}
@@ -284,6 +286,9 @@ func (a *app) clone(args []string) int {
 	}
 	if compareRel != "" {
 		out["compare"] = compareRel
+	}
+	if timing != nil {
+		out["timing"] = timing
 	}
 	if ocrUsed != "" {
 		out["ocr"] = ocrUsed

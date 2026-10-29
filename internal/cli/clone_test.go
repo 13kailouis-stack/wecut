@@ -50,6 +50,10 @@ func TestCloneRoundTrip(t *testing.T) {
 		} `json:"events"`
 		Slots   []json.RawMessage `json:"slots"`
 		Compare string            `json:"compare"`
+		Timing  struct {
+			Events, Matched int
+			MaxMs           float64 `json:"max_error_ms"`
+		} `json:"timing"`
 	}
 	if err := json.Unmarshal(out.Bytes(), &res); err != nil {
 		t.Fatal(err)
@@ -65,6 +69,10 @@ func TestCloneRoundTrip(t *testing.T) {
 	}
 	if res.Compare == "" {
 		t.Error("no comparison sheet")
+	}
+	// The template, rendered and measured again, cuts where the original did.
+	if res.Timing.Events == 0 || res.Timing.Matched != res.Timing.Events || res.Timing.MaxMs > 200 {
+		t.Errorf("timing check %+v", res.Timing)
 	}
 
 	raw, err := os.ReadFile(filepath.Join(root, filepath.FromSlash(res.File)))

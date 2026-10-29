@@ -26,17 +26,29 @@ import (
 // words) and sets its frames beside the original's at the same moments:
 // original on the left, template on the right. The template keeps the
 // original's timeline, so the same second shows the same slot.
-func (a *app) compareSheet(ctx context.Context, c common, root *workspace.Root, t *ff.Tools, src string, res *clone.Result, srcW, srcH int, outRel string) (string, error) {
+func (a *app) compareSheet(ctx context.Context, c common, root *workspace.Root, t *ff.Tools, src string, res *clone.Result, srcW, srcH int, outRel string) (rel string, timing *timingReport, err error) {
+	rel, l, err := a.compareSheetOnly(ctx, c, root, t, src, res, srcW, srcH, outRel)
+	if err != nil || l == nil {
+		return rel, nil, err
+	}
+	timing, terr := a.checkTiming(ctx, l, t, res.Plan)
+	if terr != nil {
+		return rel, nil, fmt.Errorf("timing check: %v", terr)
+	}
+	return rel, timing, nil
+}
+
+func (a *app) compareSheetOnly(ctx context.Context, c common, root *workspace.Root, t *ff.Tools, src string, res *clone.Result, srcW, srcH int, outRel string) (string, *loaded, error) {
 	r := res.Recipe
 	plan := res.Plan
 	phRel := filepath.ToSlash(filepath.Join(outRel, "placeholders"))
 	phAbs, err := root.Output(phRel + "/x")
 	if err != nil {
-		return "", err
+		return "", nil, err
 	}
 	phAbs = filepath.Dir(phAbs)
 	if err := os.MkdirAll(phAbs, 0o755); err != nil {
-		return "", err
+		return "", nil, err
 	}
 
 	// One stand-in per shot, shaped like the footage the slot shows.
@@ -57,7 +69,7 @@ func (a *app) compareSheet(ctx context.Context, c common, root *workspace.Root, 
 			}
 			name := fmt.Sprintf("%s/slot-%d.png", phRel, k+1)
 			if err := writePNG(filepath.Join(phAbs, fmt.Sprintf("slot-%d.png", k+1)), slate(w, h, k+1)); err != nil {
-				return "", err
+				return "", nil, err
 			}
 			in.Clips = append(in.Clips, recipe.Clip{Src: name, Role: sec.Role})
 			k++
@@ -72,7 +84,7 @@ func (a *app) compareSheet(ctx context.Context, c common, root *workspace.Root, 
 		}
 		name := fmt.Sprintf("%s/%s.png", phRel, o.Slot)
 		if err := writePNG(filepath.Join(phAbs, o.Slot+".png"), logoBox(lw, lh)); err != nil {
-			return "", err
+			return "", nil, err
 		}
 		if in.Overlays == nil {
 			in.Overlays = map[string]string{}
@@ -89,11 +101,11 @@ func (a *app) compareSheet(ctx context.Context, c common, root *workspace.Root, 
 	}
 	set, errs := a.probeAll(root, t, uses, map[string]bool{})
 	if len(errs) > 0 {
-		return "", fmt.Errorf("%s", errs[0].Message)
+		return "", nil, fmt.Errorf("%s", errs[0].Message)
 	}
 	p, _, errs := recipe.Apply(r, in, set)
 	if len(errs) > 0 {
-		return "", fmt.Errorf("%s: %s", errs[0].Path, errs[0].Message)
+		return "", nil, fmt.Errorf("%s: %s", errs[0].Path, errs[0].Message)
 	}
 	// Sample words where the captions ran, so their place and size show.
 	if cs := r.Captions; cs != nil && plan.Captions != nil {
@@ -116,7 +128,7 @@ func (a *app) compareSheet(ctx context.Context, c common, root *workspace.Root, 
 	}
 	l, issues, _ := a.prepare(c, root, data, "compare")
 	if len(issues) > 0 {
-		return "", fmt.Errorf("%s: %s", issues[0].Path, issues[0].Message)
+		return "", nil, fmt.Errorf("%s: %s", issues[0].Path, issues[0].Message)
 	}
 
 	// The moments: the middle of each slot, at most nine of them.
@@ -134,7 +146,7 @@ func (a *app) compareSheet(ctx context.Context, c common, root *workspace.Root, 
 		defer os.RemoveAll(job)
 	}
 	if err != nil {
-		return "", err
+		return "", nil, err
 	}
 	abs, _ := root.Input(src)
 
@@ -155,7 +167,7 @@ func (a *app) compareSheet(ctx context.Context, c common, root *workspace.Root, 
 		x0, y0 := pad+(i%cols)*(pw+3*pad), pad+(i/cols)*(th+pad)
 		b, err := t.Still(ctx, abs, os.TempDir(), at, tw, th)
 		if err != nil {
-			return "", err
+			return "", nil, err
 		}
 		for y := 0; y < th; y++ {
 			for x := 0; x < tw; x++ {
@@ -165,12 +177,12 @@ func (a *app) compareSheet(ctx context.Context, c common, root *workspace.Root, 
 		}
 		f, err := os.Open(frames[i])
 		if err != nil {
-			return "", err
+			return "", nil, err
 		}
 		img, err := jpeg.Decode(f)
 		f.Close()
 		if err != nil {
-			return "", err
+			return "", nil, err
 		}
 		bd := img.Bounds()
 		for y := 0; y < th; y++ {
@@ -181,17 +193,17 @@ func (a *app) compareSheet(ctx context.Context, c common, root *workspace.Root, 
 	}
 	outAbs, err := root.Output(filepath.Join(outRel, "compare.jpg"))
 	if err != nil {
-		return "", err
+		return "", nil, err
 	}
 	f, err := os.Create(outAbs)
 	if err != nil {
-		return "", err
+		return "", nil, err
 	}
 	defer f.Close()
 	if err := jpeg.Encode(f, sheet, &jpeg.Options{Quality: 85}); err != nil {
-		return "", err
+		return "", nil, err
 	}
-	return root.Rel(outAbs), nil
+	return root.Rel(outAbs), l, nil
 }
 
 // previewFrames renders still frames of a loaded edit at the given output
@@ -239,13 +251,18 @@ func (a *app) previewFrames(ctx context.Context, l *loaded, times []float64) (fi
 func slate(w, h, n int) image.Image {
 	w, h = max(16, w), max(16, h)
 	img := image.NewRGBA(image.Rect(0, 0, w, h))
-	hues := [][3]uint8{{58, 76, 110}, {96, 64, 104}, {54, 98, 86}, {112, 84, 52}, {70, 70, 70}, {104, 56, 64}}
+	// Neighbouring slots alternate dark and light, so a cut between any two
+	// is plain to the eye and to the cut detector (which reads brightness).
+	hues := [][3]uint8{{40, 56, 92}, {196, 176, 214}, {34, 84, 66}, {214, 192, 150}, {70, 40, 40}, {180, 214, 200}}
 	c := hues[(n-1)%len(hues)]
 	for y := 0; y < h; y++ {
 		for x := 0; x < w; x++ {
 			v := c
 			if (x/(max(8, w/12))+y/(max(8, w/12)))%2 == 0 {
-				v = [3]uint8{c[0] + 10, c[1] + 10, c[2] + 10}
+				v = [3]uint8{c[0] + 14, c[1] + 14, c[2] + 14}
+				if c[0] > 128 {
+					v = [3]uint8{c[0] - 14, c[1] - 14, c[2] - 14}
+				}
 			}
 			img.Set(x, y, color.RGBA{v[0], v[1], v[2], 255})
 		}
@@ -256,6 +273,9 @@ func slate(w, h, n int) image.Image {
 	for i := 0; i < len(big.Pix); i += 4 {
 		if big.Pix[i+3] > 0 {
 			copy(img.Pix[i:i+4], big.Pix[i:i+4])
+			if c[0] > 128 { // dark digits on a light slate
+				img.Pix[i], img.Pix[i+1], img.Pix[i+2] = 24, 24, 24
+			}
 		}
 	}
 	return img
@@ -300,4 +320,99 @@ func drawNumberScaled(img *image.RGBA, cx, cy, n, s int) {
 			}
 		}
 	}
+}
+
+// timingReport compares the cuts and transitions of the template, rendered
+// with stand-ins and measured again, with the original's.
+type timingReport struct {
+	Events   int          `json:"events"`        // in the original
+	Matched  int          `json:"matched"`       // found again in the template within half a second
+	MaxMs    float64      `json:"max_error_ms"`  // the worst timing difference of a matched cut
+	MeanMs   float64      `json:"mean_error_ms"` // the average one
+	FrameMs  float64      `json:"frame_ms"`      // one frame of the template, for scale
+	Each     []timingPair `json:"each"`
+	Missing  []float64    `json:"missing,omitempty"`
+	Extra    []float64    `json:"extra,omitempty"`
+	Original float64      `json:"original_duration"`
+	Template float64      `json:"template_duration"`
+}
+
+type timingPair struct {
+	Kind     string  `json:"kind"`
+	Original float64 `json:"original"` // seconds: the cut, or the middle of a transition
+	Template float64 `json:"template"`
+	ErrorMs  float64 `json:"error_ms"`
+}
+
+// checkTiming renders the stand-in template small, runs the cut detector on
+// it, and matches every event to the original's.
+func (a *app) checkTiming(ctx context.Context, l *loaded, t *ff.Tools, plan *clone.Plan) (*timingReport, error) {
+	caps, err := l.tools.Capabilities(ctx)
+	if err != nil {
+		return nil, err
+	}
+	job, err := os.MkdirTemp("", "wecut-timing-")
+	if err != nil {
+		return nil, err
+	}
+	defer os.RemoveAll(job)
+	out := filepath.Join(job, "check.mp4")
+	p, err := engine.Compile(l.edit, engine.Options{Preset: "draft", ResOverride: 270, Encoder: caps.DefaultEncoder(), OutPath: out, FFmpegMajor: l.tools.Major})
+	if err != nil {
+		return nil, err
+	}
+	if err := os.WriteFile(filepath.Join(job, "graph.txt"), []byte(p.Graph), 0o644); err != nil {
+		return nil, err
+	}
+	if p.ASS != "" {
+		os.WriteFile(filepath.Join(job, "wecut.ass"), []byte(p.ASS), 0o644)
+		if err := assets.WriteFonts(filepath.Join(job, "fonts"), p.Fonts); err != nil {
+			return nil, err
+		}
+	}
+	cctx, cancel := context.WithTimeout(ctx, time.Duration(max(120, 6*l.edit.Total)*float64(time.Second)))
+	defer cancel()
+	if err := l.tools.Run(cctx, ff.Job{Dir: job, Args: p.Args, Duration: p.Duration}); err != nil {
+		return nil, err
+	}
+	fps := float64(l.edit.FPS)
+	an := clone.New(clone.Config{W: p.W, H: p.H, Duration: p.Duration, LowFPS: fps, HighFPS: 6})
+	lw, lh := clone.LowSize(p.W, p.H)
+	if err := t.Frames(cctx, out, job, lw, lh, fps, p.Duration, "gray", func(b []byte) error {
+		an.AddLow(&clone.Gray{W: lw, H: lh, Pix: b})
+		return nil
+	}); err != nil {
+		return nil, err
+	}
+	got := an.Analyze().Events
+	r := &timingReport{Events: len(plan.Events), FrameMs: round2(1000 / fps), Original: round2(plan.ContentEnd), Template: round2(p.Duration)}
+	used := make([]bool, len(got))
+	var sum float64
+	for _, e := range plan.Events {
+		best, bestD := -1, 0.5
+		for k, g := range got {
+			if d := math.Abs(g.At - e.At); !used[k] && d < bestD {
+				best, bestD = k, d
+			}
+		}
+		if best < 0 {
+			r.Missing = append(r.Missing, round2(e.At))
+			continue
+		}
+		used[best] = true
+		r.Matched++
+		ms := bestD * 1000
+		r.Each = append(r.Each, timingPair{e.Kind, round2(e.At), round2(got[best].At), round2(ms)})
+		sum += ms
+		r.MaxMs = math.Max(r.MaxMs, round2(ms))
+	}
+	if r.Matched > 0 {
+		r.MeanMs = round2(sum / float64(r.Matched))
+	}
+	for k, g := range got {
+		if !used[k] && g.At < p.Duration-0.1 {
+			r.Extra = append(r.Extra, round2(g.At))
+		}
+	}
+	return r, nil
 }

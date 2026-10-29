@@ -110,7 +110,7 @@
         "rotate": { "type": "number", "minimum": -360, "maximum": 360, "description": "Clockwise degrees." },
         "maxWidth": { "type": "number", "minimum": 0.1, "maximum": 1, "default": 0.88, "description": "Widest a line may get, as a fraction of the canvas width, before it wraps." },
         "lineHeight": { "type": "number", "minimum": 0.6, "maximum": 3, "description": "Lay the text out line by line this many times the size apart (1.2 is tight, like an editor's text box). A background then becomes one exact card sized to the text (box card) or one box per line." },
-        "padding": { "type": "array", "minItems": 1, "maxItems": 2, "items": { "type": "number", "minimum": 0, "maximum": 300 }, "description": "With lineHeight: space between the text and its card, in pixels at 1080; [all] or [x, y]. Default 0.32 x size." },
+        "padding": { "type": "array", "minItems": 1, "maxItems": 4, "items": { "type": "number", "minimum": 0, "maximum": 300 }, "description": "With lineHeight: space between the text and its card, in pixels at 1080; [all], [x, y] or [top, right, bottom, left]. Top and bottom are measured from the capitals' top and the last baseline. Default 0.32 x size." },
         "in": { "$ref": "#/$defs/animIn" },
         "out": { "$ref": "#/$defs/animOut" },
         "emphasis": { "type": "array", "maxItems": 10, "items": { "type": "string", "minLength": 1 }, "description": "Words or phrases to colour differently (case-insensitive), like the red words in a headline card. Not with the typing animation." },

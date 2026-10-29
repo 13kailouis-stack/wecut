@@ -80,8 +80,12 @@ func (a *Analyzer) Build(o Options) *Result {
 	if r.Output.Ratio == "other" {
 		r.Output.Ratio = "original"
 	}
-	if fps := a.cfg.LowFPS; fps > 0 && math.Abs(fps-25) < 0.5 {
-		r.Output.FPS = 25
+	// The template plays at the original's frame rate, so its cuts fall on
+	// the same frames.
+	for _, f := range []int{24, 25, 50, 60} {
+		if math.Abs(a.cfg.LowFPS-float64(f)) < 0.5 {
+			r.Output.FPS = f
+		}
 	}
 	for _, s := range p.Shots {
 		if s.Fit == "contain" {
@@ -279,6 +283,24 @@ func (a *Analyzer) Build(o Options) *Result {
 			// spacing and card padding, placed by the capitals' middle.
 			short := float64(min(W, H))
 			fs := capPx / engine.CapRatio(sl.Font)
+			// Our font is not the original's: when the words are known, size
+			// it so the widest line is as wide as the original's, which keeps
+			// the same line breaks inside the same card.
+			if lines := rd.Lines; len(lines) == len(l.Left) && len(lines) > 0 {
+				k := math.Inf(1)
+				for i, ln := range lines {
+					text := ln
+					if upper {
+						text = strings.ToUpper(ln)
+					}
+					if ours := engine.TextWidth(sl.Font, text, fs); ours > 0 {
+						k = math.Min(k, (l.Right[i]-l.Left[i])*float64(W)/ours)
+					}
+				}
+				if k < 1 && k > 0.6 {
+					fs *= k
+				}
+			}
 			sl.Size = r2(clampf(fs*1080/short, 8, 400))
 			n := len(l.Base)
 			y = (l.CapTop[0] + l.Base[n-1]) / 2
@@ -303,9 +325,14 @@ func (a *Analyzer) Build(o Options) *Result {
 				sl.LineHeight = r2(clampf(median(gaps)/fs, 0.8, 2.5))
 			}
 			if b := l.BoxArea; b != nil {
-				px := (left - b.X) * float64(W)
-				py := ((l.CapTop[0]-b.Y)*float64(H) + (b.Y+b.H-l.Base[n-1])*float64(H)) / 2
-				sl.Padding = []float64{r2(clampf(px*1080/short, 0, 300)), r2(clampf(py*1080/short, 0, 300))}
+				// Each side on its own: the space under the last baseline
+				// holds the descenders and is larger than the space above.
+				k := 1080 / short
+				top := (l.CapTop[0] - b.Y) * float64(H) * k
+				bottom := (b.Y + b.H - l.Base[n-1]) * float64(H) * k
+				lp := (left - b.X) * float64(W) * k
+				rp := (b.X + b.W - right) * float64(W) * k
+				sl.Padding = []float64{r2(clampf(top, 0, 300)), r2(clampf(rp, 0, 300)), r2(clampf(bottom, 0, 300)), r2(clampf(lp, 0, 300))}
 			}
 			sl.MaxWidth = r2(clampf(right-left+0.04, 0.2, 1))
 			if l.BoxArea != nil {

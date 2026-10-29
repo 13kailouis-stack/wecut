@@ -19,3 +19,6 @@ body{height:100dvh;display:flex;flex-direction:column;overflow:hidden;background
 .primary.full{width:100%;margin:10px 0 4px}
 .clone-text-head{display:flex;gap:6px;align-items:center}
 .clone-texts textarea:disabled{opacity:.45}
+.clone-slot{border:0;background:transparent;color:inherit;text-align:left;padding:2px;border-radius:4px;cursor:pointer}
+.clone-slot:hover{background:rgba(255,255,255,.06)}
+#replaceClip{margin:4px 0 10px}

@@ -208,3 +208,13 @@ func CapRatio(key string) float64 {
 	}
 	return m.capH / m.upm
 }
+
+// TextWidth is how wide text is drawn in the font at CSS size fs, in the
+// same pixels as fs. 0 when the font cannot be measured.
+func TextWidth(key, text string, fs float64) float64 {
+	m, err := metricsFor(key)
+	if err != nil {
+		return 0
+	}
+	return m.width(text, fs, 0)
+}
