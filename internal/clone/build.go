@@ -415,7 +415,7 @@ func (a *Analyzer) Build(o Options) *Result {
 
 	// Logos become picture slots.
 	for _, lg := range p.Logos {
-		b := lg.Box.grow(lg.Box.H*0.6, 0)
+		b := lg.Box
 		ov := recipe.OverlaySlot{Slot: lg.ID, About: "your logo or watermark (PNG with transparency)", X: spec.F(r3(b.cx())), Y: spec.F(r3(b.cy())), Width: r3(clampf(b.W, 0.02, 1))}
 		if lg.Start > 0.2 {
 			ov.Start = r2(lg.Start)

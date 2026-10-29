@@ -79,7 +79,7 @@ func (a *app) compareSheetOnly(ctx context.Context, c common, root *workspace.Ro
 		lw, lh := 200, 60
 		for _, lg := range plan.Logos {
 			if lg.ID == o.Slot {
-				lw, lh = max(8, int(lg.Box.W*float64(srcW)*1.3)), max(4, int(lg.Box.H*float64(srcH)))
+				lw, lh = max(8, int(lg.Box.W*float64(srcW))), max(4, int(lg.Box.H*float64(srcH)))
 			}
 		}
 		name := fmt.Sprintf("%s/%s.png", phRel, o.Slot)

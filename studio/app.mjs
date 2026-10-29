@@ -1,6 +1,6 @@
 import { splitClip, createHistory } from './editing.mjs?v=desktop-3';
 import { timelineEditor } from './timeline.mjs?v=desktop-3';
-import { initialState, duration, totalDuration, locate, validate, toBundle, filters, fonts, engineFonts, stateFromTemplate, textFromSlot, MAX_AUDIO_BYTES } from './model.mjs?v=template-1';
+import { initialState, duration, totalDuration, locate, validate, toBundle, filters, fonts, engineFonts, stateFromTemplate, textFromSlot, MAX_AUDIO_BYTES } from './model.mjs?v=template-2';
 import { cloneVideo } from './clone.mjs?v=clone-3';
 
 const $ = (id) => document.getElementById(id);

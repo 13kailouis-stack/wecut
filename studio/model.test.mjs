@@ -78,7 +78,10 @@ test('a template opens as slots and exports with its own detail kept', async () 
   assert.equal(s.clips[2].fit, 'contain');
   assert.equal(s.texts[0].font, 'anton');
   assert.deepEqual(validate(s), []);
-  s.texts[0].text = 'New words'; s.clips[1].duration = 2.6;
+  // The flash overlap (0.4 s) is off the timeline: 2 + 2.0 + 2.5 = 6.5 s, as long as the template.
+  assert.equal(s.clips[1].duration, 2);
+  assert.ok(Math.abs(totalDuration(s) - 6.5) < 1e-9);
+  s.texts[0].text = 'New words'; s.clips[1].duration = 2.2;
   const r = templateRecipe(s);
   assert.equal(r.sections[0].audio, 'next');
   assert.equal(r.sections[0].shots[0].zoomTo, 1.1);

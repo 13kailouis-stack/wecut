@@ -429,7 +429,9 @@ func (a *Analyzer) textResults(p *Plan) {
 		// Something that comes and goes in the middle of a shot counts when
 		// the picture behind it either moved while it held still, or did not
 		// move at all (so the change was the text itself).
-		midShot := !nearCut(s) && !nearCut(e) && a.popsIn(b, s, e) && (t.moved >= 1 || t.still*2 >= t.seen)
+		// It must also stay a while: bits of a screen or a scrolling page
+		// come and go in half a second, a title stays up.
+		midShot := e-s >= 1 && !nearCut(s) && !nearCut(e) && a.popsIn(b, s, e) && (t.moved >= 1 || t.still*2 >= t.seen)
 		lines = append(lines, span{s, e, b, t.moved >= 2 || crossesCut(s, e) || midShot})
 	}
 	// One line seen as several tracks (lost for a moment behind a flash or
@@ -662,6 +664,11 @@ func (a *Analyzer) textResults(p *Plan) {
 	for _, bl := range blocks {
 		a.refineTiming(bl, p.Events, end)
 		if bl.Kind == "logo" {
+			// The mark itself: pixels that are an edge most of the time,
+			// which leaves out scenery a line box sometimes took in.
+			if b, ok := a.coreBox(bl.Box.grow(bl.Box.H*1.2, bl.Box.H*0.5), bl.Start, bl.End); ok {
+				bl.Box, bl.Lines = b, []Box{b}
+			}
 			nl++
 			bl.ID = "logo"
 			if nl > 1 {
@@ -926,4 +933,42 @@ func stitch(lines []span) []span {
 		}
 	}
 	return lines
+}
+
+// coreBox is the box around the pixels inside area that are an edge in at
+// least 60% of up to 40 high frames of [s, e]: what stays put there.
+func (a *Analyzer) coreBox(area Box, s, e float64) (Box, bool) {
+	if len(a.edges) == 0 {
+		return Box{}, false
+	}
+	w, h := a.highW, a.highH
+	r := area.rect(w, h)
+	k0 := clampi(int(math.Round(s*a.cfg.HighFPS)), 0, len(a.edges)-1)
+	k1 := clampi(int(math.Round(e*a.cfg.HighFPS))-1, k0, len(a.edges)-1)
+	step := max(1, (k1-k0+1)/40)
+	n := 0
+	counts := make([]int, r.W*r.H)
+	for k := k0; k <= k1; k += step {
+		n++
+		for y := 0; y < r.H; y++ {
+			for x := 0; x < r.W; x++ {
+				if a.edgeAt(k, (r.Y+y)*w+r.X+x) {
+					counts[y*r.W+x]++
+				}
+			}
+		}
+	}
+	x0, y0, x1, y1, hits := r.W, r.H, -1, -1, 0
+	for y := 0; y < r.H; y++ {
+		for x := 0; x < r.W; x++ {
+			if counts[y*r.W+x]*10 >= n*6 {
+				hits++
+				x0, y0, x1, y1 = min(x0, x), min(y0, y), max(x1, x), max(y1, y)
+			}
+		}
+	}
+	if hits < 12 || x1 <= x0 || y1 <= y0 {
+		return Box{}, false
+	}
+	return Rect{r.X + x0, r.Y + y0, x1 - x0 + 1, y1 - y0 + 1}.box(w, h), true
 }

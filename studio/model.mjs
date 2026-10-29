@@ -87,9 +87,14 @@ export async function toBundle(state, encode) {
 // templateShots lists a recipe's media slots in order.
 export function templateShots(recipe) {
   const out = [];
-  (recipe.sections || []).forEach((section, si) => {
+  const sections = recipe.sections || [];
+  sections.forEach((section, si) => {
     const shots = section.shots?.length ? section.shots : [{ dur: section.duration || section.shot || 3 }];
-    shots.forEach((shot, k) => out.push({ si, k, shot, section }));
+    shots.forEach((shot, k) => {
+      // How long this shot overlaps the next one (its transition).
+      const t = k < shots.length - 1 ? shot.join : si < sections.length - 1 ? section.transitionOut : null;
+      out.push({ si, k, shot, section, join: t ? (t.duration || 0.5) : 0 });
+    });
   });
   return out;
 }
@@ -104,7 +109,15 @@ export function stateFromTemplate(recipe, media, useText = () => true) {
   s.ratio = ['9:16', '16:9', '1:1', '4:5'].includes(recipe.output?.ratio) ? recipe.output.ratio : '9:16';
   s.res = [480, 720, 1080].includes(recipe.output?.res) ? recipe.output.res : 1080;
   s.fps = [24, 25, 30, 60].includes(recipe.output?.fps) ? recipe.output.fps : 30;
-  s.clips = templateShots(recipe).map((x, i) => ({ fit: x.shot.fit || x.section.fit || 'cover', mute: !!(x.section.mute || x.section.audio === 'next'), slot: i, about: x.shot.about || x.section.about || '', ...media(i, x) }));
+  s.clips = templateShots(recipe).map((x, i) => {
+    const c = { fit: x.shot.fit || x.section.fit || 'cover', mute: !!(x.section.mute || x.section.audio === 'next'), slot: i, about: x.shot.about || x.section.about || '', ...media(i, x) };
+    // The timeline has no overlaps: a slot shows until the next one starts,
+    // and gets its transition back on export.
+    c.joinDur = Math.min(x.join, duration(c) - 0.1);
+    if (c.joinDur > 0) { if (c.kind === 'image') c.duration = round(c.duration - c.joinDur); else c.to = round(c.to - c.joinDur); }
+    else c.joinDur = 0;
+    return c;
+  });
   const total = s.clips.reduce((n, c) => n + duration(c), 0);
   s.texts = (recipe.texts || []).filter(useText).map((t) => textFromSlot(t, total));
   return s;
@@ -128,12 +141,12 @@ export function templateRecipe(state) {
   if (flat.length === state.clips.length && flat.every((x) => x.section.shots?.length)) {
     flat.forEach((x, i) => {
       const c = state.clips[i];
-      x.shot.dur = round(duration(c));
+      x.shot.dur = round(duration(c) + (c.joinDur || 0));
       if (c.fit !== (x.section.fit || 'cover')) x.shot.fit = c.fit; else delete x.shot.fit;
     });
   } else {
     // Clips were added, split or removed: one section, a shot per clip.
-    r.sections = [{ role: 'body', fit: 'cover', shots: state.clips.map((c) => ({ dur: round(duration(c)), ...(c.fit !== 'cover' ? { fit: c.fit } : {}) })) }];
+    r.sections = [{ role: 'body', fit: 'cover', shots: state.clips.map((c) => ({ dur: round(duration(c) + (c.joinDur || 0)), ...(c.fit !== 'cover' ? { fit: c.fit } : {}) })) }];
   }
   const taken = new Set();
   r.texts = state.texts.map((t, i) => {
@@ -145,7 +158,7 @@ export function templateRecipe(state) {
     return { ...base, slot, text: t.text, start: round(t.start), end: round(t.end), x: round(t.x), y: round(t.y), font: t.font, size: t.size, color: t.color, background: t.box ? t.background : 'none' };
   });
   if (!r.texts.length) delete r.texts;
-  r.maxDuration = Math.max(3, round(totalDuration(state)));
+  r.maxDuration = Math.max(3, round(totalDuration(state) + 0.05));
   if (state.music) {
     const m = state.music, extension = m.file.name.split('.').pop().toLowerCase();
     r.music = { ...(r.music || {}), src: `assets/music.${extension}`, from: round(m.from), at: round(m.at), duration: round(m.duration), volume: m.volume };
