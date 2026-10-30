@@ -99,6 +99,79 @@ func TestCloneRoundTrip(t *testing.T) {
 		t.Errorf("logo slot %+v", r.Overlays)
 	}
 
+	// A model looks at the review and answers; the analysis is not redone.
+	var first struct {
+		Review struct {
+			Pending int `json:"pending"`
+			Items   []struct {
+				ID    string          `json:"id"`
+				Kind  string          `json:"kind"`
+				Image string          `json:"image"`
+				Now   json.RawMessage `json:"now"`
+			} `json:"items"`
+			Limits []string `json:"limits"`
+		} `json:"review"`
+	}
+	if err := json.Unmarshal(out.Bytes(), &first); err != nil {
+		t.Fatal(err)
+	}
+	if first.Review.Pending == 0 || len(first.Review.Limits) == 0 {
+		t.Fatalf("review: %+v", first.Review)
+	}
+	cardID, kinds := "", map[string]bool{}
+	for _, it := range first.Review.Items {
+		kinds[it.Kind] = true
+		var now struct{ Slot string }
+		json.Unmarshal(it.Now, &now)
+		if it.Kind == "text" && now.Slot == card.Slot {
+			cardID = it.ID
+			if it.Image == "" || !fileExists(filepath.Join(root, filepath.FromSlash(it.Image))) {
+				t.Errorf("no image for %s: %+v", it.ID, it)
+			}
+		}
+	}
+	if cardID == "" || !kinds["shots"] || !kinds["transitions"] {
+		t.Fatalf("review items: %+v", first.Review.Items)
+	}
+	answers := `{"` + cardID + `": {"lines": ["Words read by eye", "on the same card"], "font": "abril", "emphasis": ["eye"], "emphasis_color": "#E8003D"},
+	  "slot1": {"about": "a wide shot"}, "slot2": {"join": "slideleft"}}`
+	os.WriteFile(filepath.Join(root, "answers.json"), []byte(answers), 0o644)
+	out.Reset()
+	if code := Run(context.Background(), []string{"clone", "out/known.mp4", "--name", "known", "--force", "--read", "answers.json", "--root", root}, strings.NewReader(""), &out, &out); code != 0 {
+		t.Fatalf("clone with answers: %s", out.String())
+	}
+	var second struct {
+		Reused bool `json:"analysis_reused"`
+		Slots  []struct {
+			About string `json:"about"`
+			Join  string `json:"join"`
+		} `json:"slots"`
+	}
+	json.Unmarshal(out.Bytes(), &second)
+	if !second.Reused || second.Slots[0].About != "a wide shot" || second.Slots[1].Join != "slideleft" {
+		t.Fatalf("answers not used: %s", out.String())
+	}
+	raw, _ = os.ReadFile(filepath.Join(root, filepath.FromSlash(res.File)))
+	var answered recipe.Recipe
+	if err := json.Unmarshal(raw, &answered); err != nil {
+		t.Fatal(err)
+	}
+	found := false
+	for _, s := range answered.Texts {
+		if s.Slot == card.Slot {
+			found = s.Text == "Words read by eye\non the same card" && s.Font == "abril" && len(s.Emphasis) == 1
+		}
+	}
+	if !found {
+		t.Fatalf("answers not in the recipe: %s", raw)
+	}
+	// Answers for another video are refused, and nothing is written.
+	os.WriteFile(filepath.Join(root, "answers.json"), []byte(`{"text77": ["nope"]}`), 0o644)
+	out.Reset()
+	if code := Run(context.Background(), []string{"clone", "out/known.mp4", "--name", "known", "--force", "--read", "answers.json", "--root", root}, strings.NewReader(""), &out, &out); code == 0 {
+		t.Fatalf("wrong id accepted: %s", out.String())
+	}
+
 	// Fill it with other footage, words and a logo; render.
 	req := `{"recipe": "known", "clips": [{"src": "media/talk.mp4"}, {"src": "media/tall.mp4"}, {"src": "media/photo.jpg"}],
 	  "texts": {"` + card.Slot + `": {"text": "A new headline\nfor the same card"}},

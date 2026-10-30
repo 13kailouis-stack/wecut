@@ -65,6 +65,8 @@ func Run(ctx context.Context, args []string, stdin io.Reader, stdout, stderr io.
 		return a.analyze(rest)
 	case "clone":
 		return a.clone(rest)
+	case "setup":
+		return a.setup(rest)
 	case "recipe":
 		return a.recipe(rest)
 	case "validate":
@@ -90,18 +92,21 @@ func Run(ctx context.Context, args []string, stdin io.Reader, stdout, stderr io.
 	case "example":
 		return a.example(rest)
 	}
-	return a.fail(exitInput, nil, spec.Issue{Code: "E_USAGE", Message: fmt.Sprintf("unknown command %q", cmd), Hint: "Commands: guide, doctor, probe, analyze, clone, recipe, validate, preview, render, schema, list, example, mcp, version. Run `wecut help`."})
+	return a.fail(exitInput, nil, spec.Issue{Code: "E_USAGE", Message: fmt.Sprintf("unknown command %q", cmd), Hint: "Commands: guide, setup, doctor, probe, analyze, clone, recipe, validate, preview, render, schema, list, example, mcp, version. Run `wecut help`."})
 }
 
 const usage = `wecut: video editing engine for AI agents. Renders on this machine with FFmpeg.
 
 Usage:
   wecut guide                       how to use WeCut, for agents: workflow, format, templates (start here)
+  wecut setup                       connect WeCut to Claude Code, Codex, Cursor, Gemini CLI... (shows the
+                                    changes; --apply makes them, with backups; --remove takes them out)
   wecut doctor                      check FFmpeg, encoders and filters
   wecut probe <file>...             duration, size, fps and audio of media files
   wecut analyze <video>             cuts, pace, hook, beat, pauses + a frame sheet (--transcript words.json)
   wecut clone <video>               turn a finished video into a template with its exact cuts, transitions,
-                                    framing, text cards, captions and logo (--name, --read words.json)
+                                    framing, text cards, captions and logo. Returns a review for an agent's
+                                    eyes; its answers go back with --read answers.json, so no OCR is needed
   wecut recipe list|show|apply|from-project   templates: the shape of an edit, applied to new clips
   wecut recipe pack <recipe> --write template.wecut.json   include default music for another device
   wecut recipe unpack <bundle> --write templates/name      import into a new directory

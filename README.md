@@ -34,6 +34,16 @@ Run `python -m http.server 8770 --bind 127.0.0.1 --directory studio` from this c
 
 ## Install in your agent
 
+The quick way, for Claude Code, Claude Desktop, Codex, Cursor, Gemini CLI, Windsurf and Grok Build:
+
+```sh
+npx -y wecut setup           # shows what it would change
+npx -y wecut setup --apply   # registers the MCP server and the skill, backs up each file it edits
+npx -y wecut setup --remove --apply
+```
+
+It only touches the clients it finds (or `--client codex,cursor`), keeps every other setting as it was, and reads each file back. Or do it by hand:
+
 WeCut needs FFmpeg 6 or newer with libass (`npx -y wecut doctor` checks it and says what to install):
 
 - Debian/Ubuntu: `sudo apt-get install -y ffmpeg`
@@ -153,7 +163,7 @@ Prebuilt for Linux, macOS and Windows on x64 and arm64. Set `WECUT_BINARY` to us
 wecut clone media/viral.mp4 --name news-card   # -> recipes/news-card.json + out/clone/news-card/compare.jpg
 ```
 
-`clone` turns a finished video into a template the way an editor would have built it: every cut and transition (flash, fade, dissolve, zoom, blur) at its exact time, each shot's framing (full screen, or shown whole on black or blurred bars) and push-in, the text cards with their colours, box, size, line spacing, padding and timing, the caption style and position, the logo, and a talk that already plays under the opening B-roll. Each shot is a media slot, like a CapCut template. Words are read with Tesseract when it is installed, or by the agent from the text crops. The comparison sheet puts the original beside the template filled with numbered stand-ins, so a person or a model can check it at a glance. People fill the slots in WeCut Studio; agents with `wecut recipe apply`. Details and the format: [docs/clone.md](docs/clone.md). Cloning needs the **0.3.0 source/build**; the published npm 0.1.0 does not have it yet.
+`clone` turns a finished video into a template the way an editor would have built it: every cut and transition (flash, fade, dissolve, zoom, blur) at its exact time, each shot's framing (full screen, or shown whole on black or blurred bars) and push-in, the text cards with their colours, box, size, line spacing, padding and timing, the caption style and position, the logo, and a talk that already plays under the opening B-roll. Each shot is a media slot, like a CapCut template. WeCut holds no model and no API key: it returns a review with the images and evidence behind each finding, and the agent running it looks and answers, so words, fonts, what each shot is and the kind of each transition come from real eyes and OCR is only a fallback. The comparison sheet puts the original beside the template filled with numbered stand-ins, so a person or a model can check it at a glance. People fill the slots in WeCut Studio; agents with `wecut recipe apply`. Details and the format: [docs/clone.md](docs/clone.md). Cloning needs the **0.3.0 source/build**; the published npm 0.1.0 does not have it yet.
 
 ## Analyse a video, reuse its format
 

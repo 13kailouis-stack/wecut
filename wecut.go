@@ -41,6 +41,9 @@ func Guide() []byte {
 	return b
 }
 
+// Skill is the Agent Skill as a file, for `wecut setup`.
+func Skill() []byte { return skill }
+
 func ExampleNames() []string { return names(examples, "examples") }
 
 func Example(name string) ([]byte, bool) { return read(examples, "examples", name) }

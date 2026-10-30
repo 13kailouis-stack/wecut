@@ -36,17 +36,18 @@ const (
 // cuts, transitions, framing, text cards, captions and logo.
 //
 //	wecut clone media/viral.mp4 [--name my-style] [--write recipes/my-style.json]
-//	            [--read words.json] [--ocr auto|off] [--force]
+//	            [--read answers.json] [--ocr auto|off] [--fresh] [--force]
 func (a *app) clone(args []string) int {
 	var c common
 	var name, write, outDir, readFile, ocr string
-	var force, debug bool
+	var force, debug, fresh bool
 	fs := flag.NewFlagSet("clone", flag.ContinueOnError)
 	c.bind(fs)
 	fs.StringVar(&name, "name", "", "template name (default: the video's file name)")
 	fs.StringVar(&write, "write", "", "recipe file to write (default recipes/<name>.json)")
 	fs.StringVar(&outDir, "out", "", "folder for the slot sheet, text crops and comparison (default out/clone/<name>)")
-	fs.StringVar(&readFile, "read", "", "words for the text crops, {\"text1\": [\"line\", ...]}, from a model that looked at them")
+	fs.StringVar(&readFile, "read", "", "answers from a model that looked at the review images, {\"text1\": {\"lines\": [...], \"font\": \"roboto\"}, \"slot2\": {\"about\": \"...\"}}; reuses the analysis of the last run")
+	fs.BoolVar(&fresh, "fresh", false, "with --read: analyse the video again instead of reusing the last analysis")
 	fs.StringVar(&ocr, "ocr", "auto", "read text crops with Tesseract when it is installed: auto or off")
 	fs.BoolVar(&force, "force", false, "overwrite an existing recipe of that name")
 	fs.BoolVar(&debug, "debug", false, "also write debug.json with every measurement (for tuning the detectors)")
@@ -93,7 +94,7 @@ func (a *app) clone(args []string) int {
 			return a.fail(exitInput, nil, pathIssue(readFile, "", err))
 		}
 		if given, err = parseReadings(b); err != nil {
-			return a.fail(exitInput, nil, spec.Issue{Code: "E_SCHEMA", Message: "--read: " + err.Error(), Hint: `{"text1": ["first line", "second line"], "caption1": ["WORD"]}`})
+			return a.fail(exitInput, nil, spec.Issue{Code: "E_SCHEMA", Message: "--read: " + err.Error(), Hint: answerExample})
 		}
 	}
 
@@ -126,55 +127,6 @@ func (a *app) clone(args []string) int {
 		return a.fail(exitRender, warnings, spec.Issue{Code: "E_RENDER", Message: err.Error()})
 	}
 
-	// Timing frames at the source's own rate (up to 60), so every cut lands
-	// on the frame where it really is.
-	lowFPS := math.Min(60, math.Round(info.FPS))
-	if lowFPS < 10 {
-		lowFPS = 30
-	}
-	an := clone.New(clone.Config{W: info.Width, H: info.Height, Duration: dur, LowFPS: lowFPS, HighFPS: cloneHighFPS})
-	if debug {
-		an.Debug()
-	}
-	lw, lh := clone.LowSize(info.Width, info.Height)
-	if err := t.Frames(ctx, abs, job, lw, lh, lowFPS, dur, "gray", func(b []byte) error {
-		an.AddLow(&clone.Gray{W: lw, H: lh, Pix: b})
-		return nil
-	}); err != nil {
-		return fail(err)
-	}
-	hw, hh := clone.HighSize(info.Width, info.Height)
-	if err := t.Frames(ctx, abs, job, hw, hh, cloneHighFPS, dur, "gray", func(b []byte) error {
-		an.AddHigh(&clone.Gray{W: hw, H: hh, Pix: b})
-		return nil
-	}); err != nil {
-		return fail(err)
-	}
-	if info.HasAudio {
-		pcm, err := t.PCM(ctx, abs, job, analyzeRate, dur)
-		if err != nil {
-			return fail(err)
-		}
-		an.SetAudio(pcm, analyzeRate)
-	}
-	plan := an.Analyze()
-
-	// Full-size frames for colours and words.
-	sw, sh := info.Width, info.Height
-	if short := min(sw, sh); short > stillShort {
-		k := float64(stillShort) / float64(short)
-		sw, sh = evenInt(float64(sw)*k), evenInt(float64(sh)*k)
-	}
-	stills := make([]*clone.RGB, len(plan.Stills))
-	for i, at := range plan.Stills {
-		b, err := t.Still(ctx, abs, job, at, sw, sh)
-		if err != nil {
-			return fail(err)
-		}
-		stills[i] = &clone.RGB{W: sw, H: sh, Pix: b}
-	}
-	crops := an.Measure(stills)
-
 	outAbs, err := root.Output(filepath.Join(outDir, "x"))
 	if err != nil {
 		return a.fail(exitInput, warnings, pathIssue(outDir, "", err))
@@ -183,43 +135,118 @@ func (a *app) clone(args []string) int {
 	if err := os.MkdirAll(outAbs, 0o755); err != nil {
 		return fail(err)
 	}
-	// Files from an earlier clone of the same name would mix with these.
-	for _, pat := range []string{"text*.png", "caption*.png", "logo*.png", "slots.jpg", "compare.jpg", "debug.json"} {
-		old, _ := filepath.Glob(filepath.Join(outAbs, pat))
-		for _, f := range old {
-			os.Remove(f)
-		}
+	// Full-size frames for colours and words.
+	sw, sh := info.Width, info.Height
+	if short := min(sw, sh); short > stillShort {
+		k := float64(stillShort) / float64(short)
+		sw, sh = evenInt(float64(sw)*k), evenInt(float64(sh)*k)
 	}
 
-	// Words: what the caller gave, else OCR, else placeholders.
+	var an *clone.Analyzer
+	var plan *clone.Plan
+	var crops []clone.Crop
 	reads := map[string]clone.Reading{}
-	ocrUsed := ""
-	tess, _ := exec.LookPath("tesseract")
 	cropFiles := map[string]string{}
-	for _, cr := range crops {
-		f := filepath.Join(outAbs, cr.ID+".png")
-		if err := writePNG(f, rgbImage(cr.Image, 1)); err == nil {
-			cropFiles[cr.ID] = root.Rel(f)
+	ocrUsed := ""
+	tried := false
+	// Answers to the last run's review: the frames were already gone through.
+	var sess *cloneSession
+	if len(given) > 0 && !fresh && !debug {
+		sess = loadSession(outAbs, abs)
+	}
+	if sess != nil {
+		an, plan, crops, cropFiles, reads, ocrUsed, tried = clone.Resume(sess.Config, sess.Plan), sess.Plan, sess.Crops, sess.CropFiles, sess.Reads, sess.OCR, sess.Tried
+		for i := range crops {
+			crops[i].Image = readCrop(filepath.Join(outAbs, crops[i].ID+".png"))
 		}
-		if rd, ok := given[cr.ID]; ok {
-			reads[cr.ID] = rd
-			continue
+	} else {
+		// Timing frames at the source's own rate (up to 60), so every cut
+		// lands on the frame where it really is.
+		lowFPS := math.Min(60, math.Round(info.FPS))
+		if lowFPS < 10 {
+			lowFPS = 30
 		}
-		if ocr == "off" || tess == "" || cr.OCR == nil || cr.Kind == "logo" {
-			continue
+		cfg := clone.Config{W: info.Width, H: info.Height, Duration: dur, LowFPS: lowFPS, HighFPS: cloneHighFPS}
+		an = clone.New(cfg)
+		if debug {
+			an.Debug()
 		}
-		rd, err := tesseract(ctx, tess, job, cr)
-		if err == nil && len(rd.Lines) > 0 {
-			reads[cr.ID] = rd
-			ocrUsed = "tesseract"
+		lw, lh := clone.LowSize(info.Width, info.Height)
+		if err := t.Frames(ctx, abs, job, lw, lh, lowFPS, dur, "gray", func(b []byte) error {
+			an.AddLow(&clone.Gray{W: lw, H: lh, Pix: b})
+			return nil
+		}); err != nil {
+			return fail(err)
 		}
+		hw, hh := clone.HighSize(info.Width, info.Height)
+		if err := t.Frames(ctx, abs, job, hw, hh, cloneHighFPS, dur, "gray", func(b []byte) error {
+			an.AddHigh(&clone.Gray{W: hw, H: hh, Pix: b})
+			return nil
+		}); err != nil {
+			return fail(err)
+		}
+		if info.HasAudio {
+			pcm, err := t.PCM(ctx, abs, job, analyzeRate, dur)
+			if err != nil {
+				return fail(err)
+			}
+			an.SetAudio(pcm, analyzeRate)
+		}
+		plan = an.Analyze()
+
+		stills := make([]*clone.RGB, len(plan.Stills))
+		for i, at := range plan.Stills {
+			b, err := t.Still(ctx, abs, job, at, sw, sh)
+			if err != nil {
+				return fail(err)
+			}
+			stills[i] = &clone.RGB{W: sw, H: sh, Pix: b}
+		}
+		crops = an.Measure(stills)
+
+		// Files from an earlier clone of the same name would mix with these.
+		for _, pat := range []string{"text*.png", "caption*.png", "logo*.png", "slots.jpg", "transitions.jpg", "compare.jpg", "debug.json", sessionFile} {
+			old, _ := filepath.Glob(filepath.Join(outAbs, pat))
+			for _, f := range old {
+				os.Remove(f)
+			}
+		}
+
+		// Words: what the caller gave comes on top of OCR, else placeholders.
+		tess, _ := exec.LookPath("tesseract")
+		tried = ocr != "off" && tess != ""
+		for _, cr := range crops {
+			f := filepath.Join(outAbs, cr.ID+".png")
+			if err := writePNG(f, rgbImage(cr.Image, 1)); err == nil {
+				cropFiles[cr.ID] = root.Rel(f)
+			}
+			if _, ok := given[cr.ID]; ok || !tried || cr.OCR == nil || cr.Kind == "logo" {
+				continue
+			}
+			rd, err := tesseract(ctx, tess, job, cr)
+			if err == nil && len(rd.Lines) > 0 {
+				reads[cr.ID] = rd
+				ocrUsed = "tesseract"
+			}
+		}
+		if !debug {
+			saveSession(outAbs, abs, &cloneSession{Config: cfg, Plan: plan, Crops: crops, CropFiles: cropFiles, Reads: reads, OCR: ocrUsed, Tried: tried})
+		}
+	}
+	if problems := clone.CheckAnswers(plan, crops, given); len(problems) > 0 {
+		return a.fail(exitInput, warnings, spec.Issue{Code: "E_SCHEMA", Message: "--read: " + strings.Join(problems, "; "), Hint: answerExample})
+	}
+	for id, rd := range given {
+		reads[id] = rd
 	}
 
 	musicRel := ""
 	if info.HasAudio && !plan.Speech {
 		musicRel = strings.TrimSuffix(write, filepath.Ext(write)) + "/music.m4a"
 		mAbs, err := root.Output(musicRel)
-		if err == nil {
+		if _, statErr := os.Stat(mAbs); err == nil && sess != nil && statErr == nil {
+			// Kept from the run being answered.
+		} else if err == nil {
 			os.MkdirAll(filepath.Dir(mAbs), 0o755)
 			if err = t.ExtractAudio(ctx, abs, job, plan.ContentEnd, mAbs); err != nil {
 				warnings = append(warnings, spec.Issue{Code: "W_AUDIO", Message: err.Error()})
@@ -230,8 +257,7 @@ func (a *app) clone(args []string) int {
 		}
 	}
 
-	tried := ocr != "off" && tess != ""
-	res := an.Build(clone.Options{Name: name, Source: src, Music: musicRel, Read: reads, Crops: crops, Tool: "wecut " + wecut.Version + " clone", Tried: tried || len(given) > 0})
+	res := an.Build(clone.Options{Name: name, Source: src, Music: musicRel, Read: reads, Crops: crops, Tool: "wecut " + wecut.Version + " clone", Tried: tried})
 	r := res.Recipe
 	if issues := recipe.Validate(r); len(issues) > 0 {
 		return a.fail(exitRender, warnings, append([]spec.Issue{{Code: "E_RENDER", Message: "the cloned recipe did not validate; this is a bug, please report it with the video"}}, issues...)...)
@@ -245,14 +271,26 @@ func (a *app) clone(args []string) int {
 	}
 
 	// The slot sheet: one frame of every media slot, numbered.
-	sheetRel := ""
-	if len(res.Slots) > 0 {
+	sheetRel, transRel := "", ""
+	if f := filepath.Join(outAbs, "slots.jpg"); sess != nil && fileExists(f) {
+		sheetRel = root.Rel(f)
+	} else if len(res.Slots) > 0 {
 		var times []float64
 		for _, s := range res.Slots {
 			times = append(times, s.Ref)
 		}
-		if err := a.slotSheet(ctx, t, abs, job, times, sw, sh, filepath.Join(outAbs, "slots.jpg")); err == nil {
-			sheetRel = root.Rel(filepath.Join(outAbs, "slots.jpg"))
+		if err := a.slotSheet(ctx, t, abs, job, times, sw, sh, f); err == nil {
+			sheetRel = root.Rel(f)
+		} else {
+			warnings = append(warnings, spec.Issue{Code: "W_SHEET", Message: err.Error()})
+		}
+	}
+	// Frames through each transition, for eyes that can name its kind.
+	if f := filepath.Join(outAbs, "transitions.jpg"); sess != nil && fileExists(f) {
+		transRel = root.Rel(f)
+	} else if rows := transitionRows(plan); len(rows) > 0 {
+		if err := a.transitionSheet(ctx, t, abs, job, rows, sw, sh, f); err == nil {
+			transRel = root.Rel(f)
 		} else {
 			warnings = append(warnings, spec.Issue{Code: "W_SHEET", Message: err.Error()})
 		}
@@ -293,6 +331,10 @@ func (a *app) clone(args []string) int {
 	if ocrUsed != "" {
 		out["ocr"] = ocrUsed
 	}
+	if sess != nil {
+		out["analysis_reused"] = true
+	}
+	out["review"] = buildReview(res, crops, cropFiles, given, sheetRel, transRel, compareRel, src, name)
 	if len(plan.Notes) > 0 {
 		out["notes"] = plan.Notes
 	}
@@ -335,10 +377,14 @@ func parseReadings(b []byte) (map[string]clone.Reading, error) {
 			rd.Lines = lines
 		case json.Unmarshal(v, &s) == nil:
 			rd.Lines = strings.Split(s, "\n")
-		case json.Unmarshal(v, &rd) == nil:
 		default:
-			return nil, fmt.Errorf("%s: give a list of lines or a string", k)
+			dec := json.NewDecoder(bytes.NewReader(v))
+			dec.DisallowUnknownFields()
+			if err := dec.Decode(&rd); err != nil {
+				return nil, fmt.Errorf("%s: give a list of lines, a string, or an object: %v", k, err)
+			}
 		}
+		rd.Given = true
 		out[k] = rd
 	}
 	return out, nil

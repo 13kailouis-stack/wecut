@@ -38,6 +38,7 @@ Every command prints one JSON object. Exit codes: 0 ok, 2 invalid input, 3 missi
 
 ## Install in an agent
 
+- Every client at once: `npx -y wecut setup` shows the changes, `--apply` makes them (Claude Code, Claude Desktop, Codex, Cursor, Gemini CLI, Windsurf, Grok Build), with backups.
 - [Claude Code](https://github.com/13kailouis-stack/wecut#claude-code): `claude mcp add wecut -- npx -y wecut mcp`, or the plugin: `/plugin marketplace add 13kailouis-stack/wecut` then `/plugin install wecut@wecut`.
 - [Any MCP client](https://github.com/13kailouis-stack/wecut#any-mcp-client): `{"mcpServers":{"wecut":{"command":"npx","args":["-y","wecut","mcp","--root","/path/to/workspace"]}}}`.
 - [Agents with a shell](https://github.com/13kailouis-stack/wecut#agents-with-a-terminal): any environment permitted to run WeCut and FFmpeg can use `npx -y wecut guide`. Requested targets include Grok Bot, Manus, Muse, OpenBot, Dots and Claude Duet; these are not verified product integrations.

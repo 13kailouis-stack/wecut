@@ -48,14 +48,39 @@ song taken from someone else's video may be muted by the platform.
 | Hook over talk | silent B-roll under an opening card while speech already plays | hook section `audio: "next"` (a J-cut) |
 | Platform outro | a silent dark still ending | left out (`source.used`) |
 
-Colours, boxes and letter sizes are read from full-size frames. Words come
-from Tesseract when it is installed (`--ocr auto`, the default); otherwise
-the text slots get placeholder words and the crops are written for a model
-or a person to read, then passed back with `--read`:
+Colours, boxes and letter sizes are read from full-size frames.
+
+### The review: a model's eyes, no OCR
+
+WeCut holds no model and no API key. The agent running it has the eyes, so
+`clone` returns a `review`: everything it found, the image behind each thing,
+what the template holds now, where that came from, and what measuring cannot
+tell. The agent looks and answers what it can see:
+
+| It sees | It answers | Why measuring cannot |
+|---|---|---|
+| Text crops | exact words and line breaks, closest font, slant, coloured words | OCR misreads styled text; the words also let fonts be matched by line width |
+| A crop that is scenery or part of the footage | `{"drop": true}` | letters on a sign look like laid-over text |
+| Caption crops | words, font (dripping, script, novelty), colour, outline, how they appear | measuring only picks among plain faces |
+| `slots.jpg`, one frame per shot | `slotN.about`: the kind of shot to film | a shot's content is not in its pixels' statistics |
+| `transitions.jpg`, five frames through each | `slotN.join` when the kind is wrong | measuring tells flash, fade, dissolve, zoom and blur; a slide looks like one of them |
+| `compare.jpg` | anything that still differs | |
+
+The answers go back with `--read`. The frame analysis is kept in
+`out/clone/<name>/analysis.json` and reused while the video file is the same,
+so only the template and its check run again (`--fresh` starts over):
 
 ```sh
 wecut clone media/viral.mp4 --name news-card --force --read words.json
-# words.json: {"text1": ["FLOX NEWS"], "text1-2": ["First line", "second line"], "caption1": ["WORD"]}
+# words.json:
+# {"text1": {"lines": ["FLOX NEWS"], "uppercase": true},
+#  "text1-2": {"lines": ["First line", "second line"], "font": "roboto", "emphasis": ["line"], "emphasis_color": "#E8003D"},
+#  "text2": {"drop": true},
+#  "caption1": ["WORD"],
+#  "captions": {"font": "creepster", "color": "#FFC93C", "stroke": "#C8320A", "mode": "pop", "max_words": 1},
+#  "slot1": {"about": "wide outdoor shot, camera moving fast"},
+#  "slot8": {"join": "slideleft"},
+#  "logo": {"about": "white logo with wordmark"}}
 ```
 
 A laid-over mark with no readable words (a burned-in timer, a channel bug, a
@@ -136,7 +161,7 @@ around, with a warning.
 | Surface | Use |
 |---|---|
 | CLI | `wecut clone` prints one JSON object (events, slots, texts with crops and looks, captions, logos, hints). Exit codes as for every command. |
-| MCP | `wecut_clone` returns the same JSON plus the comparison sheet, the slot sheet and the text crops as images, so a model can check the result and read the words. |
+| MCP | `wecut_clone` returns the same JSON with every image of the review, and takes the answers as `read`. It skips OCR unless asked (`ocr: "auto"`), because the model reads. The `clone-video` prompt walks a client through it. |
 | Go | `internal/clone` is pure Go with no I/O: feed it grey frames (`AddLow`, `AddHigh`) and samples (`SetAudio`), call `Analyze`, give it the full-size frames it asks for (`Measure`), then `Build`. The same code can run in a browser as WebAssembly, with the page decoding frames. |
 | Files | The recipe is plain JSON with a JSON Schema; `wecut recipe pack` bundles it with its music into one `.wecut.json` for another device or for WeCut Studio. |
 | Studio | The Klon tab clones in the browser and opens the result as a project: the video sits in every slot, the cards on the text tracks, the sound on the music track. **Impor template** opens any recipe or `.wecut.json` with numbered stand-ins; pick a slot and **Isi slot ini** / **Ganti media** to put your own footage in. **Ekspor** keeps the template's shots, transitions, zoom, captions, logo slot and text looks. |

@@ -21,6 +21,24 @@ type Reading struct {
 	// Conf is the reader's mean confidence, 0..100 (0 = not given, as
 	// when a model or a person read the crop).
 	Conf float64 `json:"conf,omitempty"`
+
+	// What a model or a person decided on looking at the frames. All
+	// optional; what is left out stays as measured.
+	Drop          bool     `json:"drop,omitempty"` // not laid-over text: part of the footage, or a false find
+	About         string   `json:"about,omitempty"`
+	Font          string   `json:"font,omitempty"`
+	Italic        *bool    `json:"italic,omitempty"`
+	Uppercase     *bool    `json:"uppercase,omitempty"`
+	Color         string   `json:"color,omitempty"`
+	Stroke        string   `json:"stroke,omitempty"`
+	Emphasis      []string `json:"emphasis,omitempty"`
+	EmphasisColor string   `json:"emphasis_color,omitempty"`
+	Join          string   `json:"join,omitempty"`      // slotN: the transition into the next shot
+	Mode          string   `json:"mode,omitempty"`      // captions: chunk, karaoke, pop
+	MaxWords      int      `json:"max_words,omitempty"` // captions
+
+	// Given: a model or a person answered, so the words are not second-guessed.
+	Given bool `json:"-"`
 }
 
 type Word struct {
@@ -39,9 +57,9 @@ type Options struct {
 	Read   map[string]Reading // words per crop ID (text1, caption1...)
 	Crops  []Crop             // from Measure, to find coloured key words
 	Tool   string             // e.g. "wecut 0.3.0 clone"
-	// Tried means every text crop was offered to a reader (OCR or a
-	// model): a block it found no words in is a graphic or scenery, and
-	// gets no text slot.
+	// Tried means every text crop was offered to OCR: a block it found no
+	// words in is a graphic or scenery, and gets no text slot. A model's
+	// answers are taken as they are; it leaves a block out with Drop.
 	Tried bool
 }
 
@@ -164,9 +182,17 @@ func (a *Analyzer) Build(o Options) *Result {
 			}
 			sh.Continue = s.Continue && j > 0
 			sh.About = shotAbout(s, W, H, p.Captions)
+			seen := o.Read[fmt.Sprintf("slot%d", len(res.Slots)+1)]
+			if seen.About != "" {
+				sh.About = seen.About
+			}
 			abouts = append(abouts, sh.About)
+			joinName := transitionName(s.Join)
+			if seen.Join != "" {
+				joinName = seen.Join
+			}
 			if s.Join != "" {
-				t := &spec.Transition{Type: transitionName(s.Join), Duration: r2(clampf(s.JoinDur, 0.1, 3))}
+				t := &spec.Transition{Type: joinName, Duration: r2(clampf(s.JoinDur, 0.1, 3))}
 				if j == len(g.shots)-1 {
 					if gi < len(groups)-1 {
 						sec.TransitionOut = t
@@ -181,7 +207,7 @@ func (a *Analyzer) Build(o Options) *Result {
 			}
 			join := ""
 			if s.Join != "" && (j < len(g.shots)-1 || gi < len(groups)-1) {
-				join = transitionName(s.Join)
+				join = joinName
 			}
 			res.Slots = append(res.Slots, SlotInfo{N: len(res.Slots) + 1, Section: sec.Role, Start: r2(offset), Dur: sh.Dur, About: sh.About, Ref: *sh.Ref, Join: join})
 			offset += sh.Dur
@@ -228,7 +254,7 @@ func (a *Analyzer) Build(o Options) *Result {
 		}
 		rd := reads[bl.ID]
 		joined := strings.TrimSpace(strings.Join(rd.Lines, " "))
-		if (o.Tried && !readable(joined)) || (rd.Conf > 0 && rd.Conf < 62) || strings.HasPrefix(joined, "@") {
+		if rd.Drop || (!rd.Given && ((o.Tried && !readable(joined)) || (rd.Conf > 0 && rd.Conf < 62) || strings.HasPrefix(joined, "@"))) {
 			// No words, or a platform's @handle watermark.
 			skipped++
 			continue
@@ -241,19 +267,33 @@ func (a *Analyzer) Build(o Options) *Result {
 			sl.Text = placeholder(name, len(bl.Lines))
 		}
 		sl.About = fmt.Sprintf("%d line(s) of %s text", len(bl.Lines), describeLook(l))
+		if rd.About != "" {
+			sl.About = rd.About
+		}
 		if bl.End < p.ContentEnd-0.1 {
 			sl.End = spec.F(r2(bl.End))
 		}
 		upper := isUpper(words)
+		if rd.Uppercase != nil {
+			upper = *rd.Uppercase
+		}
 		size := sizeFor(l.Glyph, H, min(W, H), words, upper, len(bl.Lines))
 		capPx := capHeight(l, H)
 		sl.Font, sl.Size, sl.Color = l.Font, size, l.Color
 		if k := chooseFont(l, rd.Lines, capPx, W, upper); k != "" {
 			sl.Font = k
 		}
+		if rd.Font != "" {
+			sl.Font = rd.Font
+		}
+		if rd.Color != "" {
+			sl.Color = rd.Color
+		}
 		sl.Align = l.Align
 		sl.Shadow = spec.B(false)
-		if l.Stroke != "" {
+		if rd.Stroke != "" {
+			sl.Stroke = rd.Stroke
+		} else if l.Stroke != "" {
 			sl.Stroke = l.Stroke
 		} else {
 			sl.Stroke = "none"
@@ -267,7 +307,7 @@ func (a *Analyzer) Build(o Options) *Result {
 		} else {
 			sl.Background = "none"
 		}
-		if l.Italic {
+		if (rd.Italic == nil && l.Italic) || (rd.Italic != nil && *rd.Italic) {
 			sl.Italic = spec.B(true)
 		}
 		if upper {
@@ -359,13 +399,39 @@ func (a *Analyzer) Build(o Options) *Result {
 			sl.EmphasisColor = l.Emphasis
 			sl.Emphasis = emphasized(rd, cropByID(o.Crops, bl.ID), l)
 		}
+		if len(rd.Emphasis) > 0 {
+			sl.Emphasis = rd.Emphasis
+			if sl.EmphasisColor == "" {
+				sl.EmphasisColor = "#E8003D"
+			}
+		}
+		if rd.EmphasisColor != "" {
+			sl.EmphasisColor = rd.EmphasisColor
+		}
 		r.Texts = append(r.Texts, sl)
 		bl.Words, bl.Slot = words, name
 	}
 
+	// A label on the card's corner is drawn after the card.
+	for i := range r.Texts {
+		if r.Texts[i].Slot != "label" {
+			continue
+		}
+		for j := i + 1; j < len(r.Texts); j++ {
+			if r.Texts[j].Slot == "headline" {
+				lb := r.Texts[i]
+				copy(r.Texts[i:j], r.Texts[i+1:j+1])
+				r.Texts[j] = lb
+				break
+			}
+		}
+		break
+	}
+
 	// Captions.
-	if c := p.Captions; c != nil && c.Look != nil {
+	if c := p.Captions; c != nil && c.Look != nil && !reads["captions"].Drop {
 		l := c.Look
+		seen := reads["captions"]
 		cs := &recipe.CaptionStyle{Mode: c.Mode, MaxWords: c.MaxWords, Y: spec.F(r3(c.Y))}
 		var sample []string
 		for k := 1; k <= 3; k++ {
@@ -387,6 +453,17 @@ func (a *Analyzer) Build(o Options) *Result {
 			}
 			c.Mode, c.MaxWords = cs.Mode, cs.MaxWords
 		}
+		if seen.Mode != "" {
+			cs.Mode = seen.Mode
+			c.Mode = seen.Mode
+		}
+		if seen.MaxWords > 0 {
+			cs.MaxWords = seen.MaxWords
+			c.MaxWords = seen.MaxWords
+		}
+		if seen.Uppercase != nil {
+			upper = *seen.Uppercase
+		}
 		cs.Size = sizeFor(l.Glyph, H, min(W, H), strings.Join(sample, " "), upper, 1)
 		cs.Font = l.Font
 		if l.Heavy && upper {
@@ -395,13 +472,22 @@ func (a *Analyzer) Build(o Options) *Result {
 		if k := chooseFont(l, nil, 0, W, upper); k != "" {
 			cs.Font = k
 		}
+		if seen.Font != "" {
+			cs.Font = seen.Font
+		}
 		if capPx := capHeight(l, H); capPx > 0 && upper {
 			cs.Size = r2(clampf(capPx/engine.CapRatio(cs.Font)*1080/float64(min(W, H)), 8, 400))
 		}
 		cs.Color = l.Color
+		if seen.Color != "" {
+			cs.Color = seen.Color
+		}
 		cs.Stroke = "none"
 		if l.Stroke != "" {
 			cs.Stroke = l.Stroke
+		}
+		if seen.Stroke != "" {
+			cs.Stroke = seen.Stroke
 		}
 		if l.Background != "" {
 			cs.Background, cs.BackgroundOpacity = l.Background, spec.F(l.BgOpacity)
@@ -410,7 +496,7 @@ func (a *Analyzer) Build(o Options) *Result {
 		}
 		cs.Shadow = spec.B(false)
 		cs.Uppercase = spec.B(upper)
-		if l.Italic {
+		if (seen.Italic == nil && l.Italic) || (seen.Italic != nil && *seen.Italic) {
 			cs.Italic = spec.B(true)
 		}
 		if c.Mode == "chunk" {
@@ -421,8 +507,14 @@ func (a *Analyzer) Build(o Options) *Result {
 
 	// Logos become picture slots.
 	for _, lg := range p.Logos {
+		if reads[lg.ID].Drop {
+			continue
+		}
 		b := lg.Box
 		ov := recipe.OverlaySlot{Slot: lg.ID, About: "your logo or watermark (PNG with transparency)", X: spec.F(r3(b.cx())), Y: spec.F(r3(b.cy())), Width: r3(clampf(b.W, 0.02, 1))}
+		if a := reads[lg.ID].About; a != "" {
+			ov.About = a
+		}
 		if lg.Start > 0.2 {
 			ov.Start = r2(lg.Start)
 		}
@@ -443,7 +535,7 @@ func (a *Analyzer) Build(o Options) *Result {
 	res.Recipe = r
 	res.Hints = a.hints(p, r, slotN, o)
 	if skipped > 0 {
-		res.Hints = append(res.Hints, fmt.Sprintf("%d laid-over mark(s) with no readable words (a timer, a channel bug, a watermark) were left out of the template", skipped))
+		res.Hints = append(res.Hints, fmt.Sprintf("%d laid-over find(s) were left out of the template: no readable words (a timer, a channel bug, a watermark), or dropped by the model that looked at them", skipped))
 	}
 	return res
 }
@@ -460,9 +552,18 @@ func (a *Analyzer) hints(p *Plan, r *recipe.Recipe, slots int, o Options) []stri
 			h = append(h, fmt.Sprintf("%d %s transition(s)", kinds[k], k))
 		}
 	}
+	renamed := 0
+	for id, rd := range o.Read {
+		if strings.HasPrefix(id, "slot") && rd.Join != "" {
+			renamed++
+		}
+	}
+	if renamed > 0 {
+		h = append(h, fmt.Sprintf("%d of those renamed by the model that looked at them", renamed))
+	}
 	missing := 0
 	for _, bl := range p.Blocks {
-		if bl.Words == "" {
+		if bl.Slot != "" && bl.Words == "" {
 			missing++
 		}
 	}

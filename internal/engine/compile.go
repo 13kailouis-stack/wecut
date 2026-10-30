@@ -259,7 +259,9 @@ func Compile(e *Edit, opt Options) (*Plan, error) {
 		for _, n := range frameNumbers(opt.Frames, e.Total, e.FPS) {
 			sel = append(sel, fmt.Sprintf("eq(n,%d)", n))
 		}
-		tail = append(tail, "select='"+strings.Join(sel, "+")+"'")
+		// A JPEG is full range: without this, white shows as 235 and the
+		// frames a model checks look dull.
+		tail = append(tail, "select='"+strings.Join(sel, "+")+"'", "scale=out_range=pc", "format=yuvj420p")
 		g.add("[%s]%s[%s]", vcur, strings.Join(tail, ","), vout)
 	case e.Format == "gif":
 		gw, gh := W, H

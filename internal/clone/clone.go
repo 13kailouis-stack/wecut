@@ -137,6 +137,10 @@ type Plan struct {
 	lowW, lowH int
 }
 
+// Resume picks up a finished analysis, so a model's answers can be built
+// into a recipe without going through the frames again.
+func Resume(cfg Config, p *Plan) *Analyzer { return &Analyzer{cfg: cfg, plan: p} }
+
 // Analyze runs every detector on the frames given so far.
 func (a *Analyzer) Analyze() *Plan {
 	p := &Plan{Duration: a.cfg.Duration, stillOf: map[string][]int{}}

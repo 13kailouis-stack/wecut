@@ -683,6 +683,24 @@ func boxArea(f *RGB, r Rect, bg rgb) Rect {
 	for x1 < f.W && frac(x1, y0, x1+1, y1) > 0.7 {
 		x1++
 	}
+	// Another box can sit on the card's corner, like a label on a headline:
+	// the row is still the card's if its colour runs in from one side.
+	fromSide := func(y int) float64 {
+		left, right := 0, 0
+		for x := x0; x < x1 && dist(px(f, x, y), bg) < 36; x++ {
+			left++
+		}
+		for x := x1 - 1; x >= x0 && dist(px(f, x, y), bg) < 36; x-- {
+			right++
+		}
+		return float64(max(left, right)) / float64(max(1, x1-x0))
+	}
+	for y0 > 0 && fromSide(y0-1) > 0.35 {
+		y0--
+	}
+	for y1 < f.H && fromSide(y1) > 0.35 {
+		y1++
+	}
 	return Rect{x0, y0, x1 - x0, y1 - y0}
 }
 
