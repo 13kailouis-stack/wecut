@@ -17,7 +17,10 @@ func (t *Tools) Frames(ctx context.Context, abs, dir string, w, h int, fps float
 	if pixfmt == "rgb24" {
 		bpp = 3
 	}
-	args := append(input(abs), "-t", strconv.FormatFloat(maxSec, 'f', 3, 64), "-map", "0:v:0", "-an", "-sn",
+	// Decoder threads each hold frames: on a 1080p source the default takes
+	// hundreds of MB, and a laptop short of memory fails with -12.
+	args := append([]string{"-threads", "2", "-filter_threads", "1"}, input(abs)...)
+	args = append(args, "-t", strconv.FormatFloat(maxSec, 'f', 3, 64), "-map", "0:v:0", "-an", "-sn",
 		"-vf", fmt.Sprintf("fps=%s,scale=%d:%d:flags=area,format=%s", strconv.FormatFloat(fps, 'f', 3, 64), w, h, pixfmt),
 		"-f", "rawvideo", "-pix_fmt", pixfmt, "pipe:1")
 	cmd := t.command(ctx, dir, args...)
@@ -57,7 +60,8 @@ func (t *Tools) Frames(ctx context.Context, abs, dir string, w, h int, fps float
 
 // Still decodes the frame shown at time at, scaled to w x h, as RGB.
 func (t *Tools) Still(ctx context.Context, abs, dir string, at float64, w, h int) ([]byte, error) {
-	args := append([]string{"-ss", strconv.FormatFloat(at, 'f', 3, 64)}, input(abs)...)
+	// One frame needs one thread, see Frames.
+	args := append([]string{"-threads", "1", "-filter_threads", "1", "-ss", strconv.FormatFloat(at, 'f', 3, 64)}, input(abs)...)
 	args = append(args, "-map", "0:v:0", "-frames:v", "1", "-an", "-sn",
 		"-vf", fmt.Sprintf("scale=%d:%d:flags=bicubic,format=rgb24", w, h),
 		"-f", "rawvideo", "-pix_fmt", "rgb24", "pipe:1")
