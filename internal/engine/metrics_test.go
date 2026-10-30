@@ -62,3 +62,28 @@ func TestFontMetrics(t *testing.T) {
 		t.Errorf("explicit break: %q", got)
 	}
 }
+
+// Under every text, with no words in the graph: thin rectangles rising in
+// opacity from the start of the fade, then one solid block to the frame's edge.
+func TestGradientsInASS(t *testing.T) {
+	end := 2.0
+	opacity := 50.0
+	e := &Edit{W: 1080, H: 1920, Total: 4, P: &spec.Project{
+		Texts:     []spec.Text{{Text: "hello"}},
+		Gradients: []spec.Gradient{{From: 0.5, To: 0.75, End: &end, Color: "#102030", Opacity: &opacity}, {From: 0.2, To: 0}},
+	}}
+	ass, _ := buildASS(e)
+	first := strings.Index(ass, `\p1`)
+	if first < 0 || first > strings.Index(ass, "hello") {
+		t.Fatalf("gradient not under the text:\n%s", ass)
+	}
+	if !strings.Contains(ass, `\pos(0,1440)`) || !strings.Contains(ass, `m 0 0 l 1080 0 1080 480 0 480`) {
+		t.Errorf("no solid block from the end of the fade to the bottom:\n%s", ass)
+	}
+	if !strings.Contains(ass, `\1c&H302010&`) || !strings.Contains(ass, "0:00:02.00") {
+		t.Errorf("colour or end time lost:\n%s", ass)
+	}
+	if !strings.Contains(ass, `\pos(0,0)`) {
+		t.Errorf("no block for the fade at the top:\n%s", ass)
+	}
+}

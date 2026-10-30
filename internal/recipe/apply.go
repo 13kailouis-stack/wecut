@@ -464,6 +464,7 @@ func Apply(r *Recipe, in Input, m media.Set) (*spec.Project, []spec.Issue, []spe
 		}
 		p.Overlays = append(p.Overlays, ov)
 	}
+	p.Gradients = r.Gradients
 	for slot := range in.Overlays {
 		if !hasOverlay(r, slot) {
 			warn("/overlays/"+slot, fmt.Sprintf("the recipe has no overlay slot %q; that picture was not used", slot))

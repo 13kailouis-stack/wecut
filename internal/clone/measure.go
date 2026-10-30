@@ -402,6 +402,15 @@ func measureBlock(bl *Block, f1, f2 *RGB) *Look {
 	case share2 >= 0.35 && encloses(bg2):
 		boxed, bg = true, bg2
 	}
+	// A colour that fills the frame from side to side and runs off its top
+	// or bottom is the picture: a black bar, or a dark gradient behind white
+	// text. A card ends before the frame does.
+	if boxed {
+		a := boxArea(f1, tr, bg)
+		if a.W >= W*97/100 && (a.Y <= 1 || a.Y+a.H >= H-1) {
+			boxed = false
+		}
+	}
 
 	var glyph []rgb
 	glyphAt := func(c rgb) bool { return dist(c, bg) > 80 }
@@ -534,6 +543,9 @@ func measureBlock(bl *Block, f1, f2 *RGB) *Look {
 		if len(rest) >= len(glyph)*6/100 {
 			if e, sh := dominant(rest); sh > 0.5 && e.sat() > 0.35 {
 				l.Emphasis = e.hex()
+				// Key words are letters too, a whole line can be in them.
+				fillAt := glyphAt
+				glyphAt = func(c rgb) bool { return fillAt(c) || dist(c, e) < 70 }
 			}
 		}
 	} else {
@@ -550,15 +562,28 @@ func measureBlock(bl *Block, f1, f2 *RGB) *Look {
 		a := l.BoxArea.rect(W, H)
 		inner = Rect{a.X + 2, a.Y + 2, a.W - 4, a.H - 4}
 	}
+	bl.Lines = splitTightLines(f1, bl.Lines, glyphAt)
+	lineH = 0
 	for _, ln := range bl.Lines {
+		lineH = math.Max(lineH, ln.H)
+	}
+	for i, ln := range bl.Lines {
 		r := ln.grow(0, ln.H*0.35).rect(W, H)
 		x0, x1 := max(r.X, inner.X), min(r.X+r.W, inner.X+inner.W)
 		y0, y1 := max(r.Y, inner.Y), min(r.Y+r.H, inner.Y+inner.H)
+		// Never into the next line: set tight, the two are a few rows apart.
+		if i > 0 {
+			y0 = max(y0, (bl.Lines[i-1].rect(W, H).Y+bl.Lines[i-1].rect(W, H).H+ln.rect(W, H).Y)/2)
+		}
+		if i+1 < len(bl.Lines) {
+			y1 = min(y1, (ln.rect(W, H).Y+ln.rect(W, H).H+bl.Lines[i+1].rect(W, H).Y+1)/2)
+		}
 		if x1-x0 < 4 || y1-y0 < 4 {
 			continue
 		}
 		r = Rect{x0, y0, x1 - x0, y1 - y0}
 		counts := make([]int, r.H)
+		cols := make([]int, r.W)
 		top, bot, peak := -1, -1, 0
 		lx, rx := W, -1
 		for y := r.Y; y < r.Y+r.H; y++ {
@@ -566,7 +591,7 @@ func measureBlock(bl *Block, f1, f2 *RGB) *Look {
 			for x := r.X; x < r.X+r.W; x++ {
 				if glyphAt(px(f1, x, y)) {
 					n++
-					lx, rx = min(lx, x), max(rx, x)
+					cols[x-r.X]++
 				}
 			}
 			counts[y-r.Y] = n
@@ -580,6 +605,20 @@ func measureBlock(bl *Block, f1, f2 *RGB) *Look {
 		}
 		if top >= 0 {
 			hs = append(hs, float64(bot-top+1)/float64(H))
+		}
+		// Where the letters start and end: columns with several letter pixels
+		// and a neighbour that has them too, so a stray bright speck in the
+		// footage beside the line does not stretch it.
+		need := max(2, (bot-top+1)/6)
+		busy := func(i int) bool { return i >= 0 && i < len(cols) && cols[i] >= need }
+		for i := range cols {
+			if busy(i) && (busy(i+1) || busy(i+2)) {
+				lx = min(lx, r.X+i)
+				rx = max(rx, r.X+i)
+			}
+			if busy(i) && (busy(i-1) || busy(i-2)) {
+				rx = max(rx, r.X+i)
+			}
 		}
 		capTop, base := -1, -1
 		for i, n := range counts {
@@ -612,13 +651,20 @@ func measureBlock(bl *Block, f1, f2 *RGB) *Look {
 	l.Italic, l.Heavy, l.Weight = shape(f1, lrs, glyphAt, l.Glyph*float64(H))
 	l.Weight = r3(l.Weight)
 
-	// Alignment from where the lines start and end.
+	// Alignment from where the lines start and end: the letters' own ends
+	// when measured, lines split out of one box all have the same box.
 	if len(bl.Lines) > 1 {
 		var ls, cs, rs []float64
 		for _, ln := range bl.Lines {
 			ls = append(ls, ln.X)
 			cs = append(cs, ln.cx())
 			rs = append(rs, ln.X+ln.W)
+		}
+		if len(l.Left) == len(bl.Lines) {
+			ls, cs, rs = l.Left, nil, l.Right
+			for i := range ls {
+				cs = append(cs, (ls[i]+rs[i])/2)
+			}
 		}
 		sl, sc, sr := spread(ls), spread(cs), spread(rs)
 		switch {
@@ -702,6 +748,63 @@ func boxArea(f *RGB, r Rect, bg rgb) Rect {
 		y1++
 	}
 	return Rect{x0, y0, x1 - x0, y1 - y0}
+}
+
+// splitTightLines separates lines the tracker saw as one: set tight, they share a
+// bounding box, but their letters still leave a row band with almost none.
+func splitTightLines(f *RGB, lines []Box, on func(rgb) bool) []Box {
+	var out []Box
+	for _, ln := range lines {
+		r := ln.rect(f.W, f.H)
+		counts := make([]int, r.H)
+		peak := 0
+		for y := r.Y; y < r.Y+r.H; y++ {
+			for x := r.X; x < r.X+r.W; x++ {
+				if on(px(f, x, y)) {
+					counts[y-r.Y]++
+				}
+			}
+			peak = max(peak, counts[y-r.Y])
+		}
+		// Bands of rows busy with letters. Ascenders and descenders fall under
+		// the cut, so one line of mixed case is still one band.
+		type band struct{ a, b int }
+		var bands []band
+		tallest := 0
+		for i := 0; i < len(counts); i++ {
+			if float64(counts[i]) < 0.22*float64(peak) {
+				continue
+			}
+			j := i
+			for j+1 < len(counts) && float64(counts[j+1]) >= 0.22*float64(peak) {
+				j++
+			}
+			bands = append(bands, band{i, j + 1})
+			tallest = max(tallest, j+1-i)
+			i = j
+		}
+		var keep []band
+		for _, b := range bands {
+			if b.b-b.a >= max(5, tallest/2) {
+				keep = append(keep, b)
+			}
+		}
+		if len(keep) < 2 {
+			out = append(out, ln)
+			continue
+		}
+		for i, b := range keep {
+			y0, y1 := r.Y, r.Y+r.H
+			if i > 0 {
+				y0 = r.Y + (keep[i-1].b+b.a)/2
+			}
+			if i+1 < len(keep) {
+				y1 = r.Y + (b.b+keep[i+1].a)/2
+			}
+			out = append(out, Rect{r.X, y0, r.W, y1 - y0}.box(f.W, f.H))
+		}
+	}
+	return out
 }
 
 // shape tells italic letters by the shear that makes the left edges of

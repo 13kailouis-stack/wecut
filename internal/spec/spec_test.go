@@ -144,6 +144,7 @@ func TestSchemaMatchesTypes(t *testing.T) {
 	check("track", Track{}, "track")
 	check("filter", Filter{}, "filter")
 	check("effect", Effect{}, "effect")
+	check("gradient", Gradient{}, "gradient")
 }
 
 func TestCatalogKeysAreUnique(t *testing.T) {

@@ -23,6 +23,20 @@ type Project struct {
 	Audio    []Track   `json:"audio,omitempty"`
 	Filters  []Filter  `json:"filters,omitempty"`
 	Effects  []Effect  `json:"effects,omitempty"`
+	// Gradients lie over the footage and under the text.
+	Gradients []Gradient `json:"gradients,omitempty"`
+}
+
+// Gradient fades a colour in over the picture: clear at height From, full at
+// height To, and full from there to the edge of the frame. To below From
+// darkens the bottom; To above From darkens the top.
+type Gradient struct {
+	From    float64  `json:"from"`
+	To      float64  `json:"to"`
+	Color   string   `json:"color,omitempty"`   // default #000000
+	Opacity *float64 `json:"opacity,omitempty"` // 0..100 at To, default 100
+	Start   float64  `json:"start,omitempty"`
+	End     *float64 `json:"end,omitempty"`
 }
 
 type Output struct {

@@ -118,6 +118,7 @@ func FromEdit(e *engine.Edit, name string) *Recipe {
 		r.Sections[gi].Texts = append(r.Sections[gi].Texts, sl)
 	}
 
+	r.Gradients = p.Gradients
 	if c := p.Captions; c != nil {
 		r.Captions = &CaptionStyle{Mode: c.Mode, Highlight: c.Highlight, MaxWords: c.MaxWords, MaxDuration: c.MaxDuration, X: c.X, Y: c.Y, Look: c.Look}
 	}

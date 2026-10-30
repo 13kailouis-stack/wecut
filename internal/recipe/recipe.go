@@ -26,19 +26,20 @@ import (
 const Version = "1"
 
 type Recipe struct {
-	Recipe      string        `json:"recipe"`
-	Name        string        `json:"name,omitempty"`
-	About       string        `json:"about,omitempty"`
-	Output      *Output       `json:"output,omitempty"`
-	MaxDuration float64       `json:"maxDuration,omitempty"` // seconds; default 60
-	Sections    []Section     `json:"sections"`
-	Texts       []Slot        `json:"texts,omitempty"` // timed against the whole video
-	Captions    *CaptionStyle `json:"captions,omitempty"`
-	Music       *Music        `json:"music,omitempty"`
-	Effects     []EffectRule  `json:"effects,omitempty"`
-	Filters     []spec.Filter `json:"filters,omitempty"`
-	Overlays    []OverlaySlot `json:"overlays,omitempty"`
-	Source      *Source       `json:"source,omitempty"`
+	Recipe      string          `json:"recipe"`
+	Name        string          `json:"name,omitempty"`
+	About       string          `json:"about,omitempty"`
+	Output      *Output         `json:"output,omitempty"`
+	MaxDuration float64         `json:"maxDuration,omitempty"` // seconds; default 60
+	Sections    []Section       `json:"sections"`
+	Texts       []Slot          `json:"texts,omitempty"` // timed against the whole video
+	Captions    *CaptionStyle   `json:"captions,omitempty"`
+	Music       *Music          `json:"music,omitempty"`
+	Effects     []EffectRule    `json:"effects,omitempty"`
+	Filters     []spec.Filter   `json:"filters,omitempty"`
+	Overlays    []OverlaySlot   `json:"overlays,omitempty"`
+	Gradients   []spec.Gradient `json:"gradients,omitempty"`
+	Source      *Source         `json:"source,omitempty"`
 }
 
 // Source records where a cloned recipe came from, so a person can find the

@@ -19,9 +19,21 @@
     "overlays": { "type": "array", "maxItems": 50, "items": { "$ref": "#/$defs/overlay" } },
     "audio": { "type": "array", "maxItems": 30, "items": { "$ref": "#/$defs/track" } },
     "filters": { "type": "array", "items": { "$ref": "#/$defs/filter" } },
-    "effects": { "type": "array", "items": { "$ref": "#/$defs/effect" } }
+    "effects": { "type": "array", "items": { "$ref": "#/$defs/effect" } },
+    "gradients": { "type": "array", "maxItems": 8, "description": "Colour fades over the footage and under the text, like the dark fade behind captions.", "items": { "$ref": "#/$defs/gradient" } }
   },
   "$defs": {
+    "gradient": {
+      "type": "object", "required": ["from", "to"], "additionalProperties": false,
+      "properties": {
+        "from": { "type": "number", "minimum": 0, "maximum": 1, "description": "Height where the picture is still clear." },
+        "to": { "type": "number", "minimum": 0, "maximum": 1, "description": "Height where the colour is full; it stays full from there to the edge of the frame. Below from darkens the bottom, above from darkens the top." },
+        "color": { "type": "string", "description": "#RRGGBB, default #000000." },
+        "opacity": { "type": "number", "minimum": 0, "maximum": 100, "description": "At to, default 100." },
+        "start": { "$ref": "#/$defs/seconds" },
+        "end": { "$ref": "#/$defs/seconds" }
+      }
+    },
     "seconds": { "type": "number", "minimum": 0 },
     "fraction": { "type": "number", "minimum": 0, "maximum": 1 },
     "percent": { "type": "number", "minimum": 0, "maximum": 100 },

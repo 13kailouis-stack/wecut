@@ -141,6 +141,16 @@ func (a *app) compareSheetOnly(ctx context.Context, c common, root *workspace.Ro
 			times = append(times, mid)
 		}
 	}
+	// The timing check measures cuts, so it renders only the stand-ins: text
+	// and gradients over them would hide what it looks for.
+	bare := *p
+	bare.Texts, bare.Captions, bare.Gradients, bare.Overlays = nil, nil, nil, nil
+	bareData, _ := json.Marshal(&bare)
+	lt, issues, _ := a.prepare(c, root, bareData, "timing")
+	if len(issues) > 0 {
+		return "", nil, fmt.Errorf("%s: %s", issues[0].Path, issues[0].Message)
+	}
+
 	frames, got, job, err := a.previewFrames(ctx, l, times)
 	if job != "" {
 		defer os.RemoveAll(job)
@@ -203,7 +213,7 @@ func (a *app) compareSheetOnly(ctx context.Context, c common, root *workspace.Ro
 	if err := jpeg.Encode(f, sheet, &jpeg.Options{Quality: 85}); err != nil {
 		return "", nil, err
 	}
-	return root.Rel(outAbs), l, nil
+	return root.Rel(outAbs), lt, nil
 }
 
 // previewFrames renders still frames of a loaded edit at the given output

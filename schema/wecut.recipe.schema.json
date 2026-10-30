@@ -89,6 +89,21 @@
         }
       }
     },
+    "gradients": {
+      "type": "array", "maxItems": 8,
+      "description": "Colour fades over the footage and under the text, kept as they are when applying.",
+      "items": {
+        "type": "object", "required": ["from", "to"], "additionalProperties": false,
+        "properties": {
+          "from": { "type": "number", "minimum": 0, "maximum": 1, "description": "Height where the picture is still clear." },
+          "to": { "type": "number", "minimum": 0, "maximum": 1, "description": "Height where the colour is full, and stays full to the edge of the frame." },
+          "color": { "type": "string", "description": "#RRGGBB, default #000000." },
+          "opacity": { "type": "number", "minimum": 0, "maximum": 100 },
+          "start": { "type": "number", "minimum": 0 },
+          "end": { "type": "number", "minimum": 0 }
+        }
+      }
+    },
     "overlays": {
       "type": "array", "maxItems": 50,
       "description": "Picture slots laid over the video, such as a logo. The picture is passed at apply time as overlays.<slot>.",

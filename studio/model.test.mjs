@@ -96,3 +96,9 @@ test('a template opens as slots and exports with its own detail kept', async () 
   assert.equal(r.captions.mode, 'pop');
   assert.equal(r.overlays[0].slot, 'logo');
 });
+
+test('a template gradient is drawn clear to full, down or up', async () => {
+  const { gradientCSS } = await import('./model.mjs');
+  assert.equal(gradientCSS({ from: 0.6, to: 0.8 }), 'linear-gradient(to bottom, #00000000 60%, #000000ff 80%)');
+  assert.equal(gradientCSS({ from: 0.25, to: 0, color: '#112233', opacity: 50 }), 'linear-gradient(to top, #11223300 75%, #11223380 100%)');
+});

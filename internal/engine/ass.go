@@ -207,11 +207,62 @@ func (d *assDoc) String() string {
 	return b.String()
 }
 
+// gradients draws each fade as thin stacked rectangles of rising opacity. They
+// come first, so they lie under every text.
+func (d *assDoc) gradients(e *Edit, scale float64) {
+	if len(e.P.Gradients) == 0 {
+		return
+	}
+	base := spec.TextStyles[0]
+	l := resolveLook(spec.Look{}, base, scale)
+	d.styles = append(d.styles, l.styleLine("G", e.W))
+	d.fonts[l.Font.Key] = true
+	rect := func(start, end float64, y0, y1 int, color string, opacity float64) {
+		if y1 <= y0 || opacity <= 0 {
+			return
+		}
+		d.event(start, end, "G", fmt.Sprintf(`{\an7\pos(0,%d)\bord0\shad0\1c%s\1a%s\p1}m 0 0 l %d 0 %d %d 0 %d{\p0}`, y0, assBGR(color), assAlpha(opacity), e.W, e.W, y1-y0, y1-y0))
+	}
+	for _, g := range e.P.Gradients {
+		if g.Start >= e.Total {
+			continue
+		}
+		end := e.Total
+		if g.End != nil {
+			end = math.Min(*g.End, e.Total)
+		}
+		color := orStr(g.Color, "#000000")
+		full := 100.0
+		if g.Opacity != nil {
+			full = *g.Opacity
+		}
+		from, to := int(math.Round(g.From*float64(e.H))), int(math.Round(g.To*float64(e.H)))
+		span := to - from
+		if span < 0 {
+			span = -span
+		}
+		n := max(1, min(96, span/3))
+		for k := 0; k < n; k++ {
+			a, b := from+(to-from)*k/n, from+(to-from)*(k+1)/n
+			if a > b {
+				a, b = b, a
+			}
+			rect(g.Start, end, a, b, color, full*(float64(k)+0.5)/float64(n))
+		}
+		if to > from {
+			rect(g.Start, end, to, e.H, color, full)
+		} else {
+			rect(g.Start, end, 0, to, color, full)
+		}
+	}
+}
+
 // buildASS returns the subtitle file for all texts and captions, or "" when
 // the project has none, plus the font keys it uses.
 func buildASS(e *Edit) (string, []string) {
 	d := &assDoc{W: e.W, H: e.H, fonts: map[string]bool{}}
 	scale := float64(min(e.W, e.H)) / 1080
+	d.gradients(e, scale)
 	for i, t := range e.P.Texts {
 		if t.Start >= e.Total {
 			continue

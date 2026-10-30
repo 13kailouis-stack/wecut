@@ -205,7 +205,7 @@ func (a *app) clone(args []string) int {
 		crops = an.Measure(stills)
 
 		// Files from an earlier clone of the same name would mix with these.
-		for _, pat := range []string{"text*.png", "caption*.png", "logo*.png", "slots.jpg", "transitions.jpg", "compare.jpg", "debug.json", sessionFile} {
+		for _, pat := range []string{"text*.png", "caption*.png", "logo*.png", "slots.jpg", "transitions.jpg", "timeline.jpg", "compare.jpg", "debug.json", sessionFile} {
 			old, _ := filepath.Glob(filepath.Join(outAbs, pat))
 			for _, f := range old {
 				os.Remove(f)
@@ -271,7 +271,16 @@ func (a *app) clone(args []string) int {
 	}
 
 	// The slot sheet: one frame of every media slot, numbered.
-	sheetRel, transRel := "", ""
+	sheetRel, transRel, timelineRel := "", "", ""
+	// Frames across the whole video: slots.jpg shows only each shot's middle,
+	// and captions and effects live inside the shots.
+	if f := filepath.Join(outAbs, "timeline.jpg"); sess != nil && fileExists(f) {
+		timelineRel = root.Rel(f)
+	} else if err := a.timelineSheet(ctx, t, abs, job, plan.ContentEnd, sw, sh, f); err == nil {
+		timelineRel = root.Rel(f)
+	} else {
+		warnings = append(warnings, spec.Issue{Code: "W_SHEET", Message: err.Error()})
+	}
 	if f := filepath.Join(outAbs, "slots.jpg"); sess != nil && fileExists(f) {
 		sheetRel = root.Rel(f)
 	} else if len(res.Slots) > 0 {
@@ -334,7 +343,7 @@ func (a *app) clone(args []string) int {
 	if sess != nil {
 		out["analysis_reused"] = true
 	}
-	out["review"] = buildReview(res, crops, cropFiles, given, sheetRel, transRel, compareRel, src, name)
+	out["review"] = buildReview(res, crops, cropFiles, given, timelineRel, sheetRel, transRel, compareRel, src, name)
 	if len(plan.Notes) > 0 {
 		out["notes"] = plan.Notes
 	}

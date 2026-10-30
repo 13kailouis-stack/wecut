@@ -33,9 +33,17 @@ type Reading struct {
 	Stroke        string   `json:"stroke,omitempty"`
 	Emphasis      []string `json:"emphasis,omitempty"`
 	EmphasisColor string   `json:"emphasis_color,omitempty"`
+	From          *float64 `json:"from,omitempty"`       // gradientN: height where it starts
+	To            *float64 `json:"to,omitempty"`         // gradientN: height where it is full
+	Opacity       *float64 `json:"opacity,omitempty"`    // gradientN
+	Background    string   `json:"background,omitempty"` // #RRGGBB or none
+	Size          float64  `json:"size,omitempty"`       // font size in pixels at 1080
+	Y             *float64 `json:"y,omitempty"`          // centre, a fraction of the height
+	Shadow        *bool    `json:"shadow,omitempty"`
 	Join          string   `json:"join,omitempty"`      // slotN: the transition into the next shot
 	Mode          string   `json:"mode,omitempty"`      // captions: chunk, karaoke, pop
 	MaxWords      int      `json:"max_words,omitempty"` // captions
+	Highlight     string   `json:"highlight,omitempty"` // captions: the word being spoken
 
 	// Given: a model or a person answered, so the words are not second-guessed.
 	Given bool `json:"-"`
@@ -122,7 +130,7 @@ func (a *Analyzer) Build(o Options) *Result {
 	// wherever the framing changes.
 	hookEnd := -1.0
 	for _, bl := range p.Blocks {
-		if bl.Start <= 0.5 && bl.End < p.ContentEnd*0.6 && bl.Look != nil && bl.Look.Background != "" {
+		if bl.Start <= 0.5 && bl.End < p.ContentEnd*0.6 && bl.Look != nil && (bl.Look.Background != "" || len(bl.Lines) >= 2) {
 			hookEnd = math.Max(hookEnd, bl.End)
 		}
 	}
@@ -391,7 +399,21 @@ func (a *Analyzer) Build(o Options) *Result {
 		} else {
 			sl.MaxWidth = r2(clampf(bl.Box.W+0.02, 0.2, 0.96))
 		}
+		if rd.Y != nil {
+			y = *rd.Y
+		}
 		sl.X, sl.Y = spec.F(r3(x)), spec.F(r3(y))
+		if rd.Background == "none" {
+			sl.Background, sl.Box, sl.Padding, sl.BackgroundOpacity = "none", "", nil, nil
+		} else if rd.Background != "" {
+			sl.Background, sl.BackgroundOpacity = rd.Background, spec.F(100)
+		}
+		if rd.Size > 0 {
+			sl.Size = rd.Size
+		}
+		if rd.Shadow != nil {
+			sl.Shadow = rd.Shadow
+		}
 		if bl.In != "" {
 			sl.In = &spec.Anim{Type: bl.In, Duration: r2(clampf(bl.InDur, 0.05, 2))}
 		}
@@ -429,6 +451,10 @@ func (a *Analyzer) Build(o Options) *Result {
 	}
 
 	// Captions.
+	// Captions the detector missed but a model saw.
+	if p.Captions == nil && reads["captions"].Given && !reads["captions"].Drop {
+		p.Captions = &CaptionBand{End: p.ContentEnd, Y: 0.5, Mode: "chunk", MaxWords: 4, Look: &Look{Color: "#FFFFFF", Font: "montserrat", Glyph: 0.03, Align: "center"}}
+	}
 	if c := p.Captions; c != nil && c.Look != nil && !reads["captions"].Drop {
 		l := c.Look
 		seen := reads["captions"]
@@ -489,12 +515,24 @@ func (a *Analyzer) Build(o Options) *Result {
 		if seen.Stroke != "" {
 			cs.Stroke = seen.Stroke
 		}
-		if l.Background != "" {
-			cs.Background, cs.BackgroundOpacity = l.Background, spec.F(l.BgOpacity)
-		} else {
+		if seen.Background == "none" || (seen.Background == "" && l.Background == "") {
 			cs.Background = "none"
+		} else if seen.Background != "" {
+			cs.Background, cs.BackgroundOpacity = seen.Background, spec.F(100)
+		} else {
+			cs.Background, cs.BackgroundOpacity = l.Background, spec.F(l.BgOpacity)
 		}
+		if seen.Size > 0 {
+			cs.Size = seen.Size
+		}
+		if seen.Y != nil {
+			cs.Y = spec.F(r3(*seen.Y))
+		}
+		cs.Highlight = seen.Highlight
 		cs.Shadow = spec.B(false)
+		if seen.Shadow != nil {
+			cs.Shadow = seen.Shadow
+		}
 		cs.Uppercase = spec.B(upper)
 		if (seen.Italic == nil && l.Italic) || (seen.Italic != nil && *seen.Italic) {
 			cs.Italic = spec.B(true)
@@ -504,6 +542,8 @@ func (a *Analyzer) Build(o Options) *Result {
 		}
 		r.Captions = cs
 	}
+
+	r.Gradients = gradientsFrom(p.Gradients, reads)
 
 	// Logos become picture slots.
 	for _, lg := range p.Logos {

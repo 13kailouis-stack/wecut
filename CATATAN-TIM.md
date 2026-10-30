@@ -19,6 +19,8 @@ Fase 1 dibangun 23 Okt 2026, fase 2 (MCP + npm) di hari yang sama. Arsitektur da
 
 - **Klon pakai mata AI + `wecut setup` (30 Okt)**: WeCut tetap tanpa model dan tanpa API key. `wecut clone` mengeluarkan `review` (temuan, gambar, asal nilainya, batasannya), agent yang menjalankannya melihat lalu menjawab lewat `--read`: kata dan baris, font termasuk font api/script, buang temuan palsu, jenis shot per slot, nama transisi. OCR cuma cadangan kalau tanpa agent; lewat MCP OCR mati bawaan. Analisis frame disimpan di `out/clone/<nama>/analysis.json` dan dipakai ulang. `wecut setup` memasang server MCP dan skill ke Claude Code, Claude Desktop, Codex, Cursor, Gemini CLI, Windsurf, Grok Build: tanpa `--apply` cuma menampilkan, ada backup, dibaca balik, tidak ditawarkan lewat MCP. Polanya meniru REA (morluto/rea). Klon sengaja tidak dipisah dari WeCut: dia butuh mesin render untuk cek waktu, metrik font, dan format resep.
 
+- **Gradasi dan uji video TikTok (30 Okt)**: proyek dan resep punya `gradients` (warna memudar di atas footage, di bawah teks; digambar di file .ass, tampil juga di Studio). `wecut clone` mendeteksinya per kelompok shot, jadi hook dan bagian pembicara bisa beda, dan agent bisa mengubahnya lewat `gradientN`. Ikut diperbaiki: baris teks yang rapat terbaca satu baris, gradasi gelap terbaca kotak hitam, lebar baris kena piksel terang dari footage, transisi kilat cahaya terbaca potongan biasa, pengecekan waktu tertutup teks. Review menambah `timeline.jpg`, dan caption bisa dijawab `y`, `size`, `highlight`, `background`, `shadow`. Belum: efek stiker/sobekan kertas, filter warna sesaat, footage dalam kartu di atas latar grid, kata caption yang membesar atau kuning.
+
 ## Cara coba
 
 ```

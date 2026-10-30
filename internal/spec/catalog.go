@@ -264,11 +264,12 @@ var (
 
 // Limits keep a render from eating the host machine.
 const (
-	MaxDuration = 600.0 // seconds of output
-	MaxClips    = 100   // each clip is an FFmpeg input; segment rendering (later) lifts this
-	MaxTexts    = 500
-	MaxOverlays = 50
-	MaxTracks   = 30
-	MaxFilters  = 100
-	MaxWords    = 20000
+	MaxDuration  = 600.0 // seconds of output
+	MaxClips     = 100   // each clip is an FFmpeg input; segment rendering (later) lifts this
+	MaxTexts     = 500
+	MaxOverlays  = 50
+	MaxGradients = 8
+	MaxTracks    = 30
+	MaxFilters   = 100
+	MaxWords     = 20000
 )

@@ -227,6 +227,30 @@ func (a *Analyzer) detectEvents() []Event {
 		}
 		if f-s >= 3 && ref > 3 {
 			evs[k].Kind, evs[k].Start, evs[k].End = "blur", t(s), t(f)
+			continue
+		}
+		// A cut hidden in a burst of light (a glow, a light leak): the picture
+		// swells brighter over a few frames, and the new shot comes in from it.
+		s = i
+		for dips := 0; s > max(1, i-int(0.45*fps)) && dips <= 1; s-- {
+			if st[s-1].diff >= 12 {
+				dips = 0
+			} else {
+				dips++
+			}
+		}
+		for s < i && st[s].diff < 12 {
+			s++
+		}
+		if i-s < int(math.Round(0.1*fps)) {
+			continue
+		}
+		peak := 0.0
+		for j := s; j < i; j++ {
+			peak = math.Max(peak, st[j].mean)
+		}
+		if peak >= math.Max(st[max(0, s-1)].mean, st[i].mean)+40 {
+			evs[k].Kind, evs[k].Start, evs[k].End = "flash", t(max(0, s-1)), t(i)
 		}
 	}
 	return evs

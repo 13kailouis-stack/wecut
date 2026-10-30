@@ -59,9 +59,11 @@ tell. The agent looks and answers what it can see:
 
 | It sees | It answers | Why measuring cannot |
 |---|---|---|
-| Text crops | exact words and line breaks, closest font, slant, coloured words | OCR misreads styled text; the words also let fonts be matched by line width |
+| A dark fade over the picture | `gradientN`: `from`, `to`, `color`, `opacity`, or `drop` | one that stays through the video is measured; one that comes and goes with a shot is not |
+| `timeline.jpg`, frames across the whole video with ticks every tenth of the height | captions' `y` and `size`, and what cannot be templated | captions and effects live inside the shots |
+| Text crops | exact words and line breaks, closest font, slant, coloured words, `background` | OCR misreads styled text; the words also let fonts be matched by line width |
 | A crop that is scenery or part of the footage | `{"drop": true}` | letters on a sign look like laid-over text |
-| Caption crops | words, font (dripping, script, novelty), colour, outline, how they appear | measuring only picks among plain faces |
+| Caption crops | words, font (dripping, script, novelty), colour, `highlight`, outline, `background`, how they appear | measuring only picks among plain faces, and captions that grow word by word can be measured in the wrong place |
 | `slots.jpg`, one frame per shot | `slotN.about`: the kind of shot to film | a shot's content is not in its pixels' statistics |
 | `transitions.jpg`, five frames through each | `slotN.join` when the kind is wrong | measuring tells flash, fade, dissolve, zoom and blur; a slide looks like one of them |
 | `compare.jpg` | anything that still differs | |

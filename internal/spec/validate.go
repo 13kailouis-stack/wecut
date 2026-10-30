@@ -137,6 +137,18 @@ func (v *validator) project(p *Project) {
 	if p.Captions != nil {
 		v.captions("/captions", p.Captions)
 	}
+	v.limit("/gradients", len(p.Gradients), MaxGradients)
+	for i, g := range p.Gradients {
+		path := fmt.Sprintf("/gradients/%d", i)
+		v.window(path, g.Start, g.End)
+		v.color(path+"/color", g.Color, false)
+		if g.From < 0 || g.From > 1 || g.To < 0 || g.To > 1 || g.From == g.To {
+			v.add("E_VALUE", path, "from and to must be different heights between 0 and 1", "{\"from\": 0.6, \"to\": 0.8} darkens the bottom of the frame.")
+		}
+		if g.Opacity != nil && (*g.Opacity < 0 || *g.Opacity > 100) {
+			v.add("E_VALUE", path+"/opacity", "opacity must be 0 to 100", "")
+		}
+	}
 	for i, o := range p.Overlays {
 		path := fmt.Sprintf("/overlays/%d", i)
 		v.src(path+"/src", o.Src, "i")

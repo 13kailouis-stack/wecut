@@ -22,11 +22,11 @@ import (
 // and its answers come back through --read. OCR is only the fallback for
 // running without an agent.
 
-const answerExample = `{"text1": {"lines": ["first line", "second line"], "font": "roboto", "italic": true, "emphasis": ["word"], "emphasis_color": "#E8003D"}, "text2": {"drop": true}, "caption1": ["WORD"], "captions": {"font": "creepster", "color": "#FF9F1C", "stroke": "#6A0A00", "mode": "pop"}, "slot1": {"about": "wide outdoor shot, handheld"}, "slot3": {"join": "wipeleft"}, "logo": {"drop": true}}`
+const answerExample = `{"text1": {"lines": ["first line", "second line"], "font": "roboto", "italic": true, "emphasis": ["word"], "emphasis_color": "#E8003D", "background": "none"}, "text2": {"drop": true}, "caption1": ["WORD"], "captions": {"font": "barlow-condensed", "color": "#8E8E8E", "highlight": "#FFFFFF", "mode": "karaoke", "max_words": 5, "y": 0.52, "size": 64, "background": "none", "shadow": true}, "slot1": {"about": "wide outdoor shot, handheld"}, "slot3": {"join": "wipeleft"}, "gradient1": {"from": 0.6, "to": 0.8, "color": "#000000"}, "logo": {"drop": true}}`
 
 const (
 	sessionFile    = "analysis.json"
-	sessionVersion = 1
+	sessionVersion = 3
 	transitionMax  = 12 // rows on the transition sheet
 )
 
@@ -104,6 +104,61 @@ func readCrop(f string) *clone.RGB {
 	return rgb
 }
 
+// timelineSheet draws frames spread over the whole video, each numbered with
+// its second. The ticks on the left edge mark every tenth of the height, the
+// long one the middle, so positions can be read off them.
+func (a *app) timelineSheet(ctx context.Context, t interface {
+	Still(context.Context, string, string, float64, int, int) ([]byte, error)
+}, abs, dir string, end float64, w, h int, out string) error {
+	const cols, n, pad = 6, 18, 4
+	tw := 190
+	th := int(math.Round(float64(h) * float64(tw) / float64(w)))
+	if th > 340 {
+		th = 340
+		tw = int(math.Round(float64(w) * float64(th) / float64(h)))
+	}
+	rows := (n + cols - 1) / cols
+	sheet := image.NewRGBA(image.Rect(0, 0, cols*(tw+pad)+pad, rows*(th+pad)+pad))
+	for i := range sheet.Pix {
+		sheet.Pix[i] = 0x16
+		if i%4 == 3 {
+			sheet.Pix[i] = 255
+		}
+	}
+	for i := 0; i < n; i++ {
+		at := end * (float64(i) + 0.5) / n
+		b, err := t.Still(ctx, abs, dir, at, tw, th)
+		if err != nil {
+			return err
+		}
+		x0, y0 := pad+(i%cols)*(tw+pad), pad+(i/cols)*(th+pad)
+		for y := 0; y < th; y++ {
+			for x := 0; x < tw; x++ {
+				j := 3 * (y*tw + x)
+				sheet.Set(x0+x, y0+y, color.RGBA{b[j], b[j+1], b[j+2], 255})
+			}
+		}
+		for k := 1; k < 10; k++ {
+			y := y0 + th*k/10
+			long := 6
+			if k == 5 {
+				long = 14
+			}
+			for x := 0; x < long; x++ {
+				sheet.Set(x0+x, y, color.RGBA{255, 230, 0, 255})
+				sheet.Set(x0+x, y+1, color.RGBA{0, 0, 0, 255})
+			}
+		}
+		drawNumber(sheet, x0+18, y0+4, int(math.Round(at)))
+	}
+	f, err := os.Create(out)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	return jpeg.Encode(f, sheet, &jpeg.Options{Quality: 85})
+}
+
 type transitionRow struct {
 	Slot       int     `json:"slot"`
 	Join       string  `json:"measured"`
@@ -169,13 +224,17 @@ func (a *app) transitionSheet(ctx context.Context, t interface {
 // buildReview is what an agent looks at: each thing that was found, the image
 // it came from, what the template holds now and where that came from, and what
 // measuring cannot tell.
-func buildReview(res *clone.Result, crops []clone.Crop, files map[string]string, given map[string]clone.Reading, sheet, trans, compare, src, name string) map[string]any {
+func buildReview(res *clone.Result, crops []clone.Crop, files map[string]string, given map[string]clone.Reading, timeline, sheet, trans, compare, src, name string) map[string]any {
 	slotOf := map[string]*recipe.Slot{}
 	for i := range res.Recipe.Texts {
 		slotOf[res.Recipe.Texts[i].Slot] = &res.Recipe.Texts[i]
 	}
 	var items []map[string]any
 	pending := 0
+	if timeline != "" {
+		items = append(items, map[string]any{"id": "timeline", "kind": "overview", "image": timeline,
+			"ask": "Frames across the whole video, numbered with their second. Yellow ticks on each frame's left edge mark every tenth of the height, the long one the middle. Use it for captions: if the caption crops show no words, the band was measured wrong, so answer captions with y and size from here. Say in your report what cannot be templated (stickers, overlays, colour effects)."})
+	}
 	for _, bl := range res.Plan.Blocks {
 		if bl.Look == nil {
 			continue
@@ -216,18 +275,33 @@ func buildReview(res *clone.Result, crops []clone.Crop, files map[string]string,
 			if !answered {
 				pending++
 			}
-			it["ask"] = "The words shown. They say how many words show at once."
+			it["ask"] = "The words shown. They say how many words show at once. If this shows no words, leave it unanswered and take the captions from the timeline."
 		case "logo":
 			it["ask"] = "Is this a logo laid over the video? If not, drop it. Otherwise say what kind of mark it is in about."
 		}
 		items = append(items, it)
 	}
-	if cs := res.Recipe.Captions; cs != nil {
+	{
 		_, answered := given["captions"]
+		now := map[string]any{"none_found": true}
+		if cs := res.Recipe.Captions; cs != nil {
+			now = map[string]any{"font": cs.Font, "color": cs.Color, "stroke": cs.Stroke, "background": cs.Background, "size": cs.Size, "mode": cs.Mode, "max_words": cs.MaxWords}
+			if cs.Y != nil {
+				now["y"] = *cs.Y
+			}
+		}
 		it := map[string]any{"id": "captions", "kind": "captions", "answered": answered,
-			"now": map[string]any{"font": cs.Font, "color": cs.Color, "stroke": cs.Stroke, "mode": cs.Mode, "max_words": cs.MaxWords},
-			"ask": "From the caption images: the closest font, colour, outline and how the words appear (" + fmt.Sprint(spec.CaptionModes) + "). If there are no spoken captions here, drop it."}
+			"now": now,
+			"ask": "From the caption images and the timeline: y, size, the closest font, colour, outline, background, and how the words appear (" + fmt.Sprint(spec.CaptionModes) + "). When spoken words light up, color is the words still to come and highlight the one being spoken. If there are no spoken captions, drop it."}
 		items = append(items, it)
+	}
+	{
+		var now []map[string]any
+		for i, g := range res.Recipe.Gradients {
+			now = append(now, map[string]any{"id": fmt.Sprintf("gradient%d", i+1), "from": g.From, "to": g.To, "color": g.Color})
+		}
+		items = append(items, map[string]any{"id": "gradients", "kind": "gradients", "now": now,
+			"ask": "Colour fades laid over the picture, like the dark fade behind captions. From the timeline: answer gradient1, gradient2... with from (the height where the picture is still clear), to (where the colour is full), color, opacity, or drop. Add a new number for one that was not found. Fades that come and go with a shot are measured only when they stay through the video."})
 	}
 	if sheet != "" {
 		var now []map[string]any
@@ -252,7 +326,8 @@ func buildReview(res *clone.Result, crops []clone.Crop, files map[string]string,
 			"Cuts, transition timing, framing, zoom, positions, colours and sizes are measured from the frames; the timing report shows how close the template lands.",
 			"Measuring tells flash, fade to black, dissolve, zoom and blur. Any other transition shows up as one of those until someone looks.",
 			"Fonts are matched among the bundled ones, never identified. Scripts and novelty faces are only picked by someone who looks.",
-			"Effects, stickers, colour grading and how text animates in are not detected.",
+			"Effects, stickers, overlays, colour grading and how text animates in are not detected. Footage shown in a small card shows up as full-screen.",
+			"Captions that grow word by word, or stay up for long, can be measured in the wrong place. Check them against the timeline.",
 		},
 	}
 }

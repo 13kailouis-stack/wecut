@@ -84,6 +84,16 @@ export async function toBundle(state, encode) {
 // exact shots, transitions, zoom, captions, logo slot, J-cut sound, text
 // looks. Each shot is one clip on the timeline.
 
+// gradientCSS draws a recipe's colour fade: clear at height from, full at
+// height to, and full on to the edge of the frame.
+export function gradientCSS(g) {
+  const alpha = Math.round(255 * (g.opacity ?? 100) / 100).toString(16).padStart(2, '0');
+  const color = (g.color || '#000000') + alpha;
+  const down = g.to > g.from;
+  const from = (down ? g.from : 1 - g.from) * 100, to = (down ? g.to : 1 - g.to) * 100;
+  return `linear-gradient(to ${down ? 'bottom' : 'top'}, ${color.slice(0, 7)}00 ${from}%, ${color} ${to}%)`;
+}
+
 // templateShots lists a recipe's media slots in order.
 export function templateShots(recipe) {
   const out = [];

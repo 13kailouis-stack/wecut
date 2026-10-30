@@ -22,6 +22,7 @@ import (
 	"math"
 
 	"github.com/13kailouis-stack/wecut/internal/analyze"
+	"github.com/13kailouis-stack/wecut/internal/spec"
 )
 
 // Config describes the source video and the two streams fed to the
@@ -122,17 +123,18 @@ func (a *Analyzer) lowIndex(t float64) int {
 
 // Plan is what Analyze found before looking at full-size frames.
 type Plan struct {
-	Duration   float64        `json:"duration"`    // of the source
-	ContentEnd float64        `json:"content_end"` // where the edit ends (a platform outro is cut off)
-	Events     []Event        `json:"events"`
-	Shots      []ShotInfo     `json:"shots"`
-	Blocks     []*Block       `json:"texts"`
-	Captions   *CaptionBand   `json:"captions,omitempty"`
-	Logos      []*Block       `json:"logos,omitempty"`
-	Audio      *analyze.Audio `json:"audio,omitempty"`
-	Speech     bool           `json:"speech"`
-	Stills     []float64      `json:"stills"` // full-size frames Measure needs, in seconds
-	Notes      []string       `json:"notes,omitempty"`
+	Duration   float64         `json:"duration"`    // of the source
+	ContentEnd float64         `json:"content_end"` // where the edit ends (a platform outro is cut off)
+	Events     []Event         `json:"events"`
+	Shots      []ShotInfo      `json:"shots"`
+	Blocks     []*Block        `json:"texts"`
+	Captions   *CaptionBand    `json:"captions,omitempty"`
+	Logos      []*Block        `json:"logos,omitempty"`
+	Gradients  []spec.Gradient `json:"gradients,omitempty"`
+	Audio      *analyze.Audio  `json:"audio,omitempty"`
+	Speech     bool            `json:"speech"`
+	Stills     []float64       `json:"stills"` // full-size frames Measure needs, in seconds
+	Notes      []string        `json:"notes,omitempty"`
 	stillOf    map[string][]int
 	lowW, lowH int
 }
@@ -176,6 +178,7 @@ func (a *Analyzer) Analyze() *Plan {
 	p.Shots = a.shots(p.Events, p.ContentEnd)
 	a.textResults(p)
 	p.Speech = p.Captions != nil
+	p.Gradients = a.gradients(p)
 	a.plan = p
 	a.planStills(p)
 	return p
