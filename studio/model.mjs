@@ -1,9 +1,9 @@
 export const MAX_AUDIO_BYTES = 32 * 1024 * 1024;
 export const MAX_PACKAGE_BYTES = 48 * 1024 * 1024;
-export const fonts = ['roboto', 'poppins', 'montserrat'];
-// Every font the engine ships; a template may use any of them. The Studio
-// preview draws the three above and stands in Poppins for the rest.
-export const engineFonts = ['roboto', 'montserrat', 'poppins', 'oswald', 'anton', 'bangers', 'archivo-black', 'pacifico', 'lobster', 'permanent-marker', 'playfair', 'dancing-script', 'caveat'];
+export const fonts = ['roboto', 'montserrat', 'poppins-medium', 'poppins-semibold', 'poppins', 'poppins-extrabold', 'poppins-black', 'kanit', 'kanit-black', 'oswald', 'barlow-condensed', 'barlow-condensed-extrabold', 'bebas', 'anton', 'archivo-black', 'russo', 'rubik-mono', 'righteous', 'bungee', 'passion', 'lilita', 'titan', 'luckiest', 'bangers', 'black-ops', 'creepster', 'nosifer', 'alfa-slab', 'abril', 'dm-serif', 'playfair', 'shrikhand', 'pacifico', 'lobster', 'dancing-script', 'great-vibes', 'satisfy', 'permanent-marker', 'caveat', 'comic-neue'];
+// Every font the engine ships (internal/spec/catalog.go); the Studio
+// preview draws all of them from fonts/ (fonts.css).
+export const engineFonts = fonts;
 export const filters = { none: null, warm: ['#FF9A3C', .2], cool: ['#3C8CFF', .18], rose: ['#FF5C8A', .17], pale: ['#FFFFFF', .22], dark: ['#000000', .28] };
 export const duration = (clip) => clip.kind === 'image' ? clip.duration : clip.to - clip.from;
 export const totalDuration = (state) => state.clips.reduce((n, clip) => n + duration(clip), 0);

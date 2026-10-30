@@ -8,31 +8,67 @@ import "sort"
 
 type Font struct {
 	Key, File, Family, About string
-	Bold                     bool
+	// Italic is the real italic face of the same family, when the font has
+	// one; libass picks it for italic text instead of slanting the letters.
+	Italic string
+	Bold   bool
 	// Em converts a CSS-style font size into the size libass expects. libass
 	// sizes a font by usWinAscent+usWinDescent, so the same number draws
 	// Poppins at 57% of its CSS size. Em = (winAscent+winDescent)/unitsPerEm,
 	// measured from the bundled files.
 	Em float64
+	// Cap is the capital height as a share of the CSS size (OS/2
+	// sCapHeight), for turning a measured letter height into a size.
+	Cap    float64
+	Weight int    // OS/2 weight class: 400 regular ... 900 black
+	Kind   string // sans, condensed, display, horror, serif, script, hand
 }
 
-// Fonts ship inside the binary (Latin subsets from Google Fonts). Family is
-// the name libass matches; the Montserrat file really is called "Montserrat
-// Thin" with a Bold face.
+// Fonts ship inside the binary: Latin subsets, except families whose
+// licence reserves their name, which ship unmodified (LICENSES.md). Family
+// is the name libass matches; the Montserrat file really is called
+// "Montserrat Thin" with a Bold face.
 var Fonts = []Font{
-	{"roboto", "roboto-700.ttf", "Roboto", "neutral sans, bold", true, 1.2002},
-	{"montserrat", "montserrat-700.ttf", "Montserrat Thin", "geometric sans, bold (default)", true, 1.5620},
-	{"poppins", "poppins-700.ttf", "Poppins", "round geometric sans, bold", true, 1.7620},
-	{"oswald", "oswald-700.ttf", "Oswald", "condensed sans, bold", true, 1.7020},
-	{"anton", "anton-400.ttf", "Anton", "tall heavy condensed, for hooks", false, 1.7334},
-	{"bangers", "bangers-400.ttf", "Bangers", "comic book caps", false, 1.7570},
-	{"archivo-black", "archivo-black-400.ttf", "Archivo Black", "wide heavy sans", false, 1.3470},
-	{"pacifico", "pacifico-400.ttf", "Pacifico", "casual brush script", false, 1.9350},
-	{"lobster", "lobster-400.ttf", "Lobster", "bold retro script", false, 1.4900},
-	{"permanent-marker", "permanent-marker-400.ttf", "Permanent Marker", "handwritten marker", false, 1.4268},
-	{"playfair", "playfair-display-700.ttf", "Playfair Display", "elegant serif, bold", true, 1.4100},
-	{"dancing-script", "dancing-script-700.ttf", "Dancing Script", "flowing script, bold", true, 1.4020},
-	{"caveat", "caveat-400.ttf", "Caveat", "quick handwriting", false, 1.2890},
+	{Key: "roboto", File: "roboto-700.ttf", Italic: "", Family: "Roboto", About: "neutral sans, bold", Bold: true, Em: 1.2002, Cap: 0.7109, Weight: 700, Kind: "sans"},
+	{Key: "montserrat", File: "montserrat-700.ttf", Italic: "", Family: "Montserrat Thin", About: "geometric sans, bold (default)", Bold: true, Em: 1.5620, Cap: 0.7000, Weight: 700, Kind: "sans"},
+	{Key: "poppins-medium", File: "poppins-500.ttf", Italic: "poppins-500-italic.ttf", Family: "Poppins Medium", About: "round geometric sans, medium; real italic", Bold: false, Em: 1.7620, Cap: 0.6970, Weight: 500, Kind: "sans"},
+	{Key: "poppins-semibold", File: "poppins-600.ttf", Italic: "poppins-600-italic.ttf", Family: "Poppins SemiBold", About: "round geometric sans, semibold; real italic (news cards)", Bold: false, Em: 1.7620, Cap: 0.7010, Weight: 600, Kind: "sans"},
+	{Key: "poppins", File: "poppins-700.ttf", Italic: "poppins-700-italic.ttf", Family: "Poppins", About: "round geometric sans, bold; real italic", Bold: true, Em: 1.7620, Cap: 0.7050, Weight: 700, Kind: "sans"},
+	{Key: "poppins-extrabold", File: "poppins-800.ttf", Italic: "poppins-800-italic.ttf", Family: "Poppins ExtraBold", About: "round geometric sans, extra bold; real italic", Bold: false, Em: 1.7620, Cap: 0.7090, Weight: 800, Kind: "sans"},
+	{Key: "poppins-black", File: "poppins-900.ttf", Italic: "poppins-900-italic.ttf", Family: "Poppins Black", About: "round geometric sans, black; real italic", Bold: false, Em: 1.7620, Cap: 0.7130, Weight: 900, Kind: "sans"},
+	{Key: "kanit", File: "kanit-700.ttf", Italic: "kanit-700-italic.ttf", Family: "Kanit", About: "squarish sans, bold, loved on SEA TikTok; real italic", Bold: true, Em: 1.5800, Cap: 0.6440, Weight: 700, Kind: "sans"},
+	{Key: "kanit-black", File: "kanit-900.ttf", Italic: "kanit-900-italic.ttf", Family: "Kanit Black", About: "squarish sans, black; real italic", Bold: false, Em: 1.5800, Cap: 0.6440, Weight: 900, Kind: "sans"},
+	{Key: "oswald", File: "oswald-700.ttf", Italic: "", Family: "Oswald", About: "condensed sans, bold", Bold: true, Em: 1.7020, Cap: 0.8100, Weight: 700, Kind: "condensed"},
+	{Key: "barlow-condensed", File: "barlow-condensed-700.ttf", Italic: "barlow-condensed-700-italic.ttf", Family: "Barlow Condensed", About: "narrow sans, bold; real italic", Bold: true, Em: 1.3490, Cap: 0.7000, Weight: 700, Kind: "condensed"},
+	{Key: "barlow-condensed-extrabold", File: "barlow-condensed-800.ttf", Italic: "", Family: "Barlow Condensed ExtraBold", About: "narrow sans, extra bold", Bold: false, Em: 1.3490, Cap: 0.7000, Weight: 800, Kind: "condensed"},
+	{Key: "bebas", File: "bebas-neue-400.ttf", Italic: "", Family: "Bebas Neue", About: "tall all-caps condensed titles (Bebas Neue)", Bold: false, Em: 1.3000, Cap: 0.7000, Weight: 400, Kind: "condensed"},
+	{Key: "anton", File: "anton-400.ttf", Italic: "", Family: "Anton", About: "tall heavy condensed, for hooks", Bold: false, Em: 1.7334, Cap: 0.8594, Weight: 400, Kind: "condensed"},
+	{Key: "archivo-black", File: "archivo-black-400.ttf", Italic: "", Family: "Archivo Black", About: "wide heavy sans", Bold: false, Em: 1.3470, Cap: 0.6880, Weight: 400, Kind: "display"},
+	{Key: "russo", File: "russo-one-400.ttf", Italic: "", Family: "Russo One", About: "techy rounded-square sans", Bold: false, Em: 1.2050, Cap: 0.7000, Weight: 400, Kind: "display"},
+	{Key: "rubik-mono", File: "rubik-mono-one-400.ttf", Italic: "", Family: "Rubik Mono One", About: "wide blocky caps", Bold: false, Em: 1.2380, Cap: 0.7000, Weight: 400, Kind: "display"},
+	{Key: "righteous", File: "righteous-400.ttf", Italic: "", Family: "Righteous", About: "retro rounded display", Bold: false, Em: 1.2417, Cap: 0.7002, Weight: 400, Kind: "display"},
+	{Key: "bungee", File: "bungee-400.ttf", Italic: "", Family: "Bungee", About: "urban signage caps", Bold: false, Em: 2.5740, Cap: 0.7200, Weight: 400, Kind: "display"},
+	{Key: "passion", File: "passion-one-700.ttf", Italic: "", Family: "Passion One", About: "chunky playful display, bold", Bold: true, Em: 1.1010, Cap: 0.6210, Weight: 700, Kind: "display"},
+	{Key: "lilita", File: "lilita-one-400.ttf", Italic: "", Family: "Lilita One", About: "friendly heavy rounded display", Bold: false, Em: 1.1430, Cap: 0.7040, Weight: 400, Kind: "display"},
+	{Key: "titan", File: "titan-one-400.ttf", Italic: "", Family: "Titan One", About: "bubbly rounded display", Bold: false, Em: 1.1450, Cap: 0.7100, Weight: 400, Kind: "display"},
+	{Key: "luckiest", File: "luckiest-guy-400.ttf", Italic: "", Family: "Luckiest Guy", About: "cartoon bubble caps (Luckiest Guy)", Bold: false, Em: 1.2256, Cap: 0.6953, Weight: 400, Kind: "display"},
+	{Key: "bangers", File: "bangers-400.ttf", Italic: "", Family: "Bangers", About: "comic book caps", Bold: false, Em: 1.7570, Cap: 0.7210, Weight: 400, Kind: "display"},
+	{Key: "black-ops", File: "black-ops-one-400.ttf", Italic: "", Family: "Black Ops One", About: "stencil military caps", Bold: false, Em: 1.4263, Cap: 0.6479, Weight: 400, Kind: "display"},
+	{Key: "creepster", File: "creepster-400.ttf", Italic: "", Family: "Creepster", About: "dripping horror letters, for fire or spooky captions", Bold: false, Em: 1.1689, Cap: 0.7334, Weight: 400, Kind: "horror"},
+	{Key: "nosifer", File: "nosifer-400.ttf", Italic: "", Family: "Nosifer", About: "blood-drip horror letters", Bold: false, Em: 1.7402, Cap: 0.4170, Weight: 400, Kind: "horror"},
+	{Key: "alfa-slab", File: "alfa-slab-one-400.ttf", Italic: "", Family: "Alfa Slab One", About: "heavy slab serif", Bold: false, Em: 1.5650, Cap: 0.7780, Weight: 400, Kind: "serif"},
+	{Key: "abril", File: "abril-fatface-400.ttf", Italic: "", Family: "Abril Fatface", About: "high-contrast fat serif headlines", Bold: false, Em: 1.3490, Cap: 0.7000, Weight: 400, Kind: "serif"},
+	{Key: "dm-serif", File: "dm-serif-display-400.ttf", Italic: "dm-serif-display-400-italic.ttf", Family: "DM Serif Display", About: "elegant display serif; real italic", Bold: false, Em: 1.3710, Cap: 0.6600, Weight: 400, Kind: "serif"},
+	{Key: "playfair", File: "playfair-display-700.ttf", Italic: "", Family: "Playfair Display", About: "elegant serif, bold", Bold: true, Em: 1.4100, Cap: 0.7080, Weight: 700, Kind: "serif"},
+	{Key: "shrikhand", File: "shrikhand-400.ttf", Italic: "", Family: "Shrikhand", About: "bold italic retro script-display", Bold: false, Em: 1.4580, Cap: 0.6690, Weight: 400, Kind: "script"},
+	{Key: "pacifico", File: "pacifico-400.ttf", Italic: "", Family: "Pacifico", About: "casual brush script", Bold: false, Em: 1.9350, Cap: 0.8400, Weight: 400, Kind: "script"},
+	{Key: "lobster", File: "lobster-400.ttf", Italic: "", Family: "Lobster", About: "bold retro script", Bold: false, Em: 1.4900, Cap: 0.7480, Weight: 400, Kind: "script"},
+	{Key: "dancing-script", File: "dancing-script-700.ttf", Italic: "", Family: "Dancing Script", About: "flowing script, bold", Bold: true, Em: 1.4020, Cap: 0.7200, Weight: 700, Kind: "script"},
+	{Key: "great-vibes", File: "great-vibes-400.ttf", Italic: "", Family: "Great Vibes", About: "formal wedding script", Bold: false, Em: 1.7500, Cap: 0.7500, Weight: 400, Kind: "script"},
+	{Key: "satisfy", File: "satisfy-400.ttf", Italic: "", Family: "Satisfy", About: "casual signature script", Bold: false, Em: 1.4238, Cap: 0.7490, Weight: 400, Kind: "script"},
+	{Key: "permanent-marker", File: "permanent-marker-400.ttf", Italic: "", Family: "Permanent Marker", About: "handwritten marker", Bold: false, Em: 1.4268, Cap: 0.7402, Weight: 400, Kind: "hand"},
+	{Key: "caveat", File: "caveat-400.ttf", Italic: "", Family: "Caveat", About: "quick handwriting", Bold: false, Em: 1.2890, Cap: 0.6100, Weight: 400, Kind: "hand"},
+	{Key: "comic-neue", File: "comic-neue-700.ttf", Italic: "", Family: "Comic Neue", About: "friendly comic handwriting, bold", Bold: true, Em: 1.3500, Cap: 0.6700, Weight: 700, Kind: "hand"},
 }
 
 func FontByKey(k string) (Font, bool) {
@@ -57,6 +93,7 @@ type TextStyle struct {
 	Uppercase  bool
 	Italic     bool
 	Spacing    float64
+	Box        string // "card": one box behind the whole block
 }
 
 var TextStyles = []TextStyle{
@@ -77,6 +114,20 @@ var TextStyles = []TextStyle{
 	{Key: "headline", About: "news-style headline card: dark bold italic on a white box (add emphasis for red words)", Font: "poppins", Size: 52, Color: "#111111", Background: "#FFFFFF", BgOpacity: 100, Italic: true},
 	{Key: "label", About: "small tag above a headline: white italic on a red box", Font: "poppins", Size: 34, Color: "#FFFFFF", Background: "#E53935", BgOpacity: 100, Italic: true},
 	{Key: "quote", About: "dark text on white boxes, line by line, like a quoted comment", Font: "montserrat", Size: 46, Color: "#111111", Background: "#FFFFFF", BgOpacity: 92},
+	{Key: "news-card", About: "news card: dark semibold italic on one white card (add emphasis for red words)", Font: "poppins-semibold", Size: 54, Color: "#111111", Background: "#FFFFFF", BgOpacity: 100, Italic: true, Box: "card"},
+	{Key: "news-label", About: "small caps label over a news card: white italic on a red card", Font: "poppins-semibold", Size: 36, Color: "#FFFFFF", Background: "#E8003D", BgOpacity: 100, Italic: true, Uppercase: true, Box: "card"},
+	{Key: "bebas", About: "tall condensed caps title with a soft shadow", Font: "bebas", Size: 130, Color: "#FFFFFF", Shadow: true, Uppercase: true, Spacing: 2},
+	{Key: "bubble", About: "cartoon yellow caps with a thick black outline", Font: "luckiest", Size: 96, Color: "#FFD60A", Stroke: "#000000", Uppercase: true},
+	{Key: "fire", About: "dripping orange caps with a dark red outline, fire or horror", Font: "creepster", Size: 110, Color: "#FF9F1C", Stroke: "#6A0A00", Uppercase: true},
+	{Key: "kanit", About: "heavy squarish caps, white with black outline (SEA TikTok)", Font: "kanit-black", Size: 88, Color: "#FFFFFF", Stroke: "#000000", Uppercase: true},
+	{Key: "rounded", About: "friendly rounded white with a soft shadow", Font: "lilita", Size: 90, Color: "#FFFFFF", Shadow: true},
+	{Key: "elegant", About: "high-contrast serif headline, white with shadow", Font: "abril", Size: 84, Color: "#FFFFFF", Shadow: true},
+	{Key: "script", About: "formal script, white with a soft shadow", Font: "great-vibes", Size: 110, Color: "#FFFFFF", Shadow: true},
+	{Key: "signature", About: "casual signature script", Font: "satisfy", Size: 96, Color: "#FFFFFF", Shadow: true},
+	{Key: "slab", About: "heavy slab serif on a yellow card", Font: "alfa-slab", Size: 70, Color: "#111111", Background: "#FFE14D", BgOpacity: 100, Box: "card"},
+	{Key: "retro", About: "retro rounded neon pink with a deep outline", Font: "righteous", Size: 84, Color: "#FF4FD8", Stroke: "#2A0033"},
+	{Key: "stencil", About: "military stencil caps, olive on a black box", Font: "black-ops", Size: 76, Color: "#C9D17A", Background: "#000000", BgOpacity: 80},
+	{Key: "poster", About: "wide blocky caps, black on a white card", Font: "rubik-mono", Size: 64, Color: "#111111", Background: "#FFFFFF", BgOpacity: 100, Uppercase: true, Box: "card"},
 }
 
 func TextStyleByKey(k string) (TextStyle, bool) {
@@ -110,6 +161,12 @@ var CaptionStyles = []CaptionStyle{
 	{TextStyle{Key: "pop", About: "one big word at a time that pops in", Font: "anton", Size: 104, Color: "#FFFFFF", Stroke: "#000000", Uppercase: true}, "pop", "", 1, 0.62},
 	{TextStyle{Key: "word", About: "one plain word at a time in the middle, white with outline", Font: "montserrat", Size: 60, Color: "#FFFFFF", Stroke: "#000000"}, "pop", "", 1, 0.58},
 	{TextStyle{Key: "phrase", About: "short caps phrases with a soft shadow", Font: "poppins", Size: 50, Color: "#FFFFFF", Shadow: true, Uppercase: true}, "chunk", "", 4, 0.6},
+	{TextStyle{Key: "fire", About: "one dripping orange word at a time, dark red outline", Font: "creepster", Size: 96, Color: "#FF9F1C", Stroke: "#6A0A00", Uppercase: true}, "pop", "", 1, 0.62},
+	{TextStyle{Key: "bubble", About: "one cartoon yellow word at a time, black outline", Font: "luckiest", Size: 84, Color: "#FFD60A", Stroke: "#000000", Uppercase: true}, "pop", "", 1, 0.62},
+	{TextStyle{Key: "kanit", About: "heavy caps, the spoken word lights up yellow", Font: "kanit-black", Size: 70, Color: "#FFFFFF", Stroke: "#000000", Uppercase: true}, "karaoke", "#FFD60A", 3, 0.7},
+	{TextStyle{Key: "bebas", About: "tall condensed caps, three words at a time", Font: "bebas", Size: 100, Color: "#FFFFFF", Shadow: true, Uppercase: true, Spacing: 1}, "chunk", "", 3, 0.7},
+	{TextStyle{Key: "news", About: "white semibold on a dark box, like TV subtitles", Font: "poppins-semibold", Size: 52, Color: "#FFFFFF", Background: "#000000", BgOpacity: 75}, "chunk", "", 5, 0.8},
+	{TextStyle{Key: "rounded", About: "friendly rounded two-word pops", Font: "lilita", Size: 80, Color: "#FFFFFF", Stroke: "#000000"}, "pop", "", 2, 0.65},
 }
 
 func CaptionStyleByKey(k string) (CaptionStyle, bool) {

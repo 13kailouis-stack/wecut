@@ -6,8 +6,13 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/13kailouis-stack/wecut/internal/assets"
+	"github.com/13kailouis-stack/wecut/internal/spec"
 )
+
+// FontData returns the bytes of a font by key. The assets package sets it
+// when it is linked in (the CLI and MCP server); without it, as in the
+// browser build, text cannot be measured and layout falls back to libass.
+var FontData func(key string) ([]byte, error)
 
 // fontMetrics is what laying out text by hand needs from a TrueType file:
 // how wide each character is and where libass puts the baseline. libass
@@ -32,7 +37,10 @@ func metricsFor(key string) (*fontMetrics, error) {
 	if m, ok := metricsBy[key]; ok {
 		return m, nil
 	}
-	data, err := assets.Font(key)
+	if FontData == nil {
+		return nil, errors.New("no font data")
+	}
+	data, err := FontData(key)
 	if err != nil {
 		return nil, err
 	}
@@ -200,13 +208,13 @@ func (m *fontMetrics) wrap(text string, fs, spacing, maxW float64) []string {
 }
 
 // CapRatio is a font's capital height as a share of its CSS size, for
-// turning a measured letter height into a size. 0.7 when unknown.
+// turning a measured letter height into a size: from the catalog, so it
+// needs no font file. 0.7 when unknown.
 func CapRatio(key string) float64 {
-	m, err := metricsFor(key)
-	if err != nil {
-		return 0.7
+	if f, ok := spec.FontByKey(key); ok && f.Cap > 0 {
+		return f.Cap
 	}
-	return m.capH / m.upm
+	return 0.7
 }
 
 // TextWidth is how wide text is drawn in the font at CSS size fs, in the

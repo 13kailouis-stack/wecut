@@ -8,8 +8,12 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/13kailouis-stack/wecut/internal/engine"
 	"github.com/13kailouis-stack/wecut/internal/spec"
 )
+
+// The engine measures text with the embedded fonts.
+func init() { engine.FontData = Font }
 
 //go:embed fonts/*.ttf
 var fonts embed.FS
@@ -24,12 +28,17 @@ func WriteFonts(dir string, keys []string) error {
 		if !ok {
 			return fmt.Errorf("unknown font %q", k)
 		}
-		data, err := fonts.ReadFile("fonts/" + f.File)
-		if err != nil {
-			return err
-		}
-		if err := os.WriteFile(filepath.Join(dir, f.File), data, 0o644); err != nil {
-			return err
+		for _, name := range []string{f.File, f.Italic} {
+			if name == "" {
+				continue
+			}
+			data, err := fonts.ReadFile("fonts/" + name)
+			if err != nil {
+				return err
+			}
+			if err := os.WriteFile(filepath.Join(dir, name), data, 0o644); err != nil {
+				return err
+			}
 		}
 	}
 	return nil

@@ -82,7 +82,7 @@
       "description": "Appearance shared by texts and captions. Anything left out comes from the style.",
       "properties": {
         "style": { "type": "string", "description": "A preset. Run `wecut list styles` or `wecut list caption-styles`." },
-        "font": { "enum": ["roboto", "montserrat", "poppins", "oswald", "anton", "bangers", "archivo-black", "pacifico", "lobster", "permanent-marker", "playfair", "dancing-script", "caveat"], "description": "Bundled fonts cover Latin script; other scripts fall back to fonts installed on the machine." },
+        "font": { "enum": ["roboto", "montserrat", "poppins-medium", "poppins-semibold", "poppins", "poppins-extrabold", "poppins-black", "kanit", "kanit-black", "oswald", "barlow-condensed", "barlow-condensed-extrabold", "bebas", "anton", "archivo-black", "russo", "rubik-mono", "righteous", "bungee", "passion", "lilita", "titan", "luckiest", "bangers", "black-ops", "creepster", "nosifer", "alfa-slab", "abril", "dm-serif", "playfair", "shrikhand", "pacifico", "lobster", "dancing-script", "great-vibes", "satisfy", "permanent-marker", "caveat", "comic-neue"], "description": "Bundled fonts (`wecut list fonts`) cover Latin script; other scripts fall back to fonts installed on the machine. Fonts with a real italic face use it when italic is on." },
         "size": { "type": "number", "minimum": 8, "maximum": 400, "description": "Pixels at 1080p." },
         "color": { "$ref": "#/$defs/color" },
         "stroke": { "$ref": "#/$defs/colorOrNone", "description": "Outline colour." },

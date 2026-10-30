@@ -26,6 +26,7 @@ type Look struct {
 	Right  []float64 `json:"right,omitempty"`
 	Italic bool      `json:"italic,omitempty"`
 	Heavy  bool      `json:"heavy,omitempty"` // thick strokes for its size
+	Weight float64   `json:"weight"`          // mean run through a letter / letter height
 	Align  string    `json:"align"`
 	Font   string    `json:"font"`
 }
@@ -608,7 +609,8 @@ func measureBlock(bl *Block, f1, f2 *RGB) *Look {
 	for _, ln := range bl.Lines {
 		lrs = append(lrs, ln.rect(W, H))
 	}
-	l.Italic, l.Heavy = shape(f1, lrs, glyphAt, l.Glyph*float64(H))
+	l.Italic, l.Heavy, l.Weight = shape(f1, lrs, glyphAt, l.Glyph*float64(H))
+	l.Weight = r3(l.Weight)
 
 	// Alignment from where the lines start and end.
 	if len(bl.Lines) > 1 {
@@ -687,7 +689,7 @@ func boxArea(f *RGB, r Rect, bg rgb) Rect {
 // shape tells italic letters by the shear that makes the left edges of
 // their strokes line up best, line by line, and heavy letters by stroke
 // thickness.
-func shape(f *RGB, lines []Rect, on func(rgb) bool, glyphPx float64) (italic, heavy bool) {
+func shape(f *RGB, lines []Rect, on func(rgb) bool, glyphPx float64) (italic, heavy bool, stroke float64) {
 	type pt struct{ x, y float64 }
 	var pts []pt
 	runs, runLen := 0, 0
@@ -709,9 +711,12 @@ func shape(f *RGB, lines []Rect, on func(rgb) bool, glyphPx float64) (italic, he
 		}
 	}
 	if len(pts) < 40 || runs == 0 {
-		return false, false
+		return false, false, 0
 	}
-	heavy = float64(runLen)/float64(runs) > glyphPx*0.2
+	// Stroke weight: the mean horizontal run through a letter, as a share
+	// of the line's letter height.
+	stroke = float64(runLen) / float64(runs) / math.Max(1, glyphPx)
+	heavy = stroke > 0.2
 	score := func(s float64) float64 {
 		cols := make(map[int]float64)
 		for _, p := range pts {
@@ -731,7 +736,7 @@ func shape(f *RGB, lines []Rect, on func(rgb) bool, glyphPx float64) (italic, he
 		}
 	}
 	italic = best >= 0.1 && bs > flat*1.08
-	return italic, heavy
+	return italic, heavy, stroke
 }
 
 // cropFor cuts the words of a block out of a frame, plain and as

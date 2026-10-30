@@ -138,7 +138,7 @@ Prebuilt for Linux, macOS and Windows on x64 and arm64. Set `WECUT_BINARY` to us
 - Cover crop with a focus point and zoom, or contain on a colour or blurred background
 - Photos with Ken Burns motion
 - 36 transitions (FFmpeg `xfade`), clip fades
-- Text with 17 styles (including news-style headline cards and labels), 13 bundled fonts, emphasised words in another colour, pop / type / slide / fade animations
+- Text with 31 styles (news cards and labels, bubble, fire, Bebas titles, Kanit caps, elegant serif, script...), 40 bundled fonts (Poppins from Medium to Black with real italics, Kanit, Bebas Neue, Luckiest Guy, Creepster, Abril Fatface, Great Vibes and more), 18 caption styles, emphasised words in another colour, pop / type / slide / fade animations
 - Captions from a transcript: phrase, karaoke (spoken word highlighted) or one word at a time. Transcript times can stay in source-file seconds; WeCut maps them through the cuts
 - Image overlays (logos, stickers) with opacity, rotation and fades
 - Music and sound effects with trim, loop, fades and automatic ducking under speech

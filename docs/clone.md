@@ -143,11 +143,10 @@ around, with a warning.
 
 ## Limits
 
-- One frame per 1/30 s is looked at for timing (a 60 fps source is read at
-  30), and 6 sharper frames a second for text.
+- Timing is read at the source's frame rate up to 60 frames a second, and
+  6 sharper frames a second for text.
 - Up to 300 s of a source is cloned.
-- Fonts are matched to the 13 bundled ones by weight, slant and shape, not
-  identified; gradient or textured text gets its main colour.
+- Fonts are not identified but matched: among the 40 bundled fonts, the sans and condensed families (Poppins Medium to Black, Kanit, Roboto, Montserrat, Oswald, Barlow Condensed, Bebas, Anton, Archivo Black, Lilita) are scored on stroke weight, on each line's width at the measured capital height when the words are known, and on having a real italic; a weight no font comes near (glow, outline) keeps the default. Without the words (the browser Studio has no OCR) only the weight decides. Script, horror and novelty faces are left for a person or an agent to choose. Gradient or textured text gets its main colour.
 - Stickers, emoji, masks, speed ramps, keyframed text paths and colour
   grades are not cloned yet.
 - Text animations other than fade-in are not detected yet.

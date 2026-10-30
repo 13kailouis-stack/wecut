@@ -248,6 +248,9 @@ func (a *Analyzer) Build(o Options) *Result {
 		size := sizeFor(l.Glyph, H, min(W, H), words, upper, len(bl.Lines))
 		capPx := capHeight(l, H)
 		sl.Font, sl.Size, sl.Color = l.Font, size, l.Color
+		if k := chooseFont(l, rd.Lines, capPx, W, upper); k != "" {
+			sl.Font = k
+		}
 		sl.Align = l.Align
 		sl.Shadow = spec.B(false)
 		if l.Stroke != "" {
@@ -388,6 +391,9 @@ func (a *Analyzer) Build(o Options) *Result {
 		cs.Font = l.Font
 		if l.Heavy && upper {
 			cs.Font = "anton"
+		}
+		if k := chooseFont(l, nil, 0, W, upper); k != "" {
+			cs.Font = k
 		}
 		if capPx := capHeight(l, H); capPx > 0 && upper {
 			cs.Size = r2(clampf(capPx/engine.CapRatio(cs.Font)*1080/float64(min(W, H)), 8, 400))

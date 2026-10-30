@@ -85,7 +85,11 @@ func resolveLook(l spec.Look, base spec.TextStyle, scale float64) look {
 	if l.Align != "" {
 		r.Align = l.Align
 	}
-	r.Card = l.Box == "card" && r.Bg != ""
+	box := base.Box
+	if l.Box != "" {
+		box = l.Box
+	}
+	r.Card = box == "card" && r.Bg != ""
 	r.Size *= scale
 	r.Spacing *= scale
 	return r

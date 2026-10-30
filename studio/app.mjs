@@ -177,8 +177,7 @@ function renderTexts() {
     if (time < t.start || time >= t.end) return;
     const n = node('div', t.text, `preview-text${tab === 'text' && selectedText === i ? ' selected' : ''}`);
     n.style.left = `${t.x * 100}%`; n.style.top = `${t.y * 100}%`; n.style.color = t.color; n.style.fontSize = `${t.size * width / 1080}px`;
-    const face = fonts.includes(t.font) ? t.font : 'poppins';
-    n.style.fontFamily = `WC-${face[0].toUpperCase() + face.slice(1)}`;
+    n.style.fontFamily = `WC-${fonts.includes(t.font) ? t.font : 'poppins'}`;
     const ex = t.extra || {}, alpha = Math.round(255 * (ex.backgroundOpacity ?? 85) / 100).toString(16).padStart(2, '0');
     n.style.background = t.box ? t.background + alpha : 'transparent';
     // A template's text keeps its look in the preview: slant, capitals,

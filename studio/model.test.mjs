@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import test from 'node:test';
-import { initialState, totalDuration, locate, validate, toRecipe, toBundle, MAX_AUDIO_BYTES } from './model.mjs';
+import { initialState, totalDuration, locate, validate, toRecipe, toBundle, fonts, MAX_AUDIO_BYTES } from './model.mjs';
 
 function example() {
   const s = initialState();
@@ -58,7 +58,10 @@ test('page connects to nothing but its own files and ships fonts locally', () =>
   assert.ok(!/https?:/.test(/Content-Security-Policy" content="([^"]+)"/.exec(html)[1]));
   const css = fs.readFileSync(new URL('./styles.css', import.meta.url), 'utf8');
   assert.ok(!/url\(https?:/.test(css));
-  for (const f of ['roboto-700.ttf', 'poppins-700.ttf', 'montserrat-700.ttf']) assert.ok(fs.existsSync(new URL(`./fonts/${f}`, import.meta.url)));
+  // Every font the engine ships is declared for the preview, and its files are here.
+  const faces = fs.readFileSync(new URL('./fonts.css', import.meta.url), 'utf8');
+  for (const key of fonts) assert.ok(faces.includes(`font-family:WC-${key};`), key);
+  for (const [, file] of faces.matchAll(/url\(fonts\/([^)]+)\)/g)) assert.ok(fs.existsSync(new URL(`./fonts/${file}`, import.meta.url)), file);
 });
 
 test('a template opens as slots and exports with its own detail kept', async () => {

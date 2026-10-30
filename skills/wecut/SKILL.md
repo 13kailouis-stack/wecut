@@ -45,6 +45,7 @@ Rules that matter:
 - **Transitions overlap.** A `transition` on clip N blends into clip N+1 and makes the video shorter by its `duration`.
 - **Framing.** Default `fit` is `cover` (fill and crop). Steer the crop with `focus` (0..1; x 0.3 keeps the left side) and `zoom`. Use `"fit": "contain"` with `"background": "blur"` to show the whole frame.
 - **Positions** are fractions of the canvas, 0.5 is the centre. Font `size` is pixels at 1080p.
+- **Fonts.** 40 bundled fonts (`wecut list fonts`): Poppins from Medium to Black, Kanit, Roboto, Montserrat, condensed (Oswald, Barlow Condensed, Bebas, Anton), display (Lilita, Luckiest Guy, Bungee, Russo, Righteous), serif (Abril Fatface, DM Serif, Playfair, Alfa Slab), script (Great Vibes, Satisfy, Pacifico) and horror (Creepster, Nosifer). Poppins, Kanit, Barlow Condensed and DM Serif have a real italic face that `italic` uses.
 - **Images** use `duration` (default 3) and can have `motion`: in, out, left, right, up, down.
 - **Emoji** are not drawn in text. Put them in a PNG and use `overlays`.
 
@@ -54,7 +55,7 @@ Give WeCut a transcript with word timings and it builds subtitles:
 
 - `words`: a `.json`, `.srt` or `.vtt` path, or an inline array `[{"word": "hi", "start": 0.1, "end": 0.4}]`. OpenAI/Groq `verbose_json` and whisper.cpp JSON are read as they are.
 - `src`: set this to the video the transcript belongs to. Then the transcript keeps the source file's own times, and WeCut moves every word onto the output timeline through each clip cut from that file (speed included). Without `src`, times must already be output times.
-- `style`: `classic`, `yellow`, `box-black`, `box-white`, `bold`, `comic`, `shadow` (a phrase at a time), `karaoke`, `karaoke-green` (spoken word lights up), `pop` (one big word at a time).
+- `style`: `classic`, `yellow`, `box-black`, `box-white`, `bold`, `comic`, `shadow`, `bebas`, `news` (a phrase at a time), `karaoke`, `karaoke-green`, `kanit` (spoken word lights up), `pop`, `word`, `fire`, `bubble`, `rounded` (one or two words at a time), `phrase` (short caps phrases).
 
 If you need a transcript: `wecut doctor` reports `local_transcription: true` when this FFmpeg has the Whisper filter. Otherwise use whatever speech-to-text you already have and save its word timings as JSON.
 
