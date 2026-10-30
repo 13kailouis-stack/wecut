@@ -176,6 +176,11 @@ func (a *app) ok(v map[string]any) int {
 }
 
 func (a *app) fail(code int, warnings []spec.Issue, errs ...spec.Issue) int {
+	for i := range errs {
+		if lowMemory(errs[i].Message) {
+			errs[i].Hint = "This computer ran out of memory, the video is fine. Close some apps and run it again; --preset draft needs less."
+		}
+	}
 	res := map[string]any{"ok": false, "errors": errs}
 	if len(warnings) > 0 {
 		res["warnings"] = warnings
@@ -202,6 +207,17 @@ func exitFor(issues []spec.Issue) int {
 		return exitRender
 	}
 	return exitInput
+}
+
+// lowMemory recognises what FFmpeg and its encoders say when memory runs out.
+func lowMemory(msg string) bool {
+	m := strings.ToLower(msg)
+	for _, s := range []string{"cannot allocate memory", "malloc of size", "out of memory", "error code: -12"} {
+		if strings.Contains(m, s) {
+			return true
+		}
+	}
+	return false
 }
 
 func (a *app) tools(c common) (*ff.Tools, *spec.Issue) {

@@ -185,13 +185,14 @@ var tools = []object{
 					"type": "object", "required": []string{"text"},
 					"properties": object{"text": object{"type": "string"}, "emphasis": object{"type": "array", "items": object{"type": "string"}}},
 				}},
-				"transcript": object{"type": "string", "description": "Word timings of captionSrc (or of the source used longest)."},
-				"captionSrc": object{"type": "string"},
-				"music":      object{"type": "string", "description": "Audio file, a video whose sound is used, or \"none\"."},
-				"overlays":   object{"type": "object", "description": "A picture per overlay slot, e.g. {\"logo\": \"media/logo.png\"}; \"none\" leaves it out.", "additionalProperties": object{"type": "string"}},
-				"fill":       object{"type": "string", "enum": []string{"auto", "each", "sequence"}, "description": "Exact-shot templates (from wecut_clone): each = one clip per slot, sequence = clips play on through the slots, auto (default) = each when there are enough clips."},
-				"output":     object{"type": "string", "description": "Render target (.mp4 or .gif)."},
-				"write":      object{"type": "string", "description": "Save the project here (.json)."},
+				"transcript":    object{"type": "string", "description": "Word timings of captionSrc (or of the source used longest)."},
+				"captionSrc":    object{"type": "string"},
+				"captionAccent": object{"type": "array", "items": object{"type": "string"}, "description": "The key words of the transcript, for a recipe whose captions set them apart (default: the longest word of each phrase)."},
+				"music":         object{"type": "string", "description": "Audio file, a video whose sound is used, or \"none\"."},
+				"overlays":      object{"type": "object", "description": "A picture per overlay slot, e.g. {\"logo\": \"media/logo.png\"}; \"none\" leaves it out.", "additionalProperties": object{"type": "string"}},
+				"fill":          object{"type": "string", "enum": []string{"auto", "each", "sequence"}, "description": "Exact-shot templates (from wecut_clone): each = one clip per slot, sequence = clips play on through the slots, auto (default) = each when there are enough clips."},
+				"output":        object{"type": "string", "description": "Render target (.mp4 or .gif)."},
+				"write":         object{"type": "string", "description": "Save the project here (.json)."},
 			},
 		},
 		"annotations": annotations(false),
@@ -342,6 +343,9 @@ func (s *Server) callTool(ctx context.Context, name string, raw json.RawMessage,
 		}
 		if a.Fresh {
 			args = append(args, "--fresh")
+		}
+		if a.OCR != "" && a.OCR != "auto" && a.OCR != "off" {
+			return toolError("ocr must be off or auto"), nil
 		}
 		// The model has the eyes; OCR is for clients that cannot see images.
 		if a.OCR == "auto" {

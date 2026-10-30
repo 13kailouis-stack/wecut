@@ -229,10 +229,14 @@ func (d *assDoc) gradients(e *Edit, scale float64) {
 		if ins == nil || ins.Radius <= 0 {
 			continue
 		}
-		r := math.Max(2, math.Round(ins.Radius*scale))
-		k := r * 0.45
 		x0, y0 := math.Round(ins.X*float64(e.W)), math.Round(ins.Y*float64(e.H))
 		x1, y1 := x0+math.Round(ins.W*float64(e.W)), y0+math.Round(ins.H*float64(e.H))
+		// At most half the card's short side: past that the corners overlap.
+		r := math.Round(math.Min(ins.Radius*scale, math.Min(x1-x0, y1-y0)/2))
+		if r < 1 {
+			continue
+		}
+		k := r * 0.45
 		color := assBGR(orStr(ins.Background, "#0E0E0E"))
 		for _, corner := range []struct {
 			x, y float64

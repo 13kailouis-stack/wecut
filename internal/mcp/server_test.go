@@ -223,3 +223,16 @@ func TestCancelledCallGetsNoReply(t *testing.T) {
 		t.Fatal("cancelled render left an output file")
 	}
 }
+
+func TestCloneRefusesUnknownOCR(t *testing.T) {
+	root := t.TempDir()
+	var out bytes.Buffer
+	in := strings.NewReader(`{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"t","version":"1"}}}` + "\n" +
+		`{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"wecut_clone","arguments":{"file":"a.mp4","ocr":"nope"}}}` + "\n")
+	if err := Serve(context.Background(), Config{Root: root, Version: "test"}, in, &out, io.Discard); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(out.String(), "ocr must be off or auto") {
+		t.Fatalf("got %s", out.String())
+	}
+}

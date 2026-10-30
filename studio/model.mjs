@@ -173,6 +173,15 @@ export function templateRecipe(state) {
     const m = state.music, extension = m.file.name.split('.').pop().toLowerCase();
     r.music = { ...(r.music || {}), src: `assets/music.${extension}`, from: round(m.from), at: round(m.at), duration: round(m.duration), volume: m.volume };
   } else if (r.music) delete r.music.src;
-  if (state.filter !== 'none') r.filters = [{ name: state.filter, amount: state.filterAmount }];
+  // The whole-video filter is the editor's; washes for a stretch are the template's.
+  const washes = (r.filters || []).filter((f) => f.name === 'color' || f.start != null || f.end != null);
+  if (state.filter !== 'none') r.filters = [...washes, { name: state.filter, amount: state.filterAmount }];
+  else if (r.filters) { if (washes.length) r.filters = washes; else delete r.filters; }
   return r;
+}
+
+// washColor is a template's colour wash as a CSS colour, or null.
+export function washColor(f, time) {
+  if (f.name !== 'color' || time < (f.start || 0) || (f.end != null && time >= f.end)) return null;
+  return f.color + Math.round(255 * (f.amount ?? 100) / 100).toString(16).padStart(2, '0');
 }

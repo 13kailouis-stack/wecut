@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"math"
 	"os"
 	"strconv"
 )
@@ -60,6 +61,19 @@ func (t *Tools) Frames(ctx context.Context, abs, dir string, w, h int, fps float
 
 // Still decodes the frame shown at time at, scaled to w x h, as RGB.
 func (t *Tools) Still(ctx context.Context, abs, dir string, at float64, w, h int) ([]byte, error) {
+	b, err := t.still(ctx, abs, dir, at, w, h)
+	if err == nil && len(b) == 0 && at > 0 {
+		// Past the last frame of a low frame rate video: the frame a second
+		// earlier is the picture still showing.
+		b, err = t.still(ctx, abs, dir, math.Max(0, at-1), w, h)
+	}
+	if err == nil && len(b) == 0 {
+		return nil, fmt.Errorf("no frame at %.2f s", at)
+	}
+	return b, err
+}
+
+func (t *Tools) still(ctx context.Context, abs, dir string, at float64, w, h int) ([]byte, error) {
 	// One frame needs one thread, see Frames.
 	args := append([]string{"-threads", "1", "-filter_threads", "1", "-ss", strconv.FormatFloat(at, 'f', 3, 64)}, input(abs)...)
 	args = append(args, "-map", "0:v:0", "-frames:v", "1", "-an", "-sn",
@@ -76,7 +90,7 @@ func (t *Tools) Still(ctx context.Context, abs, dir string, at float64, w, h int
 		return nil, fmt.Errorf("reading the frame at %.2f s failed: %s", at, lastLines(stderr.String(), 2))
 	}
 	if len(b) < w*h*3 {
-		return nil, fmt.Errorf("no frame at %.2f s", at)
+		return nil, nil
 	}
 	return b[:w*h*3], nil
 }

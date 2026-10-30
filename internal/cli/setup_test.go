@@ -138,3 +138,88 @@ func TestSetup(t *testing.T) {
 		t.Fatal("unknown client accepted")
 	}
 }
+
+// Headers as TOML reads them: writing a second table next to one spelled
+// differently would make the whole file invalid for the client.
+func TestEditTOML(t *testing.T) {
+	const table, body = "mcp_servers.wecut", "command = \"new\"\n"
+	count := func(s string) int {
+		n := 0
+		for _, ln := range strings.Split(s, "\n") {
+			if tomlTable(ln) == table {
+				n++
+			}
+		}
+		return n
+	}
+	for name, in := range map[string]string{
+		"plain":   "[mcp_servers.wecut]\ncommand = \"old\"\n\n[other]\nx = 1\n",
+		"comment": "[mcp_servers.wecut] # mine\ncommand = \"old\"\n\n[other]\nx = 1\n",
+		"spaces":  "[ mcp_servers . wecut ]\ncommand = \"old\"\n\n[other]\nx = 1\n",
+		"quotes":  "[mcp_servers.\"wecut\"]\ncommand = \"old\"\n\n[other]\nx = 1\n",
+	} {
+		out, err := editTOML([]byte(in), table, body, false)
+		if err != nil || count(string(out)) != 1 || strings.Contains(string(out), "old") || !strings.Contains(string(out), "[other]\nx = 1") {
+			t.Errorf("%s: %v\n%s", name, err, out)
+		}
+		out, err = editTOML([]byte(in), table, body, true)
+		if err != nil || count(string(out)) != 0 || strings.Contains(string(out), "old") || !strings.Contains(string(out), "[other]") {
+			t.Errorf("%s remove: %v\n%s", name, err, out)
+		}
+	}
+	// An update keeps the sub-tables; removal takes them too.
+	withEnv := "[mcp_servers.wecut]\ncommand = \"old\"\n\n[mcp_servers.wecut.env]\nK = \"v\"\n\n[other]\nx = 1\n"
+	if out, _ := editTOML([]byte(withEnv), table, body, false); !strings.Contains(string(out), "[mcp_servers.wecut.env]\nK") {
+		t.Errorf("update dropped the env table:\n%s", out)
+	}
+	if out, _ := editTOML([]byte(withEnv), table, body, true); strings.Contains(string(out), "wecut") || !strings.Contains(string(out), "[other]") {
+		t.Errorf("remove left a piece behind:\n%s", out)
+	}
+	// A look-alike is someone else's.
+	if out, _ := editTOML([]byte("[mcp_servers.wecut2]\ncommand = \"x\"\n"), table, body, false); !strings.Contains(string(out), "wecut2") || count(string(out)) != 1 {
+		t.Errorf("look-alike:\n%s", out)
+	}
+	// Written inline: refused, not doubled.
+	for _, in := range []string{"mcp_servers = { wecut = { command = \"old\" } }\n", "mcp_servers.wecut.command = \"old\"\n", "[mcp_servers]\nwecut = { command = \"old\" }\n"} {
+		if _, err := editTOML([]byte(in), table, body, false); err == nil {
+			t.Errorf("inline accepted: %s", in)
+		}
+	}
+	// Other servers written inline in a table of their own are fine.
+	if out, err := editTOML([]byte("[mcp_servers]\nother = { command = \"x\" }\n"), table, body, false); err != nil || count(string(out)) != 1 {
+		t.Errorf("other inline server: %v\n%s", err, out)
+	}
+}
+
+func TestSlugNameSafe(t *testing.T) {
+	for in, want := range map[string]string{"NUL": "nul-video", "com1": "com1-video", "Aux": "aux-video", "console": "console", "...": "recipe", "../../x": "x", "a b": "a-b"} {
+		if got := slugName(in); got != want {
+			t.Errorf("%q: got %q, want %q", in, got, want)
+		}
+	}
+	if got := slugName(strings.Repeat("x", 300)); len(got) > 60 {
+		t.Errorf("length %d", len(got))
+	}
+}
+
+func TestRepeatedJSONKeys(t *testing.T) {
+	data := []byte(`{"mcpServers":{"wecut":{"command":"old"}},"mcpServers":{"x":{}}}`)
+	out, err := editJSON(data, "mcpServers", "wecut", []byte(`{"command":"new"}`), false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !configHasServer(setupClient{}, out) || !strings.Contains(string(out), `"x":{}`) {
+		t.Fatalf("got %s", out)
+	}
+}
+
+func TestLowMemoryHint(t *testing.T) {
+	for _, m := range []string{"ffmpeg failed: x264 [error]: malloc of size 7281920 failed", "Task finished with error code: -12 (Cannot allocate memory)"} {
+		if !lowMemory(m) {
+			t.Errorf("not recognised: %s", m)
+		}
+	}
+	if lowMemory("Invalid data found when processing input") {
+		t.Error("a broken file is not low memory")
+	}
+}

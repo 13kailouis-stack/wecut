@@ -263,6 +263,9 @@ func buildReview(res *clone.Result, crops []clone.Crop, files map[string]string,
 		} else {
 			it["now"] = map[string]any{"left_out": true}
 			it["from"] = "OCR found no real words here"
+			if answered {
+				it["from"] = "your answer"
+			}
 		}
 		items = append(items, it)
 	}
@@ -277,7 +280,7 @@ func buildReview(res *clone.Result, crops []clone.Crop, files map[string]string,
 		}
 		switch c.Kind {
 		case "caption":
-			if !answered {
+			if _, style := given["captions"]; !answered && !style {
 				pending++
 			}
 			it["ask"] = "The words shown. They say how many words show at once. If this shows no words, leave it unanswered and take the captions from the timeline."

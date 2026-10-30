@@ -238,3 +238,60 @@ func TestCardWashAndOneSource(t *testing.T) {
 		t.Fatalf("one file should play on through the slots: %s", b)
 	}
 }
+
+// Crops have common names and old ones are cleared: never in someone's folder.
+func TestCloneLeavesOtherFoldersAlone(t *testing.T) {
+	root := testWorkspace(t)
+	mine := filepath.Join(root, "mine")
+	os.MkdirAll(mine, 0o755)
+	for _, f := range []string{"logo.png", "text1.png", "compare.jpg"} {
+		os.WriteFile(filepath.Join(mine, f), []byte("mine"), 0o644)
+	}
+	var out bytes.Buffer
+	code := Run(context.Background(), []string{"clone", "media/tall.mp4", "--name", "x", "--out", "mine", "--ocr", "off", "--root", root}, strings.NewReader(""), &out, &out)
+	if code == 0 || !strings.Contains(out.String(), "E_EXISTS") {
+		t.Fatalf("code %d: %s", code, out.String())
+	}
+	for _, f := range []string{"logo.png", "text1.png", "compare.jpg"} {
+		if b, _ := os.ReadFile(filepath.Join(mine, f)); string(b) != "mine" {
+			t.Errorf("%s was touched", f)
+		}
+	}
+	// A new folder is fine, and running again in it too.
+	for i := 0; i < 2; i++ {
+		out.Reset()
+		code = Run(context.Background(), []string{"clone", "media/tall.mp4", "--name", "x", "--out", "fresh", "--ocr", "off", "--force", "--root", root}, strings.NewReader(""), &out, &out)
+		if code != 0 {
+			t.Fatalf("run %d: %s", i, out.String())
+		}
+	}
+}
+
+// Saving a project keeps its cards, fades and caption look, however short it is.
+func TestFromProjectKeepsNewLayers(t *testing.T) {
+	root := testWorkspace(t)
+	project := `{"wecut": "1", "clips": [{"src": "media/tall.mp4", "to": 1, "inset": {"x": 0.1, "y": 0.3, "w": 0.8, "h": 0.3, "grid": true, "radius": 20}}, {"src": "media/tall.mp4", "from": 1, "to": 2}],
+	  "gradients": [{"from": 0.6, "to": 0.8}], "filters": [{"name": "color", "color": "#FF6A00", "amount": 40, "start": 0.5, "end": 1}],
+	  "captions": {"words": [{"word": "a", "start": 0, "end": 1}], "mode": "reveal", "highlight": "#FFFFFF", "accent": {"color": "#FFD60A"}}}`
+	os.WriteFile(filepath.Join(root, "p.json"), []byte(project), 0o644)
+	if r, code := run(t, root, "", "recipe", "from-project", "p.json", "--name", "kept", "--write", "recipes/kept.json"); code != 0 {
+		t.Fatalf("from-project: %+v", r)
+	}
+	b, err := os.ReadFile(filepath.Join(root, "recipes", "kept.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var r recipe.Recipe
+	if err := json.Unmarshal(b, &r); err != nil {
+		t.Fatal(err)
+	}
+	inset := false
+	for _, s := range r.Sections {
+		for _, sh := range s.Shots {
+			inset = inset || sh.Inset != nil
+		}
+	}
+	if !inset || len(r.Gradients) != 1 || len(r.Filters) != 1 || r.Filters[0].Color != "#FF6A00" || r.Captions == nil || r.Captions.Accent == nil || r.Captions.Mode != "reveal" {
+		t.Fatalf("lost something: %s", b)
+	}
+}

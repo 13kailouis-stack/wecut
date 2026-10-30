@@ -15,7 +15,7 @@ import (
 // files. The footage, transcript and music themselves stay behind.
 func FromEdit(e *engine.Edit, name string) *Recipe {
 	p := e.P
-	r := &Recipe{Recipe: Version, Name: name, MaxDuration: math.Ceil(e.Total)}
+	r := &Recipe{Recipe: Version, Name: name, MaxDuration: math.Max(3, math.Ceil(e.Total))}
 	r.Output = &Output{Ratio: p.Output.Ratio, Res: p.Output.Res, FPS: p.Output.FPS, Background: p.Output.Background, Blur: p.Output.Blur}
 
 	type group struct {
@@ -56,6 +56,16 @@ func FromEdit(e *engine.Edit, name string) *Recipe {
 			s.Shot = round3(sum / float64(len(g.clips)))
 			if zoom > 1 {
 				s.Zoom = zoom
+			}
+		}
+		// A card is a shot's own: keep this stretch's exact shots.
+		for _, c := range g.clips {
+			if c.Clip.Inset != nil {
+				s.Shot, s.Zoom, s.Duration = 0, 0, 0
+				for _, cc := range g.clips {
+					s.Shots = append(s.Shots, Shot{Dur: round3(cc.Dur), Inset: cc.Clip.Inset})
+				}
+				break
 			}
 		}
 		first, last := g.clips[0], g.clips[len(g.clips)-1]

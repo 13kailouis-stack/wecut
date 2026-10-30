@@ -74,6 +74,7 @@ func (a *app) clone(args []string) int {
 	if write == "" {
 		write = "recipes/" + name + ".json"
 	}
+	chosenOut := outDir != ""
 	if outDir == "" {
 		outDir = "out/clone/" + name
 	}
@@ -132,6 +133,13 @@ func (a *app) clone(args []string) int {
 		return a.fail(exitInput, warnings, pathIssue(outDir, "", err))
 	}
 	outAbs = filepath.Dir(outAbs)
+	// The crops and sheets have common names, and old ones are cleared: never
+	// in a folder of someone's own files.
+	if chosenOut && !fileExists(filepath.Join(outAbs, sessionFile)) {
+		if entries, err := os.ReadDir(outAbs); err == nil && len(entries) > 0 {
+			return a.fail(exitInput, warnings, spec.Issue{Code: "E_EXISTS", Message: outDir + " already holds files that are not from a clone", Hint: "Pick a new folder for --out, or leave it out to use out/clone/" + name + "."})
+		}
+	}
 	if err := os.MkdirAll(outAbs, 0o755); err != nil {
 		return fail(err)
 	}
@@ -193,6 +201,9 @@ func (a *app) clone(args []string) int {
 			an.SetAudio(pcm, analyzeRate)
 		}
 		plan = an.Analyze()
+		if len(plan.Shots) == 0 {
+			return a.fail(exitInput, warnings, spec.Issue{Code: "E_MEDIA", Message: src + " is too short to clone: it has almost no frames", Hint: "Clone a video of at least a second."})
+		}
 
 		stills := make([]*clone.RGB, len(plan.Stills))
 		for i, at := range plan.Stills {
@@ -229,7 +240,7 @@ func (a *app) clone(args []string) int {
 				ocrUsed = "tesseract"
 			}
 		}
-		if !debug {
+		{
 			saveSession(outAbs, abs, &cloneSession{Config: cfg, Plan: plan, Crops: crops, CropFiles: cropFiles, Reads: reads, OCR: ocrUsed, Tried: tried})
 		}
 	}
@@ -246,7 +257,9 @@ func (a *app) clone(args []string) int {
 	if plan.Speech {
 		musicEnd = hookLen
 	}
-	if info.HasAudio && (!plan.Speech || hookMusic) {
+	// A silent track is no soundtrack, however many seconds it runs.
+	silent := plan.Audio != nil && plan.Audio.RMSdB < -60
+	if info.HasAudio && !silent && (!plan.Speech || hookMusic) {
 		musicRel = strings.TrimSuffix(write, filepath.Ext(write)) + "/music.m4a"
 		mAbs, err := root.Output(musicRel)
 		if _, statErr := os.Stat(mAbs); err == nil && sess != nil && statErr == nil {

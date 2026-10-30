@@ -8,6 +8,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 
@@ -369,8 +370,17 @@ func slugName(s string) string {
 			b.WriteRune('-')
 		}
 	}
-	if out := strings.Trim(b.String(), "-"); out != "" {
-		return out
+	out := b.String()
+	if len(out) > 60 {
+		out = out[:60]
 	}
-	return "recipe"
+	out = strings.Trim(out, "-")
+	switch {
+	case out == "":
+		return "recipe"
+	case slices.Contains([]string{"con", "prn", "aux", "nul"}, out), len(out) == 4 && (out[:3] == "com" || out[:3] == "lpt") && out[3] >= '0' && out[3] <= '9':
+		// Device names on Windows: a template made elsewhere must open here.
+		return out + "-video"
+	}
+	return out
 }

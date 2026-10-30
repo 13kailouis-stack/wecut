@@ -27,6 +27,7 @@ type setupClient struct {
 	Skills   string // personal skills folder ("" = this client has none)
 	Timeouts string // extra TOML lines: an edit outlasts these clients' defaults
 	NoCwd    bool   // starts servers in no particular folder, so it needs a fixed workspace
+	Note     string // what to know before editing this client's file
 }
 
 func setupClients() ([]setupClient, error) {
@@ -63,7 +64,7 @@ func setupClients() ([]setupClient, error) {
 	shared := filepath.Join(home, ".agents", "skills")
 	return []setupClient{
 		{ID: "claude-code", Name: "Claude Code", Dir: claude, Config: claudeJSON, Skills: filepath.Join(claude, "skills")},
-		{ID: "claude-desktop", Name: "Claude Desktop", Dir: desktop, Config: filepath.Join(desktop, "claude_desktop_config.json"), NoCwd: true},
+		{ID: "claude-desktop", Name: "Claude Desktop", Dir: desktop, Config: filepath.Join(desktop, "claude_desktop_config.json"), NoCwd: true, Note: "Quit Claude Desktop completely first (also from the tray): while it runs it can write its settings back and drop this entry. Run setup again if WeCut is missing after a restart."},
 		{ID: "codex", Name: "Codex", Dir: codex, Config: filepath.Join(codex, "config.toml"), TOML: true, Skills: shared, Timeouts: "startup_timeout_sec = 60\ntool_timeout_sec = 1800\n"},
 		{ID: "cursor", Name: "Cursor", Dir: filepath.Join(home, ".cursor"), Config: filepath.Join(home, ".cursor", "mcp.json"), Skills: shared},
 		{ID: "gemini", Name: "Gemini CLI", Dir: filepath.Join(home, ".gemini"), Config: filepath.Join(home, ".gemini", "settings.json"), Skills: shared},
@@ -139,6 +140,9 @@ func (a *app) setup(args []string) int {
 			sa = append(sa, "--root", root)
 		}
 		r := map[string]any{"id": c.ID, "name": c.Name, "detected": detected, "config": c.Config}
+		if c.Note != "" && !remove {
+			r["note"] = c.Note
+		}
 		action, backup, err := setupConfig(c, command, sa, remove, apply, stamp)
 		r["action"] = action
 		if backup != "" {
@@ -211,7 +215,10 @@ func setupConfig(c setupClient, command string, args []string, remove, apply boo
 	}
 	var next []byte
 	if c.TOML {
-		next = editTOML(old, "mcp_servers.wecut", tomlServer(command, args, c.Timeouts), remove)
+		next, err = editTOML(old, "mcp_servers.wecut", tomlServer(command, args, c.Timeouts), remove)
+		if err != nil {
+			return "manual", "", fmt.Errorf("%s could not be edited safely (%v); nothing was changed", c.Config, err)
+		}
 	} else {
 		value, _ := marshalNoEscape(map[string]any{"command": command, "args": args}, "    ")
 		next, err = editJSON(old, "mcpServers", "wecut", value, remove)
@@ -253,15 +260,23 @@ func setupConfig(c setupClient, command string, args []string, remove, apply boo
 
 func configHasServer(c setupClient, data []byte) bool {
 	if c.TOML {
-		return bytes.Contains(data, []byte("[mcp_servers.wecut]"))
-	}
-	var doc struct {
-		Servers map[string]json.RawMessage `json:"mcpServers"`
-	}
-	if json.Unmarshal(data, &doc) != nil {
+		for _, ln := range strings.Split(string(data), "\n") {
+			if tomlTable(ln) == "mcp_servers.wecut" {
+				return true
+			}
+		}
 		return false
 	}
-	_, ok := doc.Servers["wecut"]
+	// As a client reads it: of repeated keys, the last one counts.
+	top := bytes.IndexByte(data, '{')
+	if top < 0 || !json.Valid(data) {
+		return false
+	}
+	sec, _, ok := jsonMember(data, top, "mcpServers")
+	if !ok || data[sec] != '{' {
+		return false
+	}
+	_, _, ok = jsonMember(data, sec, "wecut")
 	return ok
 }
 
@@ -391,11 +406,12 @@ func jsonMember(data []byte, obj int, key string) (start, end int, ok bool) {
 			return 0, 0, false
 		}
 		if t == key {
+			// Keep looking: of repeated keys, a client reads the last.
 			end = obj + int(dec.InputOffset())
-			return end - len(raw), end, true
+			start, ok = end-len(raw), true
 		}
 	}
-	return 0, 0, false
+	return start, end, ok
 }
 
 // jsonInsert puts a member first in the object at offset obj.
@@ -443,26 +459,52 @@ func tomlServer(command string, args []string, extra string) string {
 	return "command = " + string(cmd) + "\nargs = " + string(list) + "\n" + extra
 }
 
-// editTOML sets or removes a table by its header line. Sub-tables are the
-// user's and stay.
-func editTOML(data []byte, table, body string, remove bool) []byte {
-	header := "[" + table + "]"
+// tomlTable is the name a table header line declares, as TOML reads it:
+// spaces, quotes and a trailing comment do not change it. "" for other lines.
+func tomlTable(line string) string {
+	t := strings.TrimSpace(line)
+	if !strings.HasPrefix(t, "[") || strings.HasPrefix(t, "[[") {
+		return ""
+	}
+	end := strings.Index(t, "]")
+	if end < 0 {
+		return ""
+	}
+	parts := strings.Split(t[1:end], ".")
+	for i, p := range parts {
+		parts[i] = strings.Trim(strings.TrimSpace(p), `"'`)
+	}
+	return strings.Join(parts, ".")
+}
+
+// editTOML sets or removes a table by its header line. On an update its
+// sub-tables are the user's and stay; on removal they go with it, because a
+// sub-table alone would still declare a server with no command. A server
+// written inline cannot be edited line by line, so that is refused.
+func editTOML(data []byte, table, body string, remove bool) ([]byte, error) {
 	lines := strings.SplitAfter(string(data), "\n")
-	start, end := -1, len(lines)
+	parent, leaf, _ := strings.Cut(table, ".")
+	section := ""
+	found := -1
 	for i, ln := range lines {
 		t := strings.TrimSpace(ln)
-		if start < 0 && t == header {
-			start = i
-		} else if start >= 0 && strings.HasPrefix(t, "[") {
-			end = i
-			break
+		if name := tomlTable(ln); name != "" || strings.HasPrefix(t, "[[") {
+			section = name
+			if name == table && found < 0 {
+				found = i
+			}
+			continue
+		}
+		key := strings.TrimSpace(strings.SplitN(t, "=", 2)[0])
+		if (section == "" && (key == parent || strings.HasPrefix(key, parent+"."))) || (section == parent && (key == leaf || strings.HasPrefix(key, leaf+"."))) {
+			return nil, fmt.Errorf("it writes %s inline", parent)
 		}
 	}
-	if start < 0 {
-		if remove {
-			return data
-		}
-		var b strings.Builder
+	if found < 0 && remove {
+		return data, nil
+	}
+	var b strings.Builder
+	if found < 0 {
 		b.Write(data)
 		if len(data) > 0 && !bytes.HasSuffix(data, []byte("\n")) {
 			b.WriteString("\n")
@@ -470,19 +512,28 @@ func editTOML(data []byte, table, body string, remove bool) []byte {
 		if len(data) > 0 {
 			b.WriteString("\n")
 		}
-		b.WriteString(header + "\n" + body)
-		return []byte(b.String())
+		b.WriteString("[" + table + "]\n" + body)
+		return []byte(b.String()), nil
 	}
-	var b strings.Builder
-	b.WriteString(strings.Join(lines[:start], ""))
-	if !remove {
-		b.WriteString(header + "\n" + body)
-		if end < len(lines) {
-			b.WriteString("\n")
+	skip := false
+	for i, ln := range lines {
+		t := strings.TrimSpace(ln)
+		if strings.HasPrefix(t, "[") {
+			name := tomlTable(ln)
+			skip = name == table || (remove && strings.HasPrefix(name, table+"."))
+			if i == found && !remove {
+				b.WriteString("[" + table + "]\n" + body)
+				if i+1 < len(lines) {
+					b.WriteString("\n")
+				}
+				continue
+			}
+		}
+		if !skip {
+			b.WriteString(ln)
 		}
 	}
-	b.WriteString(strings.Join(lines[end:], ""))
-	return []byte(b.String())
+	return []byte(b.String()), nil
 }
 
 func serverSnippet(c setupClient, command string, args []string) string {

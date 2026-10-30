@@ -691,8 +691,18 @@ func (a *Analyzer) hints(p *Plan, r *recipe.Recipe, slots int, o Options) []stri
 	if missing > 0 {
 		h = append(h, fmt.Sprintf("%d text slot(s) have placeholder words: read the crops and pass texts.<slot> when applying", missing))
 	}
-	if p.Captions != nil {
+	if p.Captions != nil && r.Captions != nil {
 		h = append(h, fmt.Sprintf("captions (%s, about %.1f changes a second): pass a transcript when applying", p.Captions.Mode, p.Captions.Changes))
+	}
+	for k := range r.Sections {
+		// A section always starts on a new file.
+		n := 0
+		for _, sec := range r.Sections[:k] {
+			n += len(sec.Shots)
+		}
+		if o.Read[fmt.Sprintf("slot%d", n+1)].Continue {
+			h = append(h, fmt.Sprintf("slot%d starts a section, so it stays a media slot of its own: continue was left out", n+1))
+		}
 	}
 	for _, s := range r.Sections {
 		if s.Audio == "next" {

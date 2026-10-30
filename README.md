@@ -42,7 +42,7 @@ npx -y wecut setup --apply   # registers the MCP server and the skill, backs up 
 npx -y wecut setup --remove --apply
 ```
 
-It only touches the clients it finds (or `--client codex,cursor`), keeps every other setting as it was, and reads each file back. Or do it by hand:
+It only touches the clients it finds (or `--client codex,cursor`), keeps every other setting as it was, and reads each file back. Quit Claude Desktop before you run it: while it runs it can write its settings back and drop the entry. Run it again after updating WeCut, so the installed skill stays current. Or do it by hand:
 
 WeCut needs FFmpeg 6 or newer with libass (`npx -y wecut doctor` checks it and says what to install):
 

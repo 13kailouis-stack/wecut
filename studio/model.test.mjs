@@ -112,3 +112,17 @@ test('slots of one source are marked, and export keeps them', async () => {
   assert.equal(out.sections[0].shots[1].continue, true);
   assert.equal(out.sections[0].shots[2].inset.w, 0.8);
 });
+
+test('a chosen filter keeps the template washes, and only they show by time', async () => {
+  const { stateFromTemplate, templateRecipe, washColor } = await import('./model.mjs');
+  const wash = { name: 'color', color: '#FF6A00', amount: 40, start: 1, end: 2 };
+  const recipe = { recipe: '1', name: 'x', output: { ratio: '9:16' }, sections: [{ role: 'body', shots: [{ dur: 2 }] }], filters: [wash, { name: 'warm' }] };
+  const s = stateFromTemplate(recipe, () => ({ kind: 'image', duration: 2, placeholder: true }));
+  assert.deepEqual(templateRecipe(s).filters, [wash]);
+  s.filter = 'cool'; s.filterAmount = 50;
+  assert.deepEqual(templateRecipe(s).filters, [wash, { name: 'cool', amount: 50 }]);
+  assert.equal(washColor(wash, 0.5), null);
+  assert.equal(washColor(wash, 1.5), '#FF6A0066');
+  assert.equal(washColor(wash, 2), null);
+  assert.equal(washColor({ name: 'warm' }, 1), null);
+});

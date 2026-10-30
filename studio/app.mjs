@@ -1,6 +1,6 @@
 import { splitClip, createHistory } from './editing.mjs?v=desktop-3';
 import { timelineEditor } from './timeline.mjs?v=desktop-3';
-import { initialState, duration, totalDuration, locate, validate, toBundle, filters, fonts, engineFonts, stateFromTemplate, textFromSlot, MAX_AUDIO_BYTES, gradientCSS } from './model.mjs?v=sources-1';
+import { initialState, duration, totalDuration, locate, validate, toBundle, filters, fonts, engineFonts, stateFromTemplate, textFromSlot, MAX_AUDIO_BYTES, gradientCSS, washColor } from './model.mjs?v=washes-1';
 import { cloneVideo } from './clone.mjs?v=clone-3';
 
 const $ = (id) => document.getElementById(id);
@@ -173,6 +173,10 @@ function sizeStage() {
 }
 function renderTexts() {
   const layer = $('textLayer'); layer.replaceChildren(); const width = $('stage').clientWidth;
+  (state.template?.filters || []).forEach(f => {
+    const color = washColor(f, time);
+    if (color) { const n = node('div', '', 'preview-gradient'); n.style.background = color; layer.append(n); }
+  });
   (state.template?.gradients || []).forEach(g => {
     if (time < (g.start || 0) || (g.end != null && time >= g.end)) return;
     const n = node('div', '', 'preview-gradient'); n.style.background = gradientCSS(g); layer.append(n);
