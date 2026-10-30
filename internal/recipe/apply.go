@@ -31,9 +31,12 @@ type Input struct {
 	Clips      []Clip              `json:"clips"`
 	Texts      map[string]SlotText `json:"texts,omitempty"`
 	Transcript string              `json:"transcript,omitempty"` // word timings, in seconds of CaptionSrc
-	CaptionSrc string              `json:"captionSrc,omitempty"` // default: the source used longest
-	Music      string              `json:"music,omitempty"`      // replaces the recipe's track; "none" = no music
-	Output     string              `json:"output,omitempty"`     // default out/<recipe name>.mp4
+	// CaptionAccent names the key words of the transcript, for a recipe whose
+	// captions set them apart (default: the longest word of each phrase).
+	CaptionAccent []string `json:"captionAccent,omitempty"`
+	CaptionSrc    string   `json:"captionSrc,omitempty"` // default: the source used longest
+	Music         string   `json:"music,omitempty"`      // replaces the recipe's track; "none" = no music
+	Output        string   `json:"output,omitempty"`     // default out/<recipe name>.mp4
 	// Overlays gives a picture per overlay slot (e.g. {"logo":
 	// "media/logo.png"}); "none" leaves a slot out.
 	Overlays map[string]string `json:"overlays,omitempty"`
@@ -120,6 +123,7 @@ func Apply(r *Recipe, in Input, m media.Set) (*spec.Project, []spec.Issue, []spe
 	if len(errs) > 0 {
 		return nil, nil, errs
 	}
+	dealClips(r, in, queues, defaultRole)
 
 	maxTotal := r.MaxDuration
 	if maxTotal == 0 {
@@ -366,7 +370,15 @@ func Apply(r *Recipe, in Input, m media.Set) (*spec.Project, []spec.Issue, []spe
 				src = longestSource(clips)
 			}
 			words, _ := json.Marshal(in.Transcript)
-			p.Captions = &spec.Captions{Words: words, Src: src, Mode: c.Mode, Highlight: c.Highlight, MaxWords: c.MaxWords, MaxDuration: c.MaxDuration, X: c.X, Y: c.Y, Look: c.Look}
+			p.Captions = &spec.Captions{Words: words, Src: src, Mode: c.Mode, Highlight: c.Highlight, MaxWords: c.MaxWords, MaxDuration: c.MaxDuration, X: c.X, Y: c.Y, Accent: c.Accent, Look: c.Look}
+			if len(in.CaptionAccent) > 0 {
+				accent := spec.Accent{}
+				if c.Accent != nil {
+					accent = *c.Accent
+				}
+				accent.Words = in.CaptionAccent
+				p.Captions.Accent = &accent
+			}
 		}
 	}
 

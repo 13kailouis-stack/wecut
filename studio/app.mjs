@@ -1,6 +1,6 @@
 import { splitClip, createHistory } from './editing.mjs?v=desktop-3';
 import { timelineEditor } from './timeline.mjs?v=desktop-3';
-import { initialState, duration, totalDuration, locate, validate, toBundle, filters, fonts, engineFonts, stateFromTemplate, textFromSlot, MAX_AUDIO_BYTES, gradientCSS } from './model.mjs?v=gradients-1';
+import { initialState, duration, totalDuration, locate, validate, toBundle, filters, fonts, engineFonts, stateFromTemplate, textFromSlot, MAX_AUDIO_BYTES, gradientCSS } from './model.mjs?v=sources-1';
 import { cloneVideo } from './clone.mjs?v=clone-3';
 
 const $ = (id) => document.getElementById(id);
@@ -474,7 +474,16 @@ $('replaceFile').addEventListener('change', async (event) => {
     const meta = await readMetadata(file, kind);
     Object.assign(c, { file, kind, ...meta, placeholder: false, thumbnail: undefined, from: 0, to: kind === 'video' ? Math.min(meta.sourceDuration, want) : c.to, duration: want });
     if (kind === 'video' && meta.sourceDuration < want - .05) status(`Video ini ${meta.sourceDuration.toFixed(1)} dtk, slotnya ${want.toFixed(1)} dtk. Slot jadi lebih pendek.`);
-    makeThumbnail(c); render();
+    makeThumbnail(c);
+    // Slots that are still this source take its next seconds.
+    let at = kind === 'video' ? c.to : 0;
+    for (let k = selectedClip + 1; state.clips[k]?.continues; k++) {
+      const n = state.clips[k], need = duration(n);
+      Object.assign(n, { file, kind, ...meta, placeholder: false, thumbnail: undefined, from: at, to: kind === 'video' ? Math.min(meta.sourceDuration, at + need) : n.to, duration: need });
+      if (kind === 'video') at = n.to;
+      makeThumbnail(n);
+    }
+    render();
   } catch (e) { dialog('Media belum bisa dipakai', [e.message]); }
 });
 

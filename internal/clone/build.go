@@ -24,26 +24,32 @@ type Reading struct {
 
 	// What a model or a person decided on looking at the frames. All
 	// optional; what is left out stays as measured.
-	Drop          bool     `json:"drop,omitempty"` // not laid-over text: part of the footage, or a false find
-	About         string   `json:"about,omitempty"`
-	Font          string   `json:"font,omitempty"`
-	Italic        *bool    `json:"italic,omitempty"`
-	Uppercase     *bool    `json:"uppercase,omitempty"`
-	Color         string   `json:"color,omitempty"`
-	Stroke        string   `json:"stroke,omitempty"`
-	Emphasis      []string `json:"emphasis,omitempty"`
-	EmphasisColor string   `json:"emphasis_color,omitempty"`
-	From          *float64 `json:"from,omitempty"`       // gradientN: height where it starts
-	To            *float64 `json:"to,omitempty"`         // gradientN: height where it is full
-	Opacity       *float64 `json:"opacity,omitempty"`    // gradientN
-	Background    string   `json:"background,omitempty"` // #RRGGBB or none
-	Size          float64  `json:"size,omitempty"`       // font size in pixels at 1080
-	Y             *float64 `json:"y,omitempty"`          // centre, a fraction of the height
-	Shadow        *bool    `json:"shadow,omitempty"`
-	Join          string   `json:"join,omitempty"`      // slotN: the transition into the next shot
-	Mode          string   `json:"mode,omitempty"`      // captions: chunk, karaoke, pop
-	MaxWords      int      `json:"max_words,omitempty"` // captions
-	Highlight     string   `json:"highlight,omitempty"` // captions: the word being spoken
+	Drop          bool         `json:"drop,omitempty"` // not laid-over text: part of the footage, or a false find
+	About         string       `json:"about,omitempty"`
+	Font          string       `json:"font,omitempty"`
+	Italic        *bool        `json:"italic,omitempty"`
+	Uppercase     *bool        `json:"uppercase,omitempty"`
+	Color         string       `json:"color,omitempty"`
+	Stroke        string       `json:"stroke,omitempty"`
+	Emphasis      []string     `json:"emphasis,omitempty"`
+	EmphasisColor string       `json:"emphasis_color,omitempty"`
+	From          *float64     `json:"from,omitempty"`       // gradientN: height where it starts
+	To            *float64     `json:"to,omitempty"`         // gradientN: height where it is full
+	Opacity       *float64     `json:"opacity,omitempty"`    // gradientN
+	Continue      bool         `json:"continue,omitempty"`   // slotN: still the same source file as the slot before
+	Inset         *spec.Inset  `json:"inset,omitempty"`      // slotN: the footage sits in a card
+	Accent        *spec.Accent `json:"accent,omitempty"`     // captions: key words
+	Name          string       `json:"name,omitempty"`       // filterN: a tint, or color
+	Start         *float64     `json:"start,omitempty"`      // filterN
+	End           *float64     `json:"end,omitempty"`        // filterN
+	Background    string       `json:"background,omitempty"` // #RRGGBB or none
+	Size          float64      `json:"size,omitempty"`       // font size in pixels at 1080
+	Y             *float64     `json:"y,omitempty"`          // centre, a fraction of the height
+	Shadow        *bool        `json:"shadow,omitempty"`
+	Join          string       `json:"join,omitempty"`      // slotN: the transition into the next shot
+	Mode          string       `json:"mode,omitempty"`      // captions: chunk, karaoke, pop
+	MaxWords      int          `json:"max_words,omitempty"` // captions
+	Highlight     string       `json:"highlight,omitempty"` // captions: the word being spoken
 
 	// Given: a model or a person answered, so the words are not second-guessed.
 	Given bool `json:"-"`
@@ -89,6 +95,8 @@ type SlotInfo struct {
 	About   string  `json:"about"`
 	Ref     float64 `json:"ref"` // a moment of the source shot, for a thumbnail
 	Join    string  `json:"join,omitempty"`
+	// Continue: the same source file as the slot before, not a new media slot.
+	Continue bool `json:"continue,omitempty"`
 }
 
 // Build writes the recipe.
@@ -194,6 +202,10 @@ func (a *Analyzer) Build(o Options) *Result {
 			if seen.About != "" {
 				sh.About = seen.About
 			}
+			if seen.Continue && j > 0 {
+				sh.Continue = true
+			}
+			sh.Inset = seen.Inset
 			abouts = append(abouts, sh.About)
 			joinName := transitionName(s.Join)
 			if seen.Join != "" {
@@ -217,7 +229,7 @@ func (a *Analyzer) Build(o Options) *Result {
 			if s.Join != "" && (j < len(g.shots)-1 || gi < len(groups)-1) {
 				join = joinName
 			}
-			res.Slots = append(res.Slots, SlotInfo{N: len(res.Slots) + 1, Section: sec.Role, Start: r2(offset), Dur: sh.Dur, About: sh.About, Ref: *sh.Ref, Join: join})
+			res.Slots = append(res.Slots, SlotInfo{N: len(res.Slots) + 1, Section: sec.Role, Start: r2(offset), Dur: sh.Dur, About: sh.About, Ref: *sh.Ref, Join: join, Continue: sh.Continue})
 			offset += sh.Dur
 			if join != "" {
 				offset -= s.JoinDur
@@ -529,6 +541,7 @@ func (a *Analyzer) Build(o Options) *Result {
 			cs.Y = spec.F(r3(*seen.Y))
 		}
 		cs.Highlight = seen.Highlight
+		cs.Accent = seen.Accent
 		cs.Shadow = spec.B(false)
 		if seen.Shadow != nil {
 			cs.Shadow = seen.Shadow
@@ -544,6 +557,7 @@ func (a *Analyzer) Build(o Options) *Result {
 	}
 
 	r.Gradients = gradientsFrom(p.Gradients, reads)
+	r.Filters = append(r.Filters, filtersFrom(reads)...)
 
 	// Logos become picture slots.
 	for _, lg := range p.Logos {

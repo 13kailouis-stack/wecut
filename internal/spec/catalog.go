@@ -178,7 +178,7 @@ func CaptionStyleByKey(k string) (CaptionStyle, bool) {
 	return CaptionStyle{}, false
 }
 
-var CaptionModes = []string{"chunk", "karaoke", "pop"}
+var CaptionModes = []string{"chunk", "karaoke", "pop", "reveal"}
 
 // Transitions are FFmpeg xfade names, plus friendly aliases.
 var Transitions = map[string]string{

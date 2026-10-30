@@ -145,6 +145,8 @@ func TestSchemaMatchesTypes(t *testing.T) {
 	check("filter", Filter{}, "filter")
 	check("effect", Effect{}, "effect")
 	check("gradient", Gradient{}, "gradient")
+	check("inset", Inset{}, "inset")
+	check("accent", Accent{}, "accent")
 }
 
 func TestCatalogKeysAreUnique(t *testing.T) {

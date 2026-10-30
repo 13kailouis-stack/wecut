@@ -184,3 +184,57 @@ func TestCloneRoundTrip(t *testing.T) {
 		t.Fatalf("render filled: %d %+v", code, r2)
 	}
 }
+
+// A card on a grid, a colour wash and revealed captions render, and a slot
+// marked as the same source asks for one file.
+func TestCardWashAndOneSource(t *testing.T) {
+	root := testWorkspace(t)
+	project := `{"wecut": "1", "output": {"file": "out/card.mp4", "res": 540},
+	  "clips": [{"src": "media/tall.mp4", "from": 0, "to": 1},
+	    {"src": "media/tall.mp4", "from": 1, "to": 2, "inset": {"x": 0.05, "y": 0.35, "w": 0.9, "h": 0.3, "background": "#101010", "grid": true, "radius": 24}}],
+	  "filters": [{"name": "color", "color": "#FF6A00", "amount": 40, "start": 1, "end": 1.5}],
+	  "captions": {"words": [{"word": "jual", "start": 0, "end": 0.5}, {"word": "tempat", "start": 0.5, "end": 1}],
+	    "mode": "reveal", "color": "#808080", "highlight": "#FFFFFF", "accent": {"color": "#FFD60A", "scale": 130, "italic": true}}}`
+	os.WriteFile(filepath.Join(root, "card.json"), []byte(project), 0o644)
+	if r, code := run(t, root, "", "render", "card.json", "--preset", "draft"); code != 0 {
+		t.Fatalf("render: %+v", r)
+	}
+	bad := strings.Replace(project, `"name": "color", "color": "#FF6A00"`, `"name": "color"`, 1)
+	os.WriteFile(filepath.Join(root, "bad.json"), []byte(bad), 0o644)
+	if _, code := run(t, root, "", "validate", "bad.json"); code == 0 {
+		t.Error("a color filter without a colour was accepted")
+	}
+
+	recipeJSON := `{"recipe": "1", "name": "one-source", "sections": [{"role": "body", "shots": [{"dur": 0.5}, {"dur": 0.5, "continue": true}, {"dur": 0.5, "continue": true}]}]}`
+	os.MkdirAll(filepath.Join(root, "recipes"), 0o755)
+	os.WriteFile(filepath.Join(root, "recipes", "one-source.json"), []byte(recipeJSON), 0o644)
+	req := `{"recipe": "one-source", "clips": [{"src": "media/tall.mp4"}], "write": "one.json"}`
+	if r, code := run(t, root, req, "recipe", "apply", "--input", "-"); code != 0 {
+		t.Fatalf("apply: %+v", r)
+	}
+	// Two clips, no roles: one for each section.
+	two := `{"recipe": "1", "name": "two-sources", "sections": [{"role": "hook", "shots": [{"dur": 0.5}, {"dur": 0.5, "continue": true}]}, {"role": "body", "shots": [{"dur": 0.5}, {"dur": 0.5, "continue": true}]}]}`
+	os.WriteFile(filepath.Join(root, "recipes", "two-sources.json"), []byte(two), 0o644)
+	req2 := `{"recipe": "two-sources", "clips": [{"src": "media/tall.mp4"}, {"src": "media/talk.mp4"}], "write": "two.json"}`
+	if r, code := run(t, root, req2, "recipe", "apply", "--input", "-"); code != 0 {
+		t.Fatalf("apply two: %+v", r)
+	}
+	bt, _ := os.ReadFile(filepath.Join(root, "two.json"))
+	var pt struct{ Clips []struct{ Src string } }
+	json.Unmarshal(bt, &pt)
+	if len(pt.Clips) != 4 || pt.Clips[0].Src != "media/tall.mp4" || pt.Clips[1].Src != "media/tall.mp4" || pt.Clips[2].Src != "media/talk.mp4" || pt.Clips[3].Src != "media/talk.mp4" {
+		t.Fatalf("each section should take its own clip: %s", bt)
+	}
+
+	b, _ := os.ReadFile(filepath.Join(root, "one.json"))
+	var p struct {
+		Clips []struct {
+			Src  string
+			From float64
+		}
+	}
+	json.Unmarshal(b, &p)
+	if len(p.Clips) != 3 || p.Clips[1].From < 0.45 || p.Clips[2].From < 0.95 {
+		t.Fatalf("one file should play on through the slots: %s", b)
+	}
+}

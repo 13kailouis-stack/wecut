@@ -59,6 +59,9 @@ tell. The agent looks and answers what it can see:
 
 | It sees | It answers | Why measuring cannot |
 |---|---|---|
+| Several shots that are one finished source file, its edits baked in | `slotN.continue`, and `captions.drop` if they are baked | a baked-in cut looks like any other cut; the template then asks for one file |
+| Footage in a card on a plain background | `slotN.inset` | it shows up as full-screen |
+| A colour wash over a stretch | `filterN`: `name` or `color`, `opacity`, `start`, `end` | measuring sees grey |
 | A dark fade over the picture | `gradientN`: `from`, `to`, `color`, `opacity`, or `drop` | one that stays through the video is measured; one that comes and goes with a shot is not |
 | `timeline.jpg`, frames across the whole video with ticks every tenth of the height | captions' `y` and `size`, and what cannot be templated | captions and effects live inside the shots |
 | Text crops | exact words and line breaks, closest font, slant, coloured words, `background` | OCR misreads styled text; the words also let fonts be matched by line width |

@@ -22,7 +22,7 @@ import (
 // and its answers come back through --read. OCR is only the fallback for
 // running without an agent.
 
-const answerExample = `{"text1": {"lines": ["first line", "second line"], "font": "roboto", "italic": true, "emphasis": ["word"], "emphasis_color": "#E8003D", "background": "none"}, "text2": {"drop": true}, "caption1": ["WORD"], "captions": {"font": "barlow-condensed", "color": "#8E8E8E", "highlight": "#FFFFFF", "mode": "karaoke", "max_words": 5, "y": 0.52, "size": 64, "background": "none", "shadow": true}, "slot1": {"about": "wide outdoor shot, handheld"}, "slot3": {"join": "wipeleft"}, "gradient1": {"from": 0.6, "to": 0.8, "color": "#000000"}, "logo": {"drop": true}}`
+const answerExample = `{"text1": {"lines": ["first line", "second line"], "font": "roboto", "italic": true, "emphasis": ["word"], "emphasis_color": "#E8003D", "background": "none"}, "text2": {"drop": true}, "caption1": ["WORD"], "captions": {"font": "barlow-condensed", "color": "#8E8E8E", "highlight": "#FFFFFF", "mode": "karaoke", "max_words": 5, "y": 0.52, "size": 64, "background": "none", "shadow": true, "accent": {"color": "#FFD60A", "scale": 130, "italic": true}}, "slot1": {"about": "wide outdoor shot, handheld"}, "slot3": {"join": "wipeleft"}, "slot4": {"continue": true}, "slot5": {"inset": {"x": 0.05, "y": 0.35, "w": 0.9, "h": 0.3, "background": "#0E0E0E", "grid": true, "radius": 24}}, "filter1": {"color": "#FF6A00", "opacity": 40, "start": 19.2, "end": 19.9}, "gradient1": {"from": 0.6, "to": 0.8, "color": "#000000"}, "logo": {"drop": true}}`
 
 const (
 	sessionFile    = "analysis.json"
@@ -148,6 +148,11 @@ func (a *app) timelineSheet(ctx context.Context, t interface {
 				sheet.Set(x0+x, y, color.RGBA{255, 230, 0, 255})
 				sheet.Set(x0+x, y+1, color.RGBA{0, 0, 0, 255})
 			}
+			tx := x0 + tw*k/10
+			for y := 0; y < long; y++ {
+				sheet.Set(tx, y0+y, color.RGBA{255, 230, 0, 255})
+				sheet.Set(tx+1, y0+y, color.RGBA{0, 0, 0, 255})
+			}
 		}
 		drawNumber(sheet, x0+18, y0+4, int(math.Round(at)))
 	}
@@ -233,7 +238,7 @@ func buildReview(res *clone.Result, crops []clone.Crop, files map[string]string,
 	pending := 0
 	if timeline != "" {
 		items = append(items, map[string]any{"id": "timeline", "kind": "overview", "image": timeline,
-			"ask": "Frames across the whole video, numbered with their second. Yellow ticks on each frame's left edge mark every tenth of the height, the long one the middle. Use it for captions: if the caption crops show no words, the band was measured wrong, so answer captions with y and size from here. Say in your report what cannot be templated (stickers, overlays, colour effects)."})
+			"ask": "Frames across the whole video, numbered with their second. Yellow ticks on each frame's left and top edges mark every tenth, the long ones the middle. Use it for captions: if the caption crops show no words, the band was measured wrong, so answer captions with y and size from here. A colour wash over a stretch: answer filter1, filter2... with color or name, opacity, start, end. Say in your report what cannot be templated (stickers, overlays)."})
 	}
 	for _, bl := range res.Plan.Blocks {
 		if bl.Look == nil {
@@ -292,7 +297,7 @@ func buildReview(res *clone.Result, crops []clone.Crop, files map[string]string,
 		}
 		it := map[string]any{"id": "captions", "kind": "captions", "answered": answered,
 			"now": now,
-			"ask": "From the caption images and the timeline: y, size, the closest font, colour, outline, background, and how the words appear (" + fmt.Sprint(spec.CaptionModes) + "). When spoken words light up, color is the words still to come and highlight the one being spoken. If there are no spoken captions, drop it."}
+			"ask": "From the caption images and the timeline: y, size, the closest font, colour, outline, background, and how the words appear (" + fmt.Sprint(spec.CaptionModes) + "). reveal is a phrase whose words light up and stay lit: color is the words still to come, highlight the spoken ones. accent sets key words apart: color, scale, italic, font. If there are no spoken captions, or they are baked into a source file, drop it."}
 		items = append(items, it)
 	}
 	{
@@ -309,7 +314,7 @@ func buildReview(res *clone.Result, crops []clone.Crop, files map[string]string,
 			now = append(now, map[string]any{"slot": s.N, "about": s.About, "dur": s.Dur})
 		}
 		items = append(items, map[string]any{"id": "slots", "kind": "shots", "image": sheet, "now": now,
-			"ask": "For each numbered frame, answer slotN with about: the kind of shot a person should film or pick, like \"wide outdoor shot, handheld\". No names, brands or words from the video."})
+			"ask": "For each numbered frame, answer slotN with about: the kind of shot a person should film or pick, like \"wide outdoor shot, handheld\". No names, brands or words from the video. If several shots are one source file that was already cut or edited (a finished clip used whole, its animations, inserts and captions baked in), answer continue: true on each slot after its first: the template then asks for one file there, and baked captions should be dropped. If footage sits in a card on a plain background and is not baked in, answer inset with x, y, w, h, background, grid, radius."})
 	}
 	if trans != "" {
 		items = append(items, map[string]any{"id": "transitions", "kind": "transitions", "image": trans, "now": transitionRows(res.Plan),
@@ -326,7 +331,7 @@ func buildReview(res *clone.Result, crops []clone.Crop, files map[string]string,
 			"Cuts, transition timing, framing, zoom, positions, colours and sizes are measured from the frames; the timing report shows how close the template lands.",
 			"Measuring tells flash, fade to black, dissolve, zoom and blur. Any other transition shows up as one of those until someone looks.",
 			"Fonts are matched among the bundled ones, never identified. Scripts and novelty faces are only picked by someone who looks.",
-			"Effects, stickers, overlays, colour grading and how text animates in are not detected. Footage shown in a small card shows up as full-screen.",
+			"Effects, stickers, overlays, colour washes and how text animates in are not detected, and footage in a small card shows up as full-screen. What a source file has baked in looks the same as what was laid over it: only someone who knows the edit can tell.",
 			"Captions that grow word by word, or stay up for long, can be measured in the wrong place. Check them against the timeline.",
 		},
 	}

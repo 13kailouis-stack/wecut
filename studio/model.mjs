@@ -120,7 +120,7 @@ export function stateFromTemplate(recipe, media, useText = () => true) {
   s.res = [480, 720, 1080].includes(recipe.output?.res) ? recipe.output.res : 1080;
   s.fps = [24, 25, 30, 60].includes(recipe.output?.fps) ? recipe.output.fps : 30;
   s.clips = templateShots(recipe).map((x, i) => {
-    const c = { fit: x.shot.fit || x.section.fit || 'cover', mute: !!(x.section.mute || x.section.audio === 'next'), slot: i, about: x.shot.about || x.section.about || '', ...media(i, x) };
+    const c = { fit: x.shot.fit || x.section.fit || 'cover', mute: !!(x.section.mute || x.section.audio === 'next'), slot: i, about: x.shot.about || x.section.about || '', continues: !!x.shot.continue, ...media(i, x) };
     // The timeline has no overlaps: a slot shows until the next one starts,
     // and gets its transition back on export.
     c.joinDur = Math.min(x.join, duration(c) - 0.1);

@@ -191,7 +191,14 @@ func (v *validator) project(p *Project) {
 	}
 	for i, f := range p.Filters {
 		path := fmt.Sprintf("/filters/%d", i)
-		v.oneOf(path+"/name", f.Name, tints, "filter")
+		if f.Name == "color" {
+			if f.Color == "" {
+				v.add("E_VALUE", path+"/color", "filter \"color\" needs a colour", "{\"name\": \"color\", \"color\": \"#FF6A00\", \"amount\": 40}")
+			}
+			v.color(path+"/color", f.Color, false)
+		} else {
+			v.oneOf(path+"/name", f.Name, tints, "filter")
+		}
 		if f.Amount != nil {
 			v.rng(path+"/amount", *f.Amount, 0, 100, "amount")
 		}
@@ -249,8 +256,21 @@ func (v *validator) output(o *Output) {
 	}
 }
 
+func (v *validator) inset(path string, in *Inset) {
+	if in.W <= 0 || in.H <= 0 || in.X < 0 || in.Y < 0 || in.X+in.W > 1 || in.Y+in.H > 1 {
+		v.add("E_VALUE", path, "the card must fit the canvas: x, y, w, h are fractions", "{\"x\": 0.05, \"y\": 0.35, \"w\": 0.9, \"h\": 0.3}")
+	}
+	v.color(path+"/background", in.Background, false)
+	if in.Radius < 0 || in.Radius > 300 {
+		v.add("E_VALUE", path+"/radius", "radius must be 0 to 300 pixels at 1080", "")
+	}
+}
+
 func (v *validator) clip(path string, c *Clip, last bool) {
 	v.src(path+"/src", c.Src, "vi")
+	if c.Inset != nil {
+		v.inset(path+"/inset", c.Inset)
+	}
 	if c.From < 0 {
 		v.add("E_VALUE", path+"/from", "from must be 0 or more", "")
 	}
@@ -389,6 +409,17 @@ func (v *validator) text(path string, t *Text) {
 }
 
 func (v *validator) captions(path string, c *Captions) {
+	if a := c.Accent; a != nil {
+		v.color(path+"/accent/color", a.Color, false)
+		if a.Scale != 0 && (a.Scale < 50 || a.Scale > 300) {
+			v.add("E_VALUE", path+"/accent/scale", "scale must be 50 to 300 percent", "")
+		}
+		if a.Font != "" {
+			if _, ok := FontByKey(a.Font); !ok {
+				v.add("E_VALUE", path+"/accent/font", "unknown font "+a.Font, "wecut list fonts")
+			}
+		}
+	}
 	w := bytes.TrimSpace(c.Words)
 	switch {
 	case len(w) == 0 || string(w) == "null":

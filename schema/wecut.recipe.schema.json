@@ -52,7 +52,18 @@
       "allOf": [{ "$ref": "#/$defs/look" }],
       "description": "Caption style. Captions appear when a transcript is passed at apply time.",
       "properties": {
-        "mode": { "enum": ["chunk", "karaoke", "pop"] },
+        "accent": {
+          "type": "object", "additionalProperties": false,
+          "description": "Sets key words apart. Without words, the longest word of each phrase.",
+          "properties": {
+            "words": { "type": "array", "items": { "type": "string" } },
+            "color": { "type": "string", "description": "#RRGGBB." },
+            "scale": { "type": "number", "minimum": 50, "maximum": 300, "description": "Percent of the caption size." },
+            "italic": { "type": "boolean" },
+            "font": { "type": "string", "description": "A bundled font (wecut list fonts)." }
+          }
+        },
+        "mode": { "enum": ["chunk", "karaoke", "pop", "reveal"] },
         "highlight": { "type": "string" },
         "maxWords": { "type": "integer", "minimum": 1, "maximum": 12 },
         "maxDuration": { "type": "number", "minimum": 0.5, "maximum": 10 },
@@ -141,6 +152,7 @@
         "type": "object", "required": ["name"], "additionalProperties": false,
         "properties": {
           "name": { "type": "string" },
+          "color": { "type": "string", "description": "With name color: #RRGGBB." },
           "amount": { "type": "number", "minimum": 0, "maximum": 100 },
           "start": { "type": "number", "minimum": 0 },
           "end": { "type": "number" }
@@ -180,6 +192,19 @@
         "fit": { "enum": ["cover", "contain"] },
         "zoom": { "type": "number", "minimum": 1, "maximum": 5 },
         "zoomTo": { "type": "number", "minimum": 1, "maximum": 5, "description": "The zoom glides from zoom to this over the shot." },
+        "inset": {
+          "type": "object", "required": ["x", "y", "w", "h"], "additionalProperties": false,
+          "description": "Shows the footage in a card on a plain background, in fractions of the canvas.",
+          "properties": {
+            "x": { "type": "number", "minimum": 0, "maximum": 1 },
+            "y": { "type": "number", "minimum": 0, "maximum": 1 },
+            "w": { "type": "number", "minimum": 0, "maximum": 1 },
+            "h": { "type": "number", "minimum": 0, "maximum": 1 },
+            "background": { "type": "string", "description": "#RRGGBB, default #0E0E0E." },
+            "grid": { "type": "boolean", "description": "Thin grid lines on the background." },
+            "radius": { "type": "number", "minimum": 0, "maximum": 300, "description": "Rounded corners, pixels at 1080." }
+          }
+        },
         "focus": { "type": "object", "properties": { "x": { "type": "number" }, "y": { "type": "number" } } },
         "continue": { "type": "boolean", "description": "Carry on the clip of the shot before (its next seconds) instead of taking the next clip, like a punch-in on one take." },
         "join": { "$ref": "#/$defs/transition", "description": "Into the next shot of this section." },

@@ -68,6 +68,20 @@ type Clip struct {
 	FadeOut    float64     `json:"fadeOut,omitempty"`
 	Motion     string      `json:"motion,omitempty"` // image only: in, out, left, right, up, down
 	Transition *Transition `json:"transition,omitempty"`
+	// Inset shows the clip in a card on a plain background.
+	Inset *Inset `json:"inset,omitempty"`
+}
+
+// Inset places footage in a card: a box in fractions of the canvas, on a
+// colour, with an optional grid behind it and rounded corners.
+type Inset struct {
+	X          float64 `json:"x"`
+	Y          float64 `json:"y"`
+	W          float64 `json:"w"`
+	H          float64 `json:"h"`
+	Background string  `json:"background,omitempty"` // #RRGGBB, default #0E0E0E
+	Grid       bool    `json:"grid,omitempty"`
+	Radius     float64 `json:"radius,omitempty"` // pixels at 1080
 }
 
 type Point struct {
@@ -145,7 +159,18 @@ type Captions struct {
 	MaxDuration float64         `json:"maxDuration,omitempty"`
 	X           *float64        `json:"x,omitempty"`
 	Y           *float64        `json:"y,omitempty"`
+	Accent      *Accent         `json:"accent,omitempty"`
 	Look
+}
+
+// Accent sets key words of the captions apart. Without a word list, the
+// longest word of each phrase is the key word.
+type Accent struct {
+	Words  []string `json:"words,omitempty"`
+	Color  string   `json:"color,omitempty"`
+	Scale  float64  `json:"scale,omitempty"` // percent of the caption size, default 100
+	Italic bool     `json:"italic,omitempty"`
+	Font   string   `json:"font,omitempty"`
 }
 
 type Overlay struct {
@@ -175,7 +200,8 @@ type Track struct {
 }
 
 type Filter struct {
-	Name   string   `json:"name"`
+	Name   string   `json:"name"` // a tint, or "color" for the colour given
+	Color  string   `json:"color,omitempty"`
 	Amount *float64 `json:"amount,omitempty"` // 0..100, default 100
 	Start  float64  `json:"start,omitempty"`
 	End    *float64 `json:"end,omitempty"`

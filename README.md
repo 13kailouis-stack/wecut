@@ -150,6 +150,7 @@ Prebuilt for Linux, macOS and Windows on x64 and arm64. Set `WECUT_BINARY` to us
 - 36 transitions (FFmpeg `xfade`), clip fades
 - Text with 31 styles (news cards and labels, bubble, fire, Bebas titles, Kanit caps, elegant serif, script...), 40 bundled fonts (Poppins from Medium to Black with real italics, Kanit, Bebas Neue, Luckiest Guy, Creepster, Abril Fatface, Great Vibes and more), 18 caption styles, emphasised words in another colour, pop / type / slide / fade animations
 - Colour fades over the footage and under the text (`gradients`), like the dark fade behind captions
+- Footage in a card on a plain or grid background with rounded corners (`inset`), colour washes for a stretch of the video, captions that light up word by word (`reveal`) with key words set apart (`accent`)
 - Captions from a transcript: phrase, karaoke (spoken word highlighted) or one word at a time. Transcript times can stay in source-file seconds; WeCut maps them through the cuts
 - Image overlays (logos, stickers) with opacity, rotation and fades
 - Music and sound effects with trim, loop, fades and automatic ducking under speech

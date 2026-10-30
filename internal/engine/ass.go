@@ -210,13 +210,42 @@ func (d *assDoc) String() string {
 // gradients draws each fade as thin stacked rectangles of rising opacity. They
 // come first, so they lie under every text.
 func (d *assDoc) gradients(e *Edit, scale float64) {
-	if len(e.P.Gradients) == 0 {
+	cards := false
+	for i := range e.Clips {
+		cards = cards || (e.Clips[i].Clip.Inset != nil && e.Clips[i].Clip.Inset.Radius > 0)
+	}
+	if len(e.P.Gradients) == 0 && !cards {
 		return
 	}
 	base := spec.TextStyles[0]
 	l := resolveLook(spec.Look{}, base, scale)
 	d.styles = append(d.styles, l.styleLine("G", e.W))
 	d.fonts[l.Font.Key] = true
+	// Rounded card corners: the background's colour over each corner, cut by
+	// a curve. Drawn first, under the fades and the text.
+	for i := range e.Clips {
+		c := &e.Clips[i]
+		ins := c.Clip.Inset
+		if ins == nil || ins.Radius <= 0 {
+			continue
+		}
+		r := math.Max(2, math.Round(ins.Radius*scale))
+		k := r * 0.45
+		x0, y0 := math.Round(ins.X*float64(e.W)), math.Round(ins.Y*float64(e.H))
+		x1, y1 := x0+math.Round(ins.W*float64(e.W)), y0+math.Round(ins.H*float64(e.H))
+		color := assBGR(orStr(ins.Background, "#0E0E0E"))
+		for _, corner := range []struct {
+			x, y float64
+			path string
+		}{
+			{x0, y0, fmt.Sprintf("m 0 0 l %s 0 b %s 0 0 %s 0 %s", num(r), num(k), num(k), num(r))},
+			{x1 - r, y0, fmt.Sprintf("m %s 0 l %s %s b %s %s %s 0 0 0", num(r), num(r), num(r), num(r), num(k), num(r-k))},
+			{x0, y1 - r, fmt.Sprintf("m 0 %s l 0 0 b 0 %s %s %s %s %s", num(r), num(r-k), num(k), num(r), num(r), num(r))},
+			{x1 - r, y1 - r, fmt.Sprintf("m %s %s l 0 %s b %s %s %s %s %s 0", num(r), num(r), num(r), num(r-k), num(r), num(r), num(r-k), num(r))},
+		} {
+			d.event(c.Offset, c.Offset+c.Dur, "G", fmt.Sprintf(`{\an7\pos(%s,%s)\bord0\shad0\1c%s\p1}%s{\p0}`, num(corner.x), num(corner.y), color, corner.path))
+		}
+	}
 	rect := func(start, end float64, y0, y1 int, color string, opacity float64) {
 		if y1 <= y0 || opacity <= 0 {
 			return
@@ -575,7 +604,7 @@ func (d *assDoc) captions(e *Edit, c *spec.Captions, scale float64) {
 	mode := orStr(c.Mode, st.Mode)
 	maxWords := st.MaxWords
 	if c.Mode != "" && c.Mode != st.Mode {
-		maxWords = map[string]int{"chunk": 5, "karaoke": 3, "pop": 1}[mode]
+		maxWords = map[string]int{"chunk": 5, "karaoke": 3, "pop": 1, "reveal": 5}[mode]
 	}
 	if c.MaxWords > 0 {
 		maxWords = c.MaxWords
@@ -606,15 +635,86 @@ func (d *assDoc) captions(e *Edit, c *spec.Captions, scale float64) {
 		}
 		return escapeASS(w.Text)
 	}
+	// Key words: named ones, or the longest word of each phrase.
+	named := map[string]bool{}
+	if c.Accent != nil {
+		for _, w := range c.Accent.Words {
+			named[accentKey(w)] = true
+		}
+		if c.Accent.Font != "" {
+			d.fonts[c.Accent.Font] = true
+		}
+	}
+	isKey := func(ch Chunk, w Word) bool {
+		if c.Accent == nil {
+			return false
+		}
+		if len(named) > 0 {
+			return named[accentKey(w.Text)]
+		}
+		best := ""
+		for _, o := range ch.Words {
+			if k := accentKey(o.Text); len([]rune(k)) > len([]rune(best)) {
+				best = k
+			}
+		}
+		return len([]rune(best)) >= 4 && accentKey(w.Text) == best
+	}
+	// paint draws one word: lit in the spoken colour, a key word set apart.
+	paint := func(ch Chunk, w Word, lit bool) string {
+		tags, color := "", ""
+		if lit {
+			color = hl
+		}
+		if isKey(ch, w) {
+			a := c.Accent
+			if a.Scale > 0 {
+				tags += fmt.Sprintf(`\fscx%s\fscy%s`, num(a.Scale), num(a.Scale))
+			}
+			if a.Italic {
+				tags += `\i1`
+			}
+			if f, ok := spec.FontByKey(a.Font); ok {
+				tags += `\fn` + f.Family
+			}
+			if a.Color != "" && (lit || mode != "reveal") {
+				color = a.Color
+			}
+		}
+		if color != "" {
+			tags += `\1c` + assBGR(color)
+		}
+		if tags == "" {
+			return word(w)
+		}
+		return "{" + tags + "}" + word(w) + `{\r}`
+	}
 
 	for _, ch := range Chunks(e.Words, e.Total, maxWords, maxDur) {
 		switch mode {
 		case "chunk":
 			parts := make([]string, len(ch.Words))
 			for i, w := range ch.Words {
-				parts[i] = word(w)
+				parts[i] = paint(ch, w, false)
 			}
 			d.event(ch.Start, ch.End, "CAP", pos+"}"+punctSpace.ReplaceAllString(strings.Join(parts, " "), "$1"))
+		case "reveal":
+			// The words light up one after another and stay lit.
+			for i, w := range ch.Words {
+				s := math.Max(w.Start, ch.Start)
+				if i == 0 {
+					s = ch.Start
+				}
+				end := ch.End
+				if i+1 < len(ch.Words) {
+					end = math.Min(ch.Words[i+1].Start, ch.End)
+				}
+				parts := make([]string, len(ch.Words))
+				for j, o := range ch.Words {
+					parts[j] = paint(ch, o, j <= i)
+				}
+				d.event(s, end, "CAP", pos+"}"+strings.Join(parts, " "))
+			}
 		case "karaoke":
 			for i, w := range ch.Words {
 				s := math.Max(w.Start, ch.Start)
@@ -630,7 +730,7 @@ func (d *assDoc) captions(e *Edit, c *spec.Captions, scale float64) {
 					if j == i {
 						parts[j] = fmt.Sprintf(`{\1c%s\fscx108\fscy108}%s{\r}`, assBGR(hl), word(o))
 					} else {
-						parts[j] = word(o)
+						parts[j] = paint(ch, o, false)
 					}
 				}
 				d.event(s, end, "CAP", pos+"}"+strings.Join(parts, " "))
@@ -652,3 +752,8 @@ func (d *assDoc) captions(e *Edit, c *spec.Captions, scale float64) {
 }
 
 func round1(v float64) float64 { return math.Round(v*10) / 10 }
+
+// accentKey compares words without their case and punctuation.
+func accentKey(s string) string {
+	return strings.ToLower(strings.Trim(s, ".,!?:;\"'()"))
+}

@@ -102,3 +102,13 @@ test('a template gradient is drawn clear to full, down or up', async () => {
   assert.equal(gradientCSS({ from: 0.6, to: 0.8 }), 'linear-gradient(to bottom, #00000000 60%, #000000ff 80%)');
   assert.equal(gradientCSS({ from: 0.25, to: 0, color: '#112233', opacity: 50 }), 'linear-gradient(to top, #11223300 75%, #11223380 100%)');
 });
+
+test('slots of one source are marked, and export keeps them', async () => {
+  const { stateFromTemplate, templateRecipe } = await import('./model.mjs');
+  const recipe = { recipe: '1', name: 'x', output: { ratio: '9:16' }, sections: [{ role: 'body', fit: 'cover', shots: [{ dur: 2 }, { dur: 2, continue: true, about: 'b' }, { dur: 2, inset: { x: 0.1, y: 0.3, w: 0.8, h: 0.3 } }] }] };
+  const s = stateFromTemplate(recipe, () => ({ kind: 'image', duration: 2, placeholder: true }));
+  assert.deepEqual(s.clips.map((c) => c.continues), [false, true, false]);
+  const out = templateRecipe(s);
+  assert.equal(out.sections[0].shots[1].continue, true);
+  assert.equal(out.sections[0].shots[2].inset.w, 0.8);
+});

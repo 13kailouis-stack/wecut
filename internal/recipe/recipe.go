@@ -97,8 +97,9 @@ type Shot struct {
 	// of the same clip), like a punch-in on one take, instead of taking
 	// the next clip.
 	Continue bool             `json:"continue,omitempty"`
-	Join     *spec.Transition `json:"join,omitempty"` // into the next shot of this section
-	Ref      *float64         `json:"ref,omitempty"`  // where this shot sits in the source video (seconds)
+	Inset    *spec.Inset      `json:"inset,omitempty"` // shows the footage in a card
+	Join     *spec.Transition `json:"join,omitempty"`  // into the next shot of this section
+	Ref      *float64         `json:"ref,omitempty"`   // where this shot sits in the source video (seconds)
 }
 
 // OverlaySlot is a picture laid over the video, such as a logo, whose file
@@ -144,12 +145,13 @@ type Slot struct {
 }
 
 type CaptionStyle struct {
-	Mode        string   `json:"mode,omitempty"`
-	Highlight   string   `json:"highlight,omitempty"`
-	MaxWords    int      `json:"maxWords,omitempty"`
-	MaxDuration float64  `json:"maxDuration,omitempty"`
-	X           *float64 `json:"x,omitempty"`
-	Y           *float64 `json:"y,omitempty"`
+	Mode        string       `json:"mode,omitempty"`
+	Highlight   string       `json:"highlight,omitempty"`
+	MaxWords    int          `json:"maxWords,omitempty"`
+	MaxDuration float64      `json:"maxDuration,omitempty"`
+	X           *float64     `json:"x,omitempty"`
+	Y           *float64     `json:"y,omitempty"`
+	Accent      *spec.Accent `json:"accent,omitempty"`
 	spec.Look
 }
 
@@ -373,6 +375,12 @@ func Validate(r *Recipe) []spec.Issue {
 		}
 	}
 	for i, f := range r.Filters {
+		if f.Name == "color" {
+			if !isHex(f.Color) {
+				add("E_VALUE", fmt.Sprintf("/filters/%d/color", i), "filter color needs a colour as #RRGGBB", "")
+			}
+			continue
+		}
 		if _, ok := spec.TintByKey(f.Name); !ok {
 			add("E_VALUE", fmt.Sprintf("/filters/%d/name", i), "unknown filter "+f.Name, "Run `wecut list filters`.")
 		}

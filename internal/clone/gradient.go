@@ -251,3 +251,31 @@ func gradientsFrom(measured []spec.Gradient, reads map[string]Reading) []spec.Gr
 	}
 	return out
 }
+
+// filtersFrom turns filterN answers into colour washes for a stretch of the
+// video: measuring sees only grey, so a colour change is a model's to report.
+func filtersFrom(reads map[string]Reading) []spec.Filter {
+	var ids []string
+	for id := range reads {
+		if strings.HasPrefix(id, "filter") {
+			ids = append(ids, id)
+		}
+	}
+	sort.Strings(ids)
+	var out []spec.Filter
+	for _, id := range ids {
+		rd := reads[id]
+		if rd.Drop {
+			continue
+		}
+		f := spec.Filter{Name: rd.Name, Color: rd.Color, Amount: rd.Opacity, End: rd.End}
+		if f.Name == "" {
+			f.Name = "color"
+		}
+		if rd.Start != nil {
+			f.Start = *rd.Start
+		}
+		out = append(out, f)
+	}
+	return out
+}

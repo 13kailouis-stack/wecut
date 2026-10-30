@@ -37,6 +37,29 @@ func CheckAnswers(p *Plan, crops []Crop, read map[string]Reading) []string {
 	sort.Strings(ids)
 	for _, id := range ids {
 		rd := read[id]
+		if strings.HasPrefix(id, "filter") {
+			if _, err := strconv.Atoi(strings.TrimPrefix(id, "filter")); err != nil {
+				out = append(out, fmt.Sprintf("%s: filters are numbered, filter1, filter2...", id))
+				continue
+			}
+			if rd.Name != "" && rd.Name != "color" {
+				if _, ok := spec.TintByKey(rd.Name); !ok {
+					out = append(out, fmt.Sprintf("%s: unknown filter %q (wecut list filters)", id, rd.Name))
+				}
+			} else if rd.Color == "" && !rd.Drop {
+				out = append(out, fmt.Sprintf("%s: give name (a filter) or color", id))
+			}
+			if rd.Color != "" && !answerHex.MatchString(rd.Color) {
+				out = append(out, fmt.Sprintf("%s: colour %q must look like #RRGGBB", id, rd.Color))
+			}
+			if rd.Opacity != nil && (*rd.Opacity < 0 || *rd.Opacity > 100) {
+				out = append(out, fmt.Sprintf("%s: opacity must be 0 to 100", id))
+			}
+			if rd.Start != nil && rd.End != nil && *rd.End <= *rd.Start {
+				out = append(out, fmt.Sprintf("%s: end must be after start", id))
+			}
+			continue
+		}
 		if n, ok := strings.CutPrefix(id, "gradient"); ok {
 			k, err := strconv.Atoi(n)
 			if err != nil || k < 1 || k > len(p.Gradients)+4 {
@@ -68,6 +91,17 @@ func CheckAnswers(p *Plan, crops []Crop, read map[string]Reading) []string {
 				out = append(out, fmt.Sprintf("%s: this video has slots 1 to %d", id, len(p.Shots)))
 				continue
 			}
+			if ins := rd.Inset; ins != nil {
+				if ins.W <= 0 || ins.H <= 0 || ins.X < 0 || ins.Y < 0 || ins.X+ins.W > 1 || ins.Y+ins.H > 1 {
+					out = append(out, fmt.Sprintf("%s: the inset must fit the frame: x, y, w, h are fractions", id))
+				}
+				if ins.Background != "" && !answerHex.MatchString(ins.Background) {
+					out = append(out, fmt.Sprintf("%s: inset background must look like #RRGGBB", id))
+				}
+			}
+			if rd.Continue && k == 1 {
+				out = append(out, "slot1: the first slot has no slot before it to continue")
+			}
 			if rd.Join != "" {
 				if _, ok := spec.Transitions[rd.Join]; !ok {
 					out = append(out, fmt.Sprintf("%s: unknown transition %q (wecut list transitions)", id, rd.Join))
@@ -84,6 +118,19 @@ func CheckAnswers(p *Plan, crops []Crop, read map[string]Reading) []string {
 		if rd.Font != "" {
 			if _, ok := spec.FontByKey(rd.Font); !ok {
 				out = append(out, fmt.Sprintf("%s: unknown font %q (wecut list fonts)", id, rd.Font))
+			}
+		}
+		if a := rd.Accent; a != nil {
+			if a.Color != "" && !answerHex.MatchString(a.Color) {
+				out = append(out, fmt.Sprintf("%s: accent colour %q must look like #RRGGBB", id, a.Color))
+			}
+			if a.Scale != 0 && (a.Scale < 50 || a.Scale > 300) {
+				out = append(out, fmt.Sprintf("%s: accent scale must be 50 to 300 percent", id))
+			}
+			if a.Font != "" {
+				if _, ok := spec.FontByKey(a.Font); !ok {
+					out = append(out, fmt.Sprintf("%s: unknown accent font %q (wecut list fonts)", id, a.Font))
+				}
 			}
 		}
 		if rd.Background != "" && rd.Background != "none" && !answerHex.MatchString(rd.Background) {

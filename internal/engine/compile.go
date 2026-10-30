@@ -168,6 +168,9 @@ func Compile(e *Edit, opt Options) (*Plan, error) {
 	var post []string
 	for _, f := range e.P.Filters {
 		t, _ := spec.TintByKey(f.Name)
+		if f.Name == "color" {
+			t.Color, t.A = f.Color, 1
+		}
 		amount := 100.0
 		if f.Amount != nil {
 			amount = *f.Amount
@@ -353,6 +356,24 @@ func clipVideo(g *graph, e *Edit, c ClipT, idx int, motion bool) string {
 	}
 
 	switch {
+	case cl.Inset != nil:
+		// A plain background from a colour source, the footage cropped to the
+		// card on top. Rounded corners are drawn in the .ass file.
+		ins := cl.Inset
+		fw, fh := even(ins.W*float64(W)), even(ins.H*float64(H))
+		ox, oy := int(math.Round(ins.X*float64(W))), int(math.Round(ins.Y*float64(H)))
+		bg, fg := g.label("ibg"), g.label("ifg")
+		src := fmt.Sprintf("color=c=%s:s=%dx%d:r=%d:d=%s", hex0x(orStr(ins.Background, "#0E0E0E")), W, H, e.FPS, f3(c.Dur+1))
+		if ins.Grid {
+			cell := max(8, W/9)
+			src += fmt.Sprintf(",drawgrid=w=%d:h=%d:t=%d:c=white@0.22", cell, cell, max(1, W/540))
+		}
+		g.add("%s[%s]", src, bg)
+		chain := append(pre,
+			fmt.Sprintf("scale=%d:%d:force_original_aspect_ratio=increase:flags=bicubic", fw, fh),
+			fmt.Sprintf("crop=%d:%d", fw, fh))
+		g.add("%s%s[%s]", in, strings.Join(chain, ","), fg)
+		g.add("[%s][%s]overlay=%d:%d,%s[%s]", bg, fg, ox, oy, strings.Join(tail, ","), out)
 	case motion:
 		// zoompan on a 2x copy: whole-pixel steps at double size are half a
 		// pixel on the canvas, so slow zooms do not wobble. A photo is one

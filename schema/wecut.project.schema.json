@@ -23,6 +23,30 @@
     "gradients": { "type": "array", "maxItems": 8, "description": "Colour fades over the footage and under the text, like the dark fade behind captions.", "items": { "$ref": "#/$defs/gradient" } }
   },
   "$defs": {
+    "inset": {
+      "type": "object", "required": ["x", "y", "w", "h"], "additionalProperties": false,
+      "description": "Shows the footage in a card on a plain background, in fractions of the canvas.",
+      "properties": {
+        "x": { "type": "number", "minimum": 0, "maximum": 1 },
+        "y": { "type": "number", "minimum": 0, "maximum": 1 },
+        "w": { "type": "number", "minimum": 0, "maximum": 1 },
+        "h": { "type": "number", "minimum": 0, "maximum": 1 },
+        "background": { "type": "string", "description": "#RRGGBB, default #0E0E0E." },
+        "grid": { "type": "boolean", "description": "Thin grid lines on the background." },
+        "radius": { "type": "number", "minimum": 0, "maximum": 300, "description": "Rounded corners, pixels at 1080." }
+      }
+    },
+    "accent": {
+      "type": "object", "additionalProperties": false,
+      "description": "Sets key words apart. Without words, the longest word of each phrase.",
+      "properties": {
+        "words": { "type": "array", "items": { "type": "string" } },
+        "color": { "type": "string", "description": "#RRGGBB." },
+        "scale": { "type": "number", "minimum": 50, "maximum": 300, "description": "Percent of the caption size." },
+        "italic": { "type": "boolean" },
+        "font": { "type": "string", "description": "A bundled font (wecut list fonts)." }
+      }
+    },
     "gradient": {
       "type": "object", "required": ["from", "to"], "additionalProperties": false,
       "properties": {
@@ -72,6 +96,7 @@
           "properties": { "x": { "$ref": "#/$defs/fraction" }, "y": { "$ref": "#/$defs/fraction" } }
         },
         "zoom": { "type": "number", "minimum": 1, "maximum": 5, "default": 1, "description": "Cover only: punch in. Combine with focus." },
+        "inset": { "$ref": "#/$defs/inset" },
         "zoomTo": { "type": "number", "minimum": 1, "maximum": 5, "description": "Cover only, video or photo: the zoom glides from zoom (default 1) to this over the clip, a slow push in (or out when smaller). Not with motion." },
         "rotate": { "enum": [0, 90, 180, 270, -90], "description": "Clockwise degrees." },
         "flip": { "type": "boolean", "description": "Mirror left-right." },
@@ -157,7 +182,8 @@
           ]
         },
         "src": { "$ref": "#/$defs/path", "description": "The source video the transcript belongs to." },
-        "mode": { "enum": ["chunk", "karaoke", "pop"], "description": "chunk = a phrase at a time; karaoke = phrase with the spoken word highlighted; pop = one word at a time." },
+        "accent": { "$ref": "#/$defs/accent" },
+        "mode": { "enum": ["chunk", "karaoke", "pop", "reveal"], "description": "reveal = a phrase whose words light up one after another and stay lit; chunk = a phrase at a time; karaoke = phrase with the spoken word highlighted; pop = one word at a time." },
         "highlight": { "$ref": "#/$defs/colorOrNone", "description": "Karaoke: colour of the spoken word." },
         "maxWords": { "type": "integer", "minimum": 1, "maximum": 12 },
         "maxDuration": { "type": "number", "minimum": 0.5, "maximum": 10, "default": 2.6 },
@@ -202,7 +228,8 @@
     "filter": {
       "type": "object", "required": ["name"], "additionalProperties": false,
       "properties": {
-        "name": { "enum": ["warm", "cool", "dusk", "gold", "mint", "leaf", "rose", "lavender", "coffee", "pale", "fog", "dark", "retro", "teal", "candy", "neon", "ocean", "cream", "sunset", "forest"] },
+        "name": { "enum": ["color", "warm", "cool", "dusk", "gold", "mint", "leaf", "rose", "lavender", "coffee", "pale", "fog", "dark", "retro", "teal", "candy", "neon", "ocean", "cream", "sunset", "forest"] },
+        "color": { "type": "string", "description": "With name color: #RRGGBB, washed over the picture by amount." },
         "amount": { "$ref": "#/$defs/percent", "default": 100 },
         "start": { "$ref": "#/$defs/seconds" },
         "end": { "type": "number" }

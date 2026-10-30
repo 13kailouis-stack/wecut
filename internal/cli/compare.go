@@ -119,7 +119,7 @@ func (a *app) compareSheetOnly(ctx context.Context, c common, root *workspace.Ro
 			words = append(words, map[string]any{"word": sample[i%len(sample)], "start": round2(at), "end": round2(at + step - 0.02)})
 		}
 		raw, _ := json.Marshal(words)
-		p.Captions = &spec.Captions{Words: raw, Mode: cs.Mode, Highlight: cs.Highlight, MaxWords: cs.MaxWords, MaxDuration: cs.MaxDuration, X: cs.X, Y: cs.Y, Look: cs.Look}
+		p.Captions = &spec.Captions{Words: raw, Mode: cs.Mode, Highlight: cs.Highlight, MaxWords: cs.MaxWords, MaxDuration: cs.MaxDuration, X: cs.X, Y: cs.Y, Accent: cs.Accent, Look: cs.Look}
 	}
 	data, _ := json.MarshalIndent(p, "", "  ")
 	// Kept next to the sheet: `wecut render` it to watch the template.

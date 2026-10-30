@@ -121,6 +121,7 @@ func fillShots(s Section, si int, q []*piece, mode string, warn func(path, msg s
 			pc.from += take
 		}
 		c.Fit = s.Fit
+		c.Inset = sh.Inset
 		if sh.Fit != "" {
 			c.Fit = sh.Fit
 		}
@@ -185,4 +186,41 @@ func joinDur(t *spec.Transition) float64 {
 		return 0.5
 	}
 	return t.Duration
+}
+
+// dealClips shares clips without roles among the sections of an exact-shot
+// template, in order: each section takes as many as it has media slots, and
+// keeps enough back that every later section gets one. A hook and a talk
+// passed as two clips land one in each, with no roles to write.
+func dealClips(r *Recipe, in Input, queues map[string][]*piece, def string) {
+	n := len(r.Sections)
+	q := queues[def]
+	if in.Fill == "sequence" || n < 2 || len(q) < n {
+		return
+	}
+	for _, c := range in.Clips {
+		if c.Role != "" {
+			return
+		}
+	}
+	for _, s := range r.Sections {
+		if len(s.Shots) == 0 {
+			return
+		}
+	}
+	delete(queues, def)
+	for si, s := range r.Sections {
+		slots := 0
+		for _, sh := range s.Shots {
+			if !sh.Continue {
+				slots++
+			}
+		}
+		take := min(slots, len(q)-(n-si-1))
+		if si == n-1 {
+			take = len(q)
+		}
+		queues[s.Role] = append(queues[s.Role], q[:take]...)
+		q = q[take:]
+	}
 }

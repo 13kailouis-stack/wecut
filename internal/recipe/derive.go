@@ -120,7 +120,7 @@ func FromEdit(e *engine.Edit, name string) *Recipe {
 
 	r.Gradients = p.Gradients
 	if c := p.Captions; c != nil {
-		r.Captions = &CaptionStyle{Mode: c.Mode, Highlight: c.Highlight, MaxWords: c.MaxWords, MaxDuration: c.MaxDuration, X: c.X, Y: c.Y, Look: c.Look}
+		r.Captions = &CaptionStyle{Mode: c.Mode, Highlight: c.Highlight, MaxWords: c.MaxWords, MaxDuration: c.MaxDuration, X: c.X, Y: c.Y, Accent: c.Accent, Look: c.Look}
 	}
 	if len(p.Audio) > 0 {
 		a := p.Audio[0]

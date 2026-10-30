@@ -3,6 +3,8 @@ package clone
 import (
 	"strings"
 	"testing"
+
+	"github.com/13kailouis-stack/wecut/internal/spec"
 )
 
 func TestCheckAnswers(t *testing.T) {
@@ -20,7 +22,9 @@ func TestCheckAnswers(t *testing.T) {
 		"caption1": {Lines: []string{"WORD"}},
 		"captions": {Font: "creepster", Mode: "karaoke", Highlight: "#FFFFFF", Background: "none", Size: 60, Y: &half},
 		"slot1":    {About: "wide shot", Join: "slideleft"},
-		"slot2":    {About: "close up"},
+		"slot2":    {About: "close up", Continue: true, Inset: &spec.Inset{X: 0.05, Y: 0.3, W: 0.9, H: 0.3, Grid: true}},
+		"filter1":  {Color: "#FF6A00", Start: &half, Opacity: &half},
+		"filter2":  {Name: "warm"},
 	}
 	if got := CheckAnswers(p, crops, good); len(got) != 0 {
 		t.Fatalf("good answers refused: %v", got)
@@ -39,6 +43,9 @@ func TestCheckAnswers(t *testing.T) {
 		"caption1": {Reading{Stroke: "blue"}, "stroke"},
 		"captions": {Reading{Mode: "dance"}, "mode"},
 		"logo2":    {Reading{About: "x"}, "not in this video"},
+		"filterx":  {Reading{Name: "warm"}, "numbered"},
+		"filter3":  {Reading{Name: "nope"}, "unknown filter"},
+		"filter4":  {Reading{Start: &half}, "name (a filter) or color"},
 	} {
 		got := CheckAnswers(p, crops, map[string]Reading{id: tc.rd})
 		if len(got) != 1 || !strings.Contains(got[0], tc.want) {
@@ -50,6 +57,15 @@ func TestCheckAnswers(t *testing.T) {
 		if len(got) != 1 || !strings.Contains(got[0], want) {
 			t.Errorf("%s: got %v", want, got)
 		}
+	}
+	if got := CheckAnswers(p, crops, map[string]Reading{"slot1": {Continue: true}}); len(got) != 1 {
+		t.Errorf("continue on the first slot: %v", got)
+	}
+	if got := CheckAnswers(p, crops, map[string]Reading{"slot2": {Inset: &spec.Inset{X: 0.5, W: 0.8, H: 0.2}}}); len(got) != 1 {
+		t.Errorf("inset off the frame: %v", got)
+	}
+	if got := CheckAnswers(p, crops, map[string]Reading{"captions": {Accent: &spec.Accent{Font: "nope", Scale: 900, Color: "red"}}}); len(got) != 3 {
+		t.Errorf("accent: %v", got)
 	}
 	// Captions the detector missed can still be answered.
 	if got := CheckAnswers(&Plan{}, nil, map[string]Reading{"captions": {Font: "roboto"}}); len(got) != 0 {
