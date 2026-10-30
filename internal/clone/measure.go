@@ -141,6 +141,8 @@ func (a *Analyzer) Measure(frames []*RGB) []Crop {
 		}
 		c.Look = mergeLooks(looks)
 	}
+	p.HookEnd = hookEndOf(p)
+	p.HookMusic = p.Speech && p.HookEnd > 1 && soundsLikeMusic(a.pcm, a.rate, 0, p.HookEnd)
 	return crops
 }
 

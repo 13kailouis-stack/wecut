@@ -133,8 +133,12 @@ type Plan struct {
 	Gradients  []spec.Gradient `json:"gradients,omitempty"`
 	Audio      *analyze.Audio  `json:"audio,omitempty"`
 	Speech     bool            `json:"speech"`
-	Stills     []float64       `json:"stills"` // full-size frames Measure needs, in seconds
-	Notes      []string        `json:"notes,omitempty"`
+	// HookMusic: the opening under its text card sounds like music, even
+	// though someone talks later. HookEnd is where that opening ends.
+	HookMusic  bool      `json:"hook_music,omitempty"`
+	HookEnd    float64   `json:"hook_end,omitempty"`
+	Stills     []float64 `json:"stills"` // full-size frames Measure needs, in seconds
+	Notes      []string  `json:"notes,omitempty"`
 	stillOf    map[string][]int
 	lowW, lowH int
 }

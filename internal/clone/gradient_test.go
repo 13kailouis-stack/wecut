@@ -1,6 +1,7 @@
 package clone
 
 import (
+	"math"
 	"testing"
 
 	"github.com/13kailouis-stack/wecut/internal/spec"
@@ -157,5 +158,56 @@ func TestSplitTightLines(t *testing.T) {
 	}
 	if got := splitTightLines(f, []Box{Rect{10, 30, 180, 40}.box(200, 100)}, on); len(got) != 1 {
 		t.Fatalf("one line split: %+v", got)
+	}
+}
+
+func TestSoundsLikeMusic(t *testing.T) {
+	const rate = 8000
+	tone := func(sec float64, gate func(t float64) float64) []int16 {
+		out := make([]int16, int(sec*rate))
+		for i := range out {
+			tm := float64(i) / rate
+			out[i] = int16(9000 * gate(tm) * math.Sin(2*math.Pi*220*tm))
+		}
+		return out
+	}
+	// A track with a soft beat holds its level.
+	track := tone(6, func(t float64) float64 { return 0.75 + 0.25*math.Cos(2*math.Pi*1.2*t) })
+	if !soundsLikeMusic(track, rate, 0, 6) {
+		t.Error("a steady track read as talk")
+	}
+	// Phrases with gaps swing and drop.
+	talk := tone(6, func(t float64) float64 {
+		if math.Mod(t, 0.6) < 0.35 {
+			return 1
+		}
+		return 0.05
+	})
+	if soundsLikeMusic(talk, rate, 0, 6) {
+		t.Error("talk read as music")
+	}
+	if soundsLikeMusic(make([]int16, 6*rate), rate, 0, 6) {
+		t.Error("silence read as music")
+	}
+	if soundsLikeMusic(nil, 0, 0, 6) {
+		t.Error("no audio read as music")
+	}
+}
+
+func TestHookSound(t *testing.T) {
+	p := &Plan{Speech: true, HookEnd: 7, HookMusic: true}
+	if m, end := p.HookSound(nil); !m || end != 7 {
+		t.Errorf("measured: %v %v", m, end)
+	}
+	if m, _ := p.HookSound(map[string]Reading{"sound": {Mode: "talk"}}); m {
+		t.Error("a person said talk")
+	}
+	p.HookMusic = false
+	if m, _ := p.HookSound(map[string]Reading{"sound": {Mode: "music"}}); !m {
+		t.Error("a person said music")
+	}
+	p.Speech = false // the whole video is music then: it plays throughout
+	if m, _ := p.HookSound(map[string]Reading{"sound": {Mode: "music"}}); m {
+		t.Error("no talk, no separate hook music")
 	}
 }

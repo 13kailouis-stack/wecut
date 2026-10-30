@@ -241,14 +241,19 @@ func (a *app) clone(args []string) int {
 	}
 
 	musicRel := ""
-	if info.HasAudio && !plan.Speech {
+	hookMusic, hookLen := plan.HookSound(given)
+	musicEnd := plan.ContentEnd
+	if plan.Speech {
+		musicEnd = hookLen
+	}
+	if info.HasAudio && (!plan.Speech || hookMusic) {
 		musicRel = strings.TrimSuffix(write, filepath.Ext(write)) + "/music.m4a"
 		mAbs, err := root.Output(musicRel)
 		if _, statErr := os.Stat(mAbs); err == nil && sess != nil && statErr == nil {
 			// Kept from the run being answered.
 		} else if err == nil {
 			os.MkdirAll(filepath.Dir(mAbs), 0o755)
-			if err = t.ExtractAudio(ctx, abs, job, plan.ContentEnd, mAbs); err != nil {
+			if err = t.ExtractAudio(ctx, abs, job, musicEnd, mAbs); err != nil {
 				warnings = append(warnings, spec.Issue{Code: "W_AUDIO", Message: err.Error()})
 				musicRel = ""
 			}

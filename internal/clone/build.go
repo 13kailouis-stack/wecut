@@ -3,6 +3,7 @@ package clone
 import (
 	"fmt"
 	"math"
+	"sort"
 	"strings"
 	"unicode"
 
@@ -136,12 +137,8 @@ func (a *Analyzer) Build(o Options) *Result {
 
 	// Sections: the hook (shots under an opening card), then a new section
 	// wherever the framing changes.
-	hookEnd := -1.0
-	for _, bl := range p.Blocks {
-		if bl.Start <= 0.5 && bl.End < p.ContentEnd*0.6 && bl.Look != nil && (bl.Look.Background != "" || len(bl.Lines) >= 2) {
-			hookEnd = math.Max(hookEnd, bl.End)
-		}
-	}
+	hookEnd := hookEndOf(p)
+	hookMusic, hookLen := p.HookSound(o.Read)
 	type group struct {
 		shots []int
 		hook  bool
@@ -239,7 +236,12 @@ func (a *Analyzer) Build(o Options) *Result {
 		if music {
 			sec.Mute = true
 		}
-		if g.hook && p.Speech && gi+1 < len(groups) {
+		if g.hook && hookMusic {
+			// Its own music, not the talk: the talk starts where the talk starts.
+			sec.Mute = true
+			sec.About += "; music plays under it"
+		}
+		if g.hook && p.Speech && !hookMusic && gi+1 < len(groups) {
 			// The talk is heard from the first second, under the hook.
 			sec.Audio = "next"
 			sec.About += "; silent B-roll, the next section's talk plays under it"
@@ -586,12 +588,77 @@ func (a *Analyzer) Build(o Options) *Result {
 		}
 	}
 
+	if hookMusic && o.Music != "" {
+		vol := 100.0
+		r.Music = &recipe.Music{Src: o.Music, Duration: spec.F(r2(hookLen)), Volume: &vol, Note: "the original's music under the hook; pass music to use your own or \"none\""}
+	}
+
 	res.Recipe = r
 	res.Hints = a.hints(p, r, slotN, o)
 	if skipped > 0 {
 		res.Hints = append(res.Hints, fmt.Sprintf("%d laid-over find(s) were left out of the template: no readable words (a timer, a channel bug, a watermark), or dropped by the model that looked at them", skipped))
 	}
 	return res
+}
+
+// hookEndOf is where the opening under a text card ends, or -1.
+func hookEndOf(p *Plan) float64 {
+	end := -1.0
+	for _, bl := range p.Blocks {
+		if bl.Start <= 0.5 && bl.End < p.ContentEnd*0.6 && bl.Look != nil && (bl.Look.Background != "" || len(bl.Lines) >= 2) {
+			end = math.Max(end, bl.End)
+		}
+	}
+	return end
+}
+
+// HookSound says whether the opening plays music of its own, and for how
+// long: measured, unless someone who knows the video said otherwise.
+func (p *Plan) HookSound(read map[string]Reading) (music bool, end float64) {
+	music = p.HookMusic
+	if rd, ok := read["sound"]; ok && rd.Mode != "" {
+		music = rd.Mode == "music"
+	}
+	return music && p.Speech && p.HookEnd > 0, p.HookEnd
+}
+
+// soundsLikeMusic tells a steady track from talk over a stretch of audio: a
+// talker's volume swings with each phrase and drops between them, music's
+// holds. Half-second gaps are enough to tell, at any tempo of speech.
+func soundsLikeMusic(pcm []int16, rate int, t0, t1 float64) bool {
+	const win = 0.05
+	n := int(float64(rate) * win)
+	if rate <= 0 || n == 0 || t1-t0 < 1 {
+		return false
+	}
+	var env []float64
+	for i := int(t0 * float64(rate)); i+n <= len(pcm) && i < int(t1*float64(rate)); i += n {
+		var sum float64
+		for _, v := range pcm[i : i+n] {
+			sum += float64(v) * float64(v)
+		}
+		env = append(env, math.Sqrt(sum/float64(n)))
+	}
+	if len(env) < 20 {
+		return false
+	}
+	sorted := append([]float64(nil), env...)
+	sort.Float64s(sorted)
+	low, high := sorted[len(sorted)/10], sorted[len(sorted)*9/10]
+	if high < 200 {
+		return false // silence
+	}
+	swings, up := 0, false
+	for _, e := range env {
+		if e > 0.6*high && !up {
+			swings++
+			up = true
+		}
+		if e < 0.3*high {
+			up = false
+		}
+	}
+	return low/high >= 0.3 && float64(swings)/(t1-t0) < 1
 }
 
 func (a *Analyzer) hints(p *Plan, r *recipe.Recipe, slots int, o Options) []string {
@@ -637,6 +704,9 @@ func (a *Analyzer) hints(p *Plan, r *recipe.Recipe, slots int, o Options) []stri
 	}
 	if r.Music != nil {
 		h = append(h, "the original's soundtrack is the default music; a song taken from someone else's video may be muted by the platform")
+	}
+	if music, end := p.HookSound(o.Read); music {
+		h = append(h, fmt.Sprintf("the first %.1f s sound like music, not the talk: the hook's own sound is muted and the talk starts after it", end))
 	}
 	return h
 }

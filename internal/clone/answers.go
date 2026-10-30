@@ -37,6 +37,12 @@ func CheckAnswers(p *Plan, crops []Crop, read map[string]Reading) []string {
 	sort.Strings(ids)
 	for _, id := range ids {
 		rd := read[id]
+		if id == "sound" {
+			if rd.Mode != "music" && rd.Mode != "talk" {
+				out = append(out, `sound: mode is what plays under the opening: "music" or "talk"`)
+			}
+			continue
+		}
 		if strings.HasPrefix(id, "filter") {
 			if _, err := strconv.Atoi(strings.TrimPrefix(id, "filter")); err != nil {
 				out = append(out, fmt.Sprintf("%s: filters are numbered, filter1, filter2...", id))

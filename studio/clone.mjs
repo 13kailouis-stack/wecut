@@ -100,7 +100,7 @@ export async function cloneVideo(file, progress = () => {}, debug = false) {
     const still = canvas(sw, sh), stills = [];
     for (const t of plan.stills) { await seek(video, t); still.drawImage(video, 0, 0, sw, sh); stills.push(rgb(still, sw, sh)); }
     call(engine.measure, sw, sh, stills);
-    const music = pcm && !plan.speech ? `assets/music.${(file.name.split('.').pop() || 'mp4').toLowerCase()}` : '';
+    const music = pcm && (!plan.speech || plan.hook_music) ? `assets/music.${(file.name.split('.').pop() || 'mp4').toLowerCase()}` : '';
     const result = call(engine.build, JSON.stringify({ Name: file.name.replace(/\.[^.]+$/, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'template', Source: file.name, Music: music, Tool: 'WeCut Studio' }));
     progress(0.94, 'Membuat gambar slot…');
     const thumb = canvas(90, Math.round(90 * H / W));

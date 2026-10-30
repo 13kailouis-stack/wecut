@@ -26,7 +26,7 @@ const answerExample = `{"text1": {"lines": ["first line", "second line"], "font"
 
 const (
 	sessionFile    = "analysis.json"
-	sessionVersion = 3
+	sessionVersion = 4
 	transitionMax  = 12 // rows on the transition sheet
 )
 
@@ -308,6 +308,16 @@ func buildReview(res *clone.Result, crops []clone.Crop, files map[string]string,
 		items = append(items, map[string]any{"id": "gradients", "kind": "gradients", "now": now,
 			"ask": "Colour fades laid over the picture, like the dark fade behind captions. From the timeline: answer gradient1, gradient2... with from (the height where the picture is still clear), to (where the colour is full), color, opacity, or drop. Add a new number for one that was not found. Fades that come and go with a shot are measured only when they stay through the video."})
 	}
+	if res.Plan.Speech && res.Plan.HookEnd > 0 {
+		music, end := res.Plan.HookSound(given)
+		kind := "talk"
+		if music {
+			kind = "music"
+		}
+		items = append(items, map[string]any{"id": "sound", "kind": "sound", "now": map[string]any{"opening": kind, "until": round2(end)},
+			"from": "measured from how steady the volume is, not by listening",
+			"ask":  "What plays under the opening: its own music, or the talk that continues after it? Nobody here can hear it, so ask the person if it matters. Answer sound with mode: music or talk."})
+	}
 	if sheet != "" {
 		var now []map[string]any
 		for _, s := range res.Slots {
@@ -332,6 +342,7 @@ func buildReview(res *clone.Result, crops []clone.Crop, files map[string]string,
 			"Measuring tells flash, fade to black, dissolve, zoom and blur. Any other transition shows up as one of those until someone looks.",
 			"Fonts are matched among the bundled ones, never identified. Scripts and novelty faces are only picked by someone who looks.",
 			"Effects, stickers, overlays, colour washes and how text animates in are not detected, and footage in a small card shows up as full-screen. What a source file has baked in looks the same as what was laid over it: only someone who knows the edit can tell.",
+			"Sound is measured by its volume over time, not understood: music that stops and starts can read as talk, and steady talk as music.",
 			"Captions that grow word by word, or stay up for long, can be measured in the wrong place. Check them against the timeline.",
 		},
 	}
