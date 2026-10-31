@@ -145,6 +145,38 @@ func CheckAnswers(p *Plan, crops []Crop, read map[string]Reading) []string {
 		if rd.Y != nil && (*rd.Y < 0 || *rd.Y > 1) {
 			out = append(out, fmt.Sprintf("%s: y is a fraction of the height, 0 to 1", id))
 		}
+		if rd.X != nil && (*rd.X < 0 || *rd.X > 1) {
+			out = append(out, fmt.Sprintf("%s: x is a fraction of the width, 0 to 1", id))
+		}
+		if rd.Align != "" && !slices.Contains([]string{"left", "center", "right"}, rd.Align) {
+			out = append(out, fmt.Sprintf("%s: align must be left, center or right", id))
+		}
+		if !strings.HasPrefix(id, "text") && (rd.Align != "" || rd.MaxWidth != nil || rd.LineHeight != nil || rd.Start != nil || rd.End != nil) {
+			out = append(out, fmt.Sprintf("%s: align, max_width, line_height and start/end apply to text blocks only", id))
+		}
+		if rd.MaxWidth != nil && (*rd.MaxWidth <= 0 || *rd.MaxWidth > 1) {
+			out = append(out, fmt.Sprintf("%s: max_width must be greater than 0 and at most 1", id))
+		}
+		if rd.LineHeight != nil && (*rd.LineHeight < 0.8 || *rd.LineHeight > 2.5) {
+			out = append(out, fmt.Sprintf("%s: line_height must be 0.8 to 2.5", id))
+		}
+		if strings.HasPrefix(id, "text") {
+			for _, bl := range p.Blocks {
+				if bl.ID != id {
+					continue
+				}
+				start, end := bl.Start, bl.End
+				if rd.Start != nil {
+					start = *rd.Start
+				}
+				if rd.End != nil {
+					end = *rd.End
+				}
+				if (rd.Start != nil || rd.End != nil) && (start < 0 || end <= start || end > p.ContentEnd) {
+					out = append(out, fmt.Sprintf("%s: start/end must be ordered within the source duration %.3f", id, p.ContentEnd))
+				}
+			}
+		}
 		if rd.Size != 0 && (rd.Size < 8 || rd.Size > 400) {
 			out = append(out, fmt.Sprintf("%s: size must be 8 to 400 pixels at 1080", id))
 		}

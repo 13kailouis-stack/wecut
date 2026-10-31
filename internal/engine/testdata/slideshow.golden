@@ -1,16 +1,24 @@
 # args
+-filter_complex_threads
+2
+-threads
+2
 -protocol_whitelist
 file
 -format_whitelist
 mov,mp4,m4a,3gp,3g2,mj2,matroska,webm,mp3,wav,aac,ogg,flac,image2,png_pipe,jpeg_pipe,webp_pipe
 -i
 file:/w/media/photo1.jpg
+-threads
+2
 -protocol_whitelist
 file
 -format_whitelist
 mov,mp4,m4a,3gp,3g2,mj2,matroska,webm,mp3,wav,aac,ogg,flac,image2,png_pipe,jpeg_pipe,webp_pipe
 -i
 file:/w/media/photo2.jpg
+-threads
+2
 -protocol_whitelist
 file
 -format_whitelist
@@ -19,6 +27,8 @@ mov,mp4,m4a,3gp,3g2,mj2,matroska,webm,mp3,wav,aac,ogg,flac,image2,png_pipe,jpeg_
 file:/w/media/photo3.jpg
 -ss
 0
+-threads
+2
 -protocol_whitelist
 file
 -format_whitelist
@@ -29,6 +39,8 @@ file:/w/media/music.mp3
 graph.txt
 -map
 [vout]
+-threads
+2
 -c:v
 libx264
 -preset
@@ -68,11 +80,11 @@ mp4
 /w/out/tmp
 
 # graph
-[0:v]scale=2160:3840:force_original_aspect_ratio=increase:flags=bicubic,crop=2160:3840,zoompan=z='1+0.3*on/89':x='(iw-iw/zoom)/2':y='(ih-ih/zoom)/2':d=90:s=1080x1920:fps=30,fps=30,format=yuv420p,setsar=1,settb=AVTB[v0];
+[0:v]scale=2160:3840:force_original_aspect_ratio=increase:flags=bicubic,crop=2160:3840,zoompan=z='1+0.3*on/89':x='(iw-iw/zoom)/2':y='(ih-ih/zoom)/2':d=90:s=1080x1920:fps=30,fps=30,format=yuv420p,setsar=1,fps=30,settb=AVTB[v0];
 anullsrc=r=48000:cl=stereo,atrim=duration=3,aresample=48000,aformat=sample_fmts=fltp:channel_layouts=stereo[a0];
-[1:v]scale=2160:3840:force_original_aspect_ratio=increase:flags=bicubic,crop=2160:3840,zoompan=z='1.3':x='(iw-iw/zoom)*on/89':y='(ih-ih/zoom)/2':d=90:s=1080x1920:fps=30,fps=30,format=yuv420p,setsar=1,settb=AVTB[v1];
+[1:v]scale=2160:3840:force_original_aspect_ratio=increase:flags=bicubic,crop=2160:3840,zoompan=z='1.3':x='(iw-iw/zoom)*on/89':y='(ih-ih/zoom)/2':d=90:s=1080x1920:fps=30,fps=30,format=yuv420p,setsar=1,fps=30,settb=AVTB[v1];
 anullsrc=r=48000:cl=stereo,atrim=duration=3,aresample=48000,aformat=sample_fmts=fltp:channel_layouts=stereo[a1];
-[2:v]scale=2160:3840:force_original_aspect_ratio=increase:flags=bicubic,crop=2160:3840,zoompan=z='1.3-0.3*on/89':x='(iw-iw/zoom)/2':y='(ih-ih/zoom)/2':d=90:s=1080x1920:fps=30,fps=30,format=yuv420p,setsar=1,settb=AVTB[v2];
+[2:v]scale=2160:3840:force_original_aspect_ratio=increase:flags=bicubic,crop=2160:3840,zoompan=z='1.3-0.3*on/89':x='(iw-iw/zoom)/2':y='(ih-ih/zoom)/2':d=90:s=1080x1920:fps=30,fps=30,format=yuv420p,setsar=1,fps=30,settb=AVTB[v2];
 anullsrc=r=48000:cl=stereo,atrim=duration=3,aresample=48000,aformat=sample_fmts=fltp:channel_layouts=stereo[a2];
 [v0][v1]xfade=transition=fade:duration=0.6:offset=2.4[vj1];
 [a0][a1]acrossfade=d=0.6:c1=tri:c2=tri[aj2];

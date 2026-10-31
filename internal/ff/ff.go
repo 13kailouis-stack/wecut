@@ -409,9 +409,29 @@ func (t *Tools) Run(ctx context.Context, j Job) error {
 		if msg == "" {
 			msg = err.Error()
 		}
-		return fmt.Errorf("%s", lastLines(msg, 6))
+		return fmt.Errorf("%s", failureLines(msg))
 	}
 	return nil
+}
+
+// Keep the cause as well as the shutdown messages. FFmpeg often emits many
+// encoder/EOF errors after a single filter configuration error; tail-only
+// reporting hides the actionable diagnostic from the calling agent.
+func failureLines(s string) string {
+	var causes []string
+	for _, line := range strings.Split(s, "\n") {
+		lower := strings.ToLower(line)
+		if strings.Contains(lower, "[parsed_") || strings.Contains(lower, "error applying") || strings.Contains(lower, "no such filter") || strings.Contains(lower, "matches no streams") {
+			causes = append(causes, strings.TrimSpace(line))
+			if len(causes) == 6 {
+				break
+			}
+		}
+	}
+	if len(causes) == 0 {
+		return lastLines(s, 6)
+	}
+	return strings.Join(causes, " | ") + " | " + lastLines(s, 2)
 }
 
 func readProgress(r io.Reader, total float64, fn func(float64)) {

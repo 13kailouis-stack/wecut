@@ -82,12 +82,15 @@ func Compile(e *Edit, opt Options) (*Plan, error) {
 		p.Format = "jpg"
 	}
 
-	var args []string
+	// A project opens one decoder per clip. FFmpeg's automatic thread count
+	// multiplies frame buffers by both CPU count and clip count, exhausting
+	// small agent machines long before the 100-clip validation limit.
+	args := []string{"-filter_complex_threads", "2"}
 	g := &graph{}
 	input := 0
 	addInput := func(pre []string, path string) int {
 		args = append(args, pre...)
-		args = append(args, "-protocol_whitelist", "file", "-format_whitelist", FormatWhitelist, "-i", "file:"+path)
+		args = append(args, "-threads", "2", "-protocol_whitelist", "file", "-format_whitelist", FormatWhitelist, "-i", "file:"+path)
 		input++
 		return input - 1
 	}
@@ -146,7 +149,10 @@ func Compile(e *Edit, opt Options) (*Plan, error) {
 				g.add("[%s][%s]xfade=transition=%s:duration=%s:offset=%s[%s]", vcur, vlabels[i], prev.Trans, f3(prev.TransDur), f3(length-prev.TransDur), nv)
 				length += e.Clips[i].Dur - prev.TransDur
 			} else {
-				g.add("[%s][%s]concat=n=2:v=1:a=0[%s]", vcur, vlabels[i], nv)
+				// concat advertises a variable frame rate (1/0), even when
+				// both inputs are CFR. A later xfade rejects that in FFmpeg 7+.
+				// fps also changes the time base, so restore AVTB afterwards.
+				g.add("[%s][%s]concat=n=2:v=1:a=0,fps=%d,settb=AVTB[%s]", vcur, vlabels[i], e.FPS, nv)
 				length += e.Clips[i].Dur
 			}
 			vcur = nv
@@ -294,6 +300,7 @@ func Compile(e *Edit, opt Options) (*Plan, error) {
 		args = append(args, "-filter_complex_script", "graph.txt")
 	}
 	args = append(args, "-map", "["+vout+"]")
+	args = append(args, "-threads", "2")
 
 	switch {
 	case preview:
@@ -347,7 +354,9 @@ func clipVideo(g *graph, e *Edit, c ClipT, idx int, motion bool) string {
 	}
 	// One time base for every clip: concat outputs microseconds, and an
 	// xfade after a concat refuses inputs whose time bases differ.
-	tail = append(tail, "settb=AVTB")
+	// setpts after trim clears frame-rate metadata on FFmpeg 7. Restore CFR
+	// after all timestamp edits, not only before padding/trimming.
+	tail = append(tail, fmt.Sprintf("fps=%d", e.FPS), "settb=AVTB")
 	if cl.FadeIn > 0 {
 		tail = append(tail, fmt.Sprintf("fade=t=in:st=0:d=%s", f3(cl.FadeIn)))
 	}

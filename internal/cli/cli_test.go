@@ -120,6 +120,26 @@ func TestRenderGIFFromStdin(t *testing.T) {
 	}
 }
 
+// A concat between transitions loses constant frame-rate metadata in FFmpeg.
+// Exercise both the audio render and the video-only preview paths.
+func TestRenderMixedCutsAndTransitions(t *testing.T) {
+	root := testWorkspace(t)
+	project := `{"wecut":"1","output":{"file":"out/mixed.mp4","res":240,"fps":30},"clips":[
+	{"src":"media/talk.mp4","to":1,"transition":{"type":"fade","duration":0.2}},
+	{"src":"media/tall.mp4","to":1},
+	{"src":"media/photo.jpg","duration":1,"transition":{"type":"flash","duration":0.2}},
+	{"src":"media/talk.mp4","from":2,"to":3}]}`
+	os.WriteFile(filepath.Join(root, "mixed.json"), []byte(project), 0o644)
+	r, code := run(t, root, "", "render", "mixed.json")
+	if code != 0 || !r.OK || !r.HasAudio || r.Duration < 3.5 || r.Duration > 3.7 {
+		t.Fatalf("mixed render: code %d %+v", code, r)
+	}
+	pv, code := run(t, root, "", "preview", "mixed.json", "--at", "0.5,2.7,3.3")
+	if code != 0 || len(pv.Frames) != 3 {
+		t.Fatalf("mixed preview: code %d %+v", code, pv)
+	}
+}
+
 func TestRefusals(t *testing.T) {
 	root := testWorkspace(t)
 	cases := []struct {

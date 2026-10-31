@@ -42,8 +42,10 @@ func TestCloneRoundTrip(t *testing.T) {
 		t.Fatalf("clone: %s", out.String())
 	}
 	var res struct {
-		File   string `json:"file"`
-		Events []struct {
+		Status  string `json:"status"`
+		Preview string `json:"template_preview_project"`
+		File    string `json:"file"`
+		Events  []struct {
 			At         float64
 			Kind       string
 			Start, End float64
@@ -69,6 +71,9 @@ func TestCloneRoundTrip(t *testing.T) {
 	}
 	if res.Compare == "" {
 		t.Error("no comparison sheet")
+	}
+	if res.Status != "needs_visual_review" || res.Preview == "" {
+		t.Errorf("clone must expose its review state and stand-in preview: %+v", res)
 	}
 	// The template, rendered and measured again, cuts where the original did.
 	if res.Timing.Events == 0 || res.Timing.Matched != res.Timing.Events || res.Timing.MaxMs > 200 {

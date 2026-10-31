@@ -354,6 +354,9 @@ func (a *app) clone(args []string) int {
 	}
 	if timing != nil {
 		out["timing"] = timing
+		if timing.Matched < timing.Events || timing.MaxMs > math.Max(200, 2*timing.FrameMs) {
+			warnings = append(warnings, spec.Issue{Code: "W_TIMING", Message: fmt.Sprintf("Template timing matched %d/%d events; worst measured difference %.0f ms.", timing.Matched, timing.Events, timing.MaxMs), Hint: "Inspect the transition sheet and comparison. Matched events are approximate, not proof of frame-exact reproduction."})
+		}
 	}
 	if ocrUsed != "" {
 		out["ocr"] = ocrUsed
@@ -362,6 +365,17 @@ func (a *app) clone(args []string) int {
 		out["analysis_reused"] = true
 	}
 	out["review"] = buildReview(res, crops, cropFiles, given, timelineRel, sheetRel, transRel, compareRel, src, name)
+	// A measured recipe is not a finished adaptation. Expose artifacts by
+	// purpose so agents do not deliver the placeholder comparison as footage.
+	out["status"] = "needs_visual_review"
+	if compareRel == "" {
+		out["status"] = "comparison_failed"
+	}
+	if preview := filepath.Join(outAbs, "preview.json"); fileExists(preview) {
+		out["template_preview_project"] = root.Rel(preview)
+	}
+	out["reference_video"] = src
+	out["next"] = fmt.Sprintf("Review images and correct with --read; then apply %s to replacement clips using wecut recipe apply --input request.json. template_preview_project uses stand-ins, not replacement footage.", root.Rel(recipeAbs))
 	if len(plan.Notes) > 0 {
 		out["notes"] = plan.Notes
 	}

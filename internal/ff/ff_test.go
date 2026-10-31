@@ -2,8 +2,20 @@ package ff
 
 import (
 	"reflect"
+	"strings"
 	"testing"
 )
+
+func TestFailureLinesPreservesFilterCause(t *testing.T) {
+	log := "[Parsed_xfade_100] The inputs needs to be a constant frame rate; current rate of 1/0 is invalid\n[Parsed_xfade_100] Failed to configure output pad\n" + strings.Repeat("[aost] Terminating thread\n[vost] Could not open encoder before EOF\n", 8)
+	got := failureLines(log)
+	if !strings.Contains(got, "current rate of 1/0") || !strings.Contains(got, "Could not open encoder") {
+		t.Fatal(got)
+	}
+	if got := failureLines("signal: killed"); got != "signal: killed" {
+		t.Fatal(got)
+	}
+}
 
 func TestGraphFilters(t *testing.T) {
 	graph := "[0:v]setpts=PTS-STARTPTS,scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920:(iw-1080)*0.5:(ih-1920)*0.5[v0];\n" +

@@ -249,12 +249,15 @@ func buildReview(res *clone.Result, crops []clone.Crop, files map[string]string,
 			pending++
 		}
 		it := map[string]any{"id": bl.ID, "kind": "text", "start": bl.Start, "end": bl.End, "answered": answered,
-			"ask": "The exact words with their line breaks, the closest font, slant, words in another colour. If this is part of the footage or not text, drop it."}
+			"ask": "The exact words with their line breaks, closest font, slant and emphasis. Correct layout with x, y (canvas fractions), align (left/center/right), size (pixels at 1080), max_width (canvas fraction), line_height (0.8..2.5), start/end (source seconds). If this is part of the footage or not text, drop it."}
 		if f := files[bl.ID]; f != "" {
 			it["image"] = f
 		}
 		if sl := slotOf[bl.Slot]; sl != nil {
 			now := map[string]any{"slot": sl.Slot, "font": sl.Font, "color": sl.Color, "italic": sl.Italic != nil && *sl.Italic, "uppercase": sl.Uppercase != nil && *sl.Uppercase}
+			now["x"], now["y"], now["size"], now["align"] = sl.X, sl.Y, sl.Size, sl.Align
+			now["max_width"], now["line_height"] = sl.MaxWidth, sl.LineHeight
+			now["start"], now["end"] = sl.Start, sl.End
 			if bl.Words != "" {
 				now["words"] = bl.Words
 			}

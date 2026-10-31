@@ -46,6 +46,10 @@ type Reading struct {
 	Background    string       `json:"background,omitempty"` // #RRGGBB or none
 	Size          float64      `json:"size,omitempty"`       // font size in pixels at 1080
 	Y             *float64     `json:"y,omitempty"`          // centre, a fraction of the height
+	X             *float64     `json:"x,omitempty"`          // horizontal anchor, a fraction of the width
+	Align         string       `json:"align,omitempty"`
+	MaxWidth      *float64     `json:"max_width,omitempty"`
+	LineHeight    *float64     `json:"line_height,omitempty"`
 	Shadow        *bool        `json:"shadow,omitempty"`
 	Join          string       `json:"join,omitempty"`      // slotN: the transition into the next shot
 	Mode          string       `json:"mode,omitempty"`      // captions: chunk, karaoke, pop
@@ -416,6 +420,24 @@ func (a *Analyzer) Build(o Options) *Result {
 		if rd.Y != nil {
 			y = *rd.Y
 		}
+		if rd.X != nil {
+			x = *rd.X
+		}
+		if rd.Align != "" {
+			sl.Align = rd.Align
+		}
+		if rd.MaxWidth != nil {
+			sl.MaxWidth = *rd.MaxWidth
+		}
+		if rd.LineHeight != nil {
+			sl.LineHeight = *rd.LineHeight
+		}
+		if rd.Start != nil {
+			sl.Start = *rd.Start
+		}
+		if rd.End != nil {
+			sl.End = spec.F(*rd.End)
+		}
 		sl.X, sl.Y = spec.F(r3(x)), spec.F(r3(y))
 		if rd.Background == "none" {
 			sl.Background, sl.Box, sl.Padding, sl.BackgroundOpacity = "none", "", nil, nil
@@ -541,6 +563,9 @@ func (a *Analyzer) Build(o Options) *Result {
 		}
 		if seen.Y != nil {
 			cs.Y = spec.F(r3(*seen.Y))
+		}
+		if seen.X != nil {
+			cs.X = spec.F(r3(*seen.X))
 		}
 		cs.Highlight = seen.Highlight
 		cs.Accent = seen.Accent

@@ -1,8 +1,12 @@
 # args
+-filter_complex_threads
+2
 -ss
 2
 -t
 4
+-threads
+2
 -protocol_whitelist
 file
 -format_whitelist
@@ -13,6 +17,8 @@ file:/w/media/a.mp4
 0
 -t
 5
+-threads
+2
 -protocol_whitelist
 file
 -format_whitelist
@@ -25,6 +31,8 @@ file:/w/media/b.mp4
 30
 -t
 7.033
+-threads
+2
 -protocol_whitelist
 file
 -format_whitelist
@@ -33,6 +41,8 @@ mov,mp4,m4a,3gp,3g2,mj2,matroska,webm,mp3,wav,aac,ogg,flac,image2,png_pipe,jpeg_
 file:/w/media/logo.png
 -ss
 0
+-threads
+2
 -protocol_whitelist
 file
 -format_whitelist
@@ -43,6 +53,8 @@ file:/w/media/music.mp3
 graph.txt
 -map
 [vout]
+-threads
+2
 -c:v
 libx264
 -preset
@@ -85,9 +97,9 @@ mp4
 [0:v]setpts=PTS-STARTPTS,split=2[cb1][cf2];
 [cb1]scale=270:480:force_original_aspect_ratio=increase,crop=270:480,boxblur=4:2,scale=1080:1920[cbg3];
 [cf2]scale=1080:1920:force_original_aspect_ratio=decrease:flags=bicubic[cfg4];
-[cbg3][cfg4]overlay=(W-w)/2:(H-h)/2,fps=30,format=yuv420p,setsar=1,tpad=stop_mode=clone:stop_duration=1,trim=duration=4,setpts=PTS-STARTPTS,settb=AVTB[v0];
+[cbg3][cfg4]overlay=(W-w)/2:(H-h)/2,fps=30,format=yuv420p,setsar=1,tpad=stop_mode=clone:stop_duration=1,trim=duration=4,setpts=PTS-STARTPTS,fps=30,settb=AVTB[v0];
 [0:a]asetpts=PTS-STARTPTS,aresample=48000,aformat=sample_fmts=fltp:channel_layouts=stereo,apad=whole_dur=4,atrim=duration=4[a0];
-[1:v]setpts=(PTS-STARTPTS)/1.5,scale=1080:1920:force_original_aspect_ratio=increase:flags=bicubic,crop=1080:1920:(iw-1080)*0.5:(ih-1920)*0.5,fps=30,format=yuv420p,setsar=1,tpad=stop_mode=clone:stop_duration=1,trim=duration=3.333,setpts=PTS-STARTPTS,settb=AVTB[v1];
+[1:v]setpts=(PTS-STARTPTS)/1.5,scale=1080:1920:force_original_aspect_ratio=increase:flags=bicubic,crop=1080:1920:(iw-1080)*0.5:(ih-1920)*0.5,fps=30,format=yuv420p,setsar=1,tpad=stop_mode=clone:stop_duration=1,trim=duration=3.333,setpts=PTS-STARTPTS,fps=30,settb=AVTB[v1];
 anullsrc=r=48000:cl=stereo,atrim=duration=3.333,aresample=48000,aformat=sample_fmts=fltp:channel_layouts=stereo[a1];
 [v0][v1]xfade=transition=fadewhite:duration=0.3:offset=3.7[vj5];
 [a0][a1]acrossfade=d=0.3:c1=tri:c2=tri[aj6];

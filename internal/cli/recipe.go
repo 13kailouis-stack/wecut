@@ -279,6 +279,10 @@ func (a *app) recipeApply(args []string) int {
 	if len(errs) > 0 {
 		return a.fail(exitFor(errs), warns, errs...)
 	}
+	provenance, reused := applicationSources(root, r, p)
+	if reused {
+		warns = append(warns, spec.Issue{Code: "W_REFERENCE_REUSED", Path: "/clips", Message: "The rendered footage includes the video's clone reference.", Hint: "For an adaptation, supply the destination footage in clips. Reusing the reference is only a reconstruction, and may duplicate baked-in text and transitions."})
+	}
 	projectJSON, _ := json.MarshalIndent(p, "", "  ")
 
 	// Check the result exactly as `validate` would, transcript and all.
@@ -293,7 +297,8 @@ func (a *app) recipeApply(args []string) int {
 	}
 	res := map[string]any{
 		"recipe": r.Name, "project": p, "duration": l.edit.Total, "width": l.edit.W, "height": l.edit.H,
-		"next": "wecut preview <project> to look, then wecut render <project>",
+		"sources": provenance,
+		"next":    "wecut preview <project> to look, then wecut render <project>",
 	}
 	if req.Write != "" {
 		if ext := strings.ToLower(filepath.Ext(req.Write)); ext != ".json" {
@@ -314,6 +319,42 @@ func (a *app) recipeApply(args []string) int {
 		res["warnings"] = all
 	}
 	return a.ok(res)
+}
+
+// Separate style provenance from actual footage; a file name on the output
+// never proves which source was used. SameFile also catches path aliases.
+func applicationSources(root *workspace.Root, r *recipe.Recipe, p *spec.Project) (map[string]any, bool) {
+	ref := ""
+	var refInfo os.FileInfo
+	if r.Source != nil {
+		ref = r.Source.File
+		if abs, err := root.Input(ref); err == nil {
+			refInfo, _ = os.Stat(abs)
+		}
+	}
+	seen := map[string]bool{}
+	var footage []string
+	reused := false
+	for _, clip := range p.Clips {
+		if !seen[clip.Src] {
+			footage = append(footage, clip.Src)
+			seen[clip.Src] = true
+		}
+		if ref == "" {
+			continue
+		}
+		if filepath.Clean(ref) == filepath.Clean(clip.Src) {
+			reused = true
+		}
+		if refInfo != nil {
+			if abs, err := root.Input(clip.Src); err == nil {
+				if info, err := os.Stat(abs); err == nil && os.SameFile(refInfo, info) {
+					reused = true
+				}
+			}
+		}
+	}
+	return map[string]any{"reference_video": ref, "footage": footage, "reference_reused": reused}, reused
 }
 
 func (a *app) recipeFromProject(args []string) int {
