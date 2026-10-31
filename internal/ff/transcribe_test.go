@@ -2,10 +2,23 @@ package ff
 
 import (
 	"context"
+	"io"
 	"os"
 	"path/filepath"
+	"runtime"
+	"strings"
 	"testing"
 )
+
+func TestMain(m *testing.M) {
+	// A copy of this test binary, named whisper-cli, stands in for
+	// whisper.cpp. Windows LookPath only resolves PATHEXT names and
+	// cannot execute a shell script.
+	if whisperStubInvoked() {
+		os.Exit(whisperStub())
+	}
+	os.Exit(m.Run())
+}
 
 func TestParseWhisperWords(t *testing.T) {
 	tokens := []byte(`{"transcription":[{"offsets":{"from":0,"to":800},"text":" hi there","tokens":[{"text":" hi","offsets":{"from":0,"to":300}},{"text":" there","offsets":{"from":300,"to":800}},{"text":"[_BEG_]","offsets":{"from":0,"to":0}}]}]}`)
@@ -47,23 +60,16 @@ func TestWhisperFilterHasNoUserPath(t *testing.T) {
 
 func TestFindWhisperOnPath(t *testing.T) {
 	dir := t.TempDir()
-	bin := filepath.Join(dir, "whisper-cli")
-	if err := os.WriteFile(bin, []byte("#!/bin/sh\n"), 0o755); err != nil {
-		t.Fatal(err)
-	}
+	bin := plantWhisperCLI(t, dir)
 	t.Setenv("PATH", dir)
-	if got := FindWhisper(); got != bin {
-		t.Fatalf("found %q", got)
+	if got := FindWhisper(); !samePath(got, bin) {
+		t.Fatalf("found %q, want %q", got, bin)
 	}
 }
 
 func TestRunWhisperFile(t *testing.T) {
 	dir := t.TempDir()
-	bin := filepath.Join(dir, "whisper-cli")
-	script := "#!/bin/sh\nout=\nwhile [ $# -gt 0 ]; do\n  if [ \"$1\" = \"-of\" ]; then out=$2; shift 2; continue; fi\n  shift\ndone\nprintf '%s\\n' '{\"transcription\":[{\"text\":\" hi\",\"offsets\":{\"from\":0,\"to\":500},\"tokens\":[{\"text\":\" hi\",\"offsets\":{\"from\":0,\"to\":500}}]}]}' > \"$out.json\"\n"
-	if err := os.WriteFile(bin, []byte(script), 0o755); err != nil {
-		t.Fatal(err)
-	}
+	bin := plantWhisperCLI(t, dir)
 	w, err := runWhisperFile(context.Background(), bin, filepath.Join(dir, "speech.wav"), filepath.Join(dir, "model.bin"), "auto", dir)
 	if err != nil {
 		t.Fatal(err)
@@ -71,4 +77,90 @@ func TestRunWhisperFile(t *testing.T) {
 	if len(w) != 1 || w[0].Text != "hi" || w[0].End != 0.5 {
 		t.Fatalf("%+v", w)
 	}
+}
+
+// plantWhisperCLI puts a runnable whisper-cli on dir. On Windows the
+// file is whisper-cli.exe so exec.LookPath can resolve it.
+func plantWhisperCLI(t *testing.T, dir string) string {
+	t.Helper()
+	exe, err := os.Executable()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resolved, err := filepath.EvalSymlinks(exe); err == nil {
+		exe = resolved
+	}
+	name := "whisper-cli"
+	if runtime.GOOS == "windows" {
+		name += ".exe"
+	}
+	dst := filepath.Join(dir, name)
+	if err := cloneExecutable(dst, exe); err != nil {
+		t.Fatal(err)
+	}
+	return dst
+}
+
+func cloneExecutable(dst, src string) error {
+	if err := os.Link(src, dst); err == nil {
+		return nil
+	}
+	in, err := os.Open(src)
+	if err != nil {
+		return err
+	}
+	defer in.Close()
+	out, err := os.OpenFile(dst, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o755)
+	if err != nil {
+		return err
+	}
+	_, copyErr := io.Copy(out, in)
+	closeErr := out.Close()
+	if copyErr != nil {
+		return copyErr
+	}
+	return closeErr
+}
+
+func samePath(a, b string) bool {
+	a, b = filepath.Clean(a), filepath.Clean(b)
+	if runtime.GOOS == "windows" {
+		return strings.EqualFold(a, b)
+	}
+	return a == b
+}
+
+func whisperStubInvoked() bool {
+	base := filepath.Base(os.Args[0])
+	if strings.EqualFold(filepath.Ext(base), ".exe") {
+		base = strings.TrimSuffix(base, filepath.Ext(base))
+	}
+	switch strings.ToLower(base) {
+	case "whisper-cli", "whisper-cpp", "whisper":
+		return true
+	default:
+		return false
+	}
+}
+
+// whisperStub writes the JSON file whisper.cpp would write for -of.
+func whisperStub() int {
+	out := ""
+	args := os.Args[1:]
+	for i := 0; i < len(args); i++ {
+		if args[i] == "-of" && i+1 < len(args) {
+			out = args[i+1]
+			i++
+		}
+	}
+	if out == "" {
+		os.Stderr.WriteString("missing -of\n")
+		return 2
+	}
+	body := "{\"transcription\":[{\"text\":\" hi\",\"offsets\":{\"from\":0,\"to\":500},\"tokens\":[{\"text\":\" hi\",\"offsets\":{\"from\":0,\"to\":500}}]}]}\n"
+	if err := os.WriteFile(out+".json", []byte(body), 0o644); err != nil {
+		os.Stderr.WriteString(err.Error() + "\n")
+		return 1
+	}
+	return 0
 }
