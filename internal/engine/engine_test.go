@@ -182,6 +182,27 @@ func TestColours(t *testing.T) {
 	}
 }
 
+func TestLoudnormDefault(t *testing.T) {
+	e, issues := Resolve(project(t, `{"wecut":"1","clips":[{"src":"media/a.mp4","to":1}]}`), fakeMedia, nil)
+	if len(issues) > 0 {
+		t.Fatal(issues)
+	}
+	plan, err := Compile(e, Options{Encoder: "libx264", OutPath: "/w/out/tmp.mp4", FFmpegMajor: 8})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(plan.Graph, "loudnorm=I=-14:TP=-1.5:LRA=11") {
+		t.Fatalf("graph missing loudnorm:\n%s", plan.Graph)
+	}
+	off, err := Compile(e, Options{Encoder: "libx264", OutPath: "/w/out/tmp.mp4", FFmpegMajor: 8, NoLoudnorm: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(off.Graph, "loudnorm") {
+		t.Fatalf("no-loudnorm still normalised:\n%s", off.Graph)
+	}
+}
+
 func TestATempoChains(t *testing.T) {
 	cases := map[float64][]string{1: nil, 1.5: {"atempo=1.5"}, 4: {"atempo=2", "atempo=2"}, 0.25: {"atempo=0.5", "atempo=0.5"}}
 	for s, want := range cases {

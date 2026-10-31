@@ -617,6 +617,7 @@ func (a *Analyzer) Build(o Options) *Result {
 		vol := 100.0
 		r.Music = &recipe.Music{Src: o.Music, Duration: spec.F(r2(hookLen)), Volume: &vol, Note: "the original's music under the hook; pass music to use your own or \"none\""}
 	}
+	stampBeats(r, p)
 
 	res.Recipe = r
 	res.Hints = a.hints(p, r, slotN, o)
@@ -739,6 +740,20 @@ func (a *Analyzer) hints(p *Plan, r *recipe.Recipe, slots int, o Options) []stri
 	}
 	if r.Music != nil {
 		h = append(h, "the original's soundtrack is the default music; a song taken from someone else's video may be muted by the platform")
+	}
+	if r.Tempo != nil {
+		h = append(h, fmt.Sprintf("cuts sit on a %.0f BPM grid; recipe apply snaps them when you pass new music", r.Tempo.BPM))
+	}
+	var anims []string
+	seenAnim := map[string]bool{}
+	for _, bl := range p.Blocks {
+		if bl.In != "" && !seenAnim[bl.In] {
+			seenAnim[bl.In] = true
+			anims = append(anims, bl.In)
+		}
+	}
+	if len(anims) > 0 {
+		h = append(h, "text entrances: "+strings.Join(anims, ", "))
 	}
 	if music, end := p.HookSound(o.Read); music {
 		h = append(h, fmt.Sprintf("the first %.1f s sound like music, not the talk: the hook's own sound is muted and the talk starts after it", end))

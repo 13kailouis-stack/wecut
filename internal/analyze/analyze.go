@@ -292,6 +292,42 @@ func tempo(pcm []int16, rate int) (bpm, conf float64, beats []float64) {
 	return r1(bpm), r2(bestAC), beats
 }
 
+// Grid is the regular beat clock Sound found. Offset is the time of beat 0.
+type Grid struct {
+	BPM    float64
+	Offset float64
+	Conf   float64
+}
+
+// Grid returns the beat clock when the tempo is steady enough to cut to.
+// The same bar (confidence 0.2, at least four beats) is what `wecut analyze`
+// calls a steady beat.
+func (a Audio) Grid() (Grid, bool) {
+	if a.BPM < 40 || a.BPMConf < 0.2 || len(a.Beats) < 4 {
+		return Grid{}, false
+	}
+	return Grid{BPM: a.BPM, Offset: a.Beats[0], Conf: a.BPMConf}, true
+}
+
+// Period is the length of one beat in seconds.
+func (g Grid) Period() float64 { return 60 / g.BPM }
+
+// Index is the beat number of time t, fractional between beats.
+func (g Grid) Index(t float64) float64 {
+	return (t - g.Offset) / g.Period()
+}
+
+// SnapIndex rounds to the nearest beat when t is within tol seconds of it,
+// and otherwise keeps the fractional index.
+func (g Grid) SnapIndex(t, tol float64) float64 {
+	raw := g.Index(t)
+	n := math.Round(raw)
+	if math.Abs(g.Offset+n*g.Period()-t) <= tol {
+		return n
+	}
+	return raw
+}
+
 // BeatSync is the share of cuts that land within tol seconds of a beat.
 func BeatSync(cuts, beats []float64, tol float64) float64 {
 	if len(cuts) == 0 || len(beats) == 0 {

@@ -2,6 +2,7 @@ package cli
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -11,8 +12,11 @@ import (
 	"slices"
 	"sort"
 	"strings"
+	"time"
 
 	wecut "github.com/13kailouis-stack/wecut"
+	"github.com/13kailouis-stack/wecut/internal/analyze"
+	"github.com/13kailouis-stack/wecut/internal/ff"
 	"github.com/13kailouis-stack/wecut/internal/recipe"
 	"github.com/13kailouis-stack/wecut/internal/spec"
 	"github.com/13kailouis-stack/wecut/internal/workspace"
@@ -170,7 +174,11 @@ func (a *app) recipeShow(args []string) int {
 	if r.Music != nil && r.Music.Src != "" {
 		music = r.Music.Src
 	}
-	return a.ok(map[string]any{"recipe": r, "from": from, "roles": roles, "slots": recipe.Slots(r), "captions": r.Captions != nil, "default_music": music})
+	res := map[string]any{"recipe": r, "from": from, "roles": roles, "slots": recipe.Slots(r), "captions": r.Captions != nil, "default_music": music}
+	if r.Tempo != nil {
+		res["tempo_bpm"] = r.Tempo.BPM
+	}
+	return a.ok(res)
 }
 
 func (a *app) recipeValidate(args []string) int {
@@ -207,10 +215,12 @@ type applyRequest struct {
 func (a *app) recipeApply(args []string) int {
 	var c common
 	var input, write string
+	var noBeat bool
 	fs := flag.NewFlagSet("recipe apply", flag.ContinueOnError)
 	c.bind(fs)
 	fs.StringVar(&input, "input", "", "apply request (.json file or - for stdin)")
 	fs.StringVar(&write, "write", "", "save the project here")
+	fs.BoolVar(&noBeat, "no-beat-sync", false, "keep the template's seconds when the music is replaced")
 	pos, err := parse(fs, args)
 	if err != nil || input == "" || len(pos) > 1 {
 		return a.fail(exitInput, nil, spec.Issue{Code: "E_USAGE", Message: "give the request with --input", Hint: `wecut recipe apply --input - <<< '{"recipe": "news-headline", "clips": [{"src": "media/talk.mp4", "from": 30, "to": 75}], "texts": {"headline": {"text": "..."}}}'`})
@@ -275,7 +285,27 @@ func (a *app) recipeApply(args []string) int {
 	if len(errs) > 0 {
 		return a.fail(exitInput, nil, errs...)
 	}
+	var beatWarn string
+	if noBeat {
+		req.MusicBPM, req.MusicOffset = 0, 0
+	} else if req.Music != "" && req.Music != "none" && recipe.HasBeatGrid(r) && req.MusicBPM <= 0 {
+		info := set[req.Music]
+		if info.Kind == "audio" || info.HasAudio {
+			bpm, off, ok, err := measureTempo(a.ctx, t, info.Path)
+			switch {
+			case err != nil:
+				beatWarn = "could not read a beat from the new music; cuts stay at the template's times"
+			case !ok:
+				beatWarn = "the new music has no steady beat; cuts stay at the template's times"
+			default:
+				req.MusicBPM, req.MusicOffset = bpm, off
+			}
+		}
+	}
 	p, warns, errs := recipe.Apply(r, req.Input, set)
+	if beatWarn != "" {
+		warns = append(warns, spec.Issue{Code: "W_RECIPE", Path: "/music", Message: beatWarn})
+	}
 	if len(errs) > 0 {
 		return a.fail(exitFor(errs), warns, errs...)
 	}
@@ -355,6 +385,27 @@ func applicationSources(root *workspace.Root, r *recipe.Recipe, p *spec.Project)
 		}
 	}
 	return map[string]any{"reference_video": ref, "footage": footage, "reference_reused": reused}, reused
+}
+
+// measureTempo reads the first two minutes of a track and returns its
+// beat clock when one is steady enough to cut to.
+func measureTempo(ctx context.Context, t *ff.Tools, abs string) (bpm, offset float64, ok bool, err error) {
+	job, err := os.MkdirTemp("", "wecut-beat-")
+	if err != nil {
+		return 0, 0, false, err
+	}
+	defer os.RemoveAll(job)
+	ctx, cancel := context.WithTimeout(ctx, 60*time.Second)
+	defer cancel()
+	pcm, err := t.PCM(ctx, abs, job, analyzeRate, 120)
+	if err != nil {
+		return 0, 0, false, err
+	}
+	g, ok := analyze.Sound(pcm, analyzeRate).Grid()
+	if !ok {
+		return 0, 0, false, nil
+	}
+	return g.BPM, g.Offset, true, nil
 }
 
 func (a *app) recipeFromProject(args []string) int {

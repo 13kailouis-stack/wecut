@@ -42,11 +42,12 @@ song taken from someone else's video may be muted by the platform.
 | Push in / pull out | the end frame is the start frame scaled, and the middle sits halfway | `zoom`, `zoomTo` |
 | Punch-in on one take | the frame after a cut is the frame before it, scaled | `continue: true`, `zoom` |
 | Still shots | almost no change inside the shot | shot `about`: a photo or screenshot |
-| Text cards | lines of edges followed frame to frame; kept when they stay put while the picture behind them changes, last across a cut, or come and go mid-shot | `texts` slots with font size, colour, box (`card` or per line), line spacing, padding, alignment, italic, uppercase, key-word colour, timing and fade |
+| Text cards | lines of edges followed frame to frame; kept when they stay put while the picture behind them changes, last across a cut, or come and go mid-shot | `texts` slots with font size, colour, box (`card` or per line), line spacing, padding, alignment, italic, uppercase, key-word colour, timing, and an entrance (`in`: `fade`, `pop` for a scale-up, `up` for a drift into place, `type` for letters filling in) |
 | Captions | short-lived words that keep returning to one centred band | `captions` style, position and mode (`pop` for one word at a time) |
 | Logo | text-like mark near an edge for most of the video | `overlays` slot |
 | Hook over talk | silent B-roll under an opening card while speech already plays | hook section `audio: "next"` (a J-cut) |
 | Platform outro | a silent dark still ending | left out (`source.used`) |
+| Beat grid | the same tempo measure as `wecut analyze`, when it is steady | `tempo` (`bpm`, `offset`) plus each shot's `beat` and each text slot's `startBeat` / `endBeat`, beside the seconds |
 
 Colours, boxes and letter sizes are read from full-size frames.
 
@@ -162,6 +163,16 @@ so one long take feeds every slot, and `auto` (the default) uses `each` when
 there are at least as many clips as slots. Footage that runs out wraps
 around, with a warning.
 
+A text slot's `in` animation is copied onto the project, so a card that
+scaled, drifted or typed in the original does the same in the render.
+
+When the recipe has a `tempo` and you pass new `music`, apply measures that
+track and retimes the shots and text slots so each cut keeps its beat index
+on the new clock (half-time to double-time). The seconds stay as cloned
+when the new track has no steady beat, when the tempos are further apart
+than that, or with `--no-beat-sync`. Passing `musicBpm` and `musicOffset`
+(seconds of beat 0) uses that grid instead of measuring.
+
 ## Using it from other tools
 
 | Surface | Use |
@@ -180,4 +191,6 @@ around, with a warning.
 - Fonts are not identified but matched: among the 40 bundled fonts, the sans and condensed families (Poppins Medium to Black, Kanit, Roboto, Montserrat, Oswald, Barlow Condensed, Bebas, Anton, Archivo Black, Lilita) are scored on stroke weight, on each line's width at the measured capital height when the words are known, and on having a real italic; a weight no font comes near (glow, outline) keeps the default. Without the words (the browser Studio has no OCR) only the weight decides. Script, horror and novelty faces are left for a person or an agent to choose. Gradient or textured text gets its main colour.
 - Stickers, emoji, masks, speed ramps, keyframed text paths and colour
   grades are not cloned yet.
-- Text animations other than fade-in are not detected yet.
+- Text exits (a fade or shrink at the end of a card) are not detected yet.
+  Entrances are: fade, scale (`pop`), a vertical drift (`up`) and letters
+  filling in (`type`), from the first third of a second.

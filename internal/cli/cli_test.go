@@ -171,8 +171,15 @@ func TestDryRunAndCommands(t *testing.T) {
 	}
 	var d map[string]any
 	json.Unmarshal(out.Bytes(), &d)
-	if !strings.Contains(d["graph"].(string), "[vout]") {
+	if g := d["graph"].(string); !strings.Contains(g, "[vout]") || !strings.Contains(g, "loudnorm=I=-14") {
 		t.Fatalf("dry-run graph: %v", d)
+	}
+	out.Reset()
+	if code := Run(context.Background(), []string{"render", "-", "--dry-run", "--no-loudnorm", "--root", root}, strings.NewReader(`{"wecut":"1","clips":[{"src":"media/talk.mp4"}]}`), &out, &out); code != 0 || strings.Contains(out.String(), "loudnorm=") {
+		t.Fatalf("no-loudnorm: %s", out.String())
+	}
+	if r, code := run(t, root, "", "transcribe", "media/talk.mp4"); code != 3 || r.OK || len(r.Errors) == 0 || r.Errors[0]["code"] != "E_DEPENDENCY" {
+		t.Fatalf("transcribe without a model: code %d %+v", code, r)
 	}
 	if _, err := os.Stat(filepath.Join(root, "out", "wecut.mp4")); err == nil {
 		t.Fatal("dry-run rendered a file")

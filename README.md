@@ -153,7 +153,7 @@ Prebuilt for Linux, macOS and Windows on x64 and arm64. Set `WECUT_BINARY` to us
 - Footage in a card on a plain or grid background with rounded corners (`inset`), colour washes for a stretch of the video, captions that light up word by word (`reveal`) with key words set apart (`accent`)
 - Captions from a transcript: phrase, karaoke (spoken word highlighted) or one word at a time. Transcript times can stay in source-file seconds; WeCut maps them through the cuts
 - Image overlays (logos, stickers) with opacity, rotation and fades
-- Music and sound effects with trim, loop, fades and automatic ducking under speech
+- Music and sound effects with trim, loop, fades and automatic ducking under speech. Renders are loudness-normalised toward −14 LUFS (`--no-loudnorm` skips it)
 - Colour filters and effects (flash, cinema bars, frame, dim, night, sepia)
 - Analysis of an existing video: shots, pace, hook length, flashes, tempo and beat sync, pauses, platform outro, and a frame sheet the model can look at
 - Templates ("recipes"): the shape of an edit, applied to new clips, words and music; save your own from any project
@@ -165,7 +165,7 @@ Prebuilt for Linux, macOS and Windows on x64 and arm64. Set `WECUT_BINARY` to us
 wecut clone media/viral.mp4 --name news-card   # -> recipes/news-card.json + out/clone/news-card/compare.jpg
 ```
 
-`clone` turns a finished video into a template the way an editor would have built it: every cut and transition (flash, fade, dissolve, zoom, blur) at its exact time, each shot's framing (full screen, or shown whole on black or blurred bars) and push-in, the text cards with their colours, box, size, line spacing, padding and timing, the caption style and position, the logo, and a talk that already plays under the opening B-roll. Each shot is a media slot, like a CapCut template. WeCut holds no model and no API key: it returns a review with the images and evidence behind each finding, and the agent running it looks and answers, so words, fonts, what each shot is and the kind of each transition come from real eyes and OCR is only a fallback. The comparison sheet puts the original beside the template filled with numbered stand-ins, so a person or a model can check it at a glance. People fill the slots in WeCut Studio; agents with `wecut recipe apply`. Details and the format: [docs/clone.md](docs/clone.md). Cloning needs the **0.3.0 source/build**; the published npm 0.1.0 does not have it yet.
+`clone` turns a finished video into a template the way an editor would have built it: every cut and transition (flash, fade, dissolve, zoom, blur) at its exact time, each shot's framing (full screen, or shown whole on black or blurred bars) and push-in, the text cards with their colours, box, size, line spacing, padding, timing and entrance (fade, pop, slide or type), the caption style and position, the logo, and a talk that already plays under the opening B-roll. A steady beat is stored as beat indexes; `recipe apply` snaps those cuts onto replacement music. Each shot is a media slot, like a CapCut template. WeCut holds no model and no API key: it returns a review with the images and evidence behind each finding, and the agent running it looks and answers, so words, fonts, what each shot is and the kind of each transition come from real eyes and OCR is only a fallback. The comparison sheet puts the original beside the template filled with numbered stand-ins, so a person or a model can check it at a glance. People fill the slots in WeCut Studio; agents with `wecut recipe apply`. Details and the format: [docs/clone.md](docs/clone.md). Cloning needs the **0.3.0 source/build**; the published npm 0.1.0 does not have it yet.
 
 ## Analyse a video, reuse its format
 
@@ -193,8 +193,9 @@ Copy the structure, not the content: other creators' footage, wording and music 
 | `wecut_render` | renders MP4/GIF, with progress notifications |
 | `wecut_list`, `wecut_schema`, `wecut_example` | names, the project format, working examples |
 | `wecut_analyze` | measures a video and returns its frame sheet as an image |
+| `wecut_transcribe` | word timings via FFmpeg's whisper filter, or whisper.cpp on PATH |
 | `wecut_recipe_list`, `wecut_recipe_show` | templates and their roles and text slots |
-| `wecut_recipe_apply` | recipe + new clips, words and music -> project |
+| `wecut_recipe_apply` | recipe + new clips, words and music -> project; snaps beat-synced cuts onto new music |
 | `wecut_recipe_from_project` | saves a finished project as a template |
 
 Prompts (slash commands in clients that show them): `clips-from-video`, `copy-viral-format`, `add-captions`, `save-template`.
@@ -234,7 +235,7 @@ Yes. The agent reads a transcript, picks the moments, writes one project per cli
 It measures the video (`wecut analyze`: cuts, pace, hook length, flashes, tempo, pauses, outro) and returns a frame sheet the model looks at. The agent then picks or writes a recipe and applies it to new footage, words and music. It copies the structure, not the footage, wording or music.
 
 **Does it transcribe speech?**
-It reads word timings from OpenAI or Groq Whisper `verbose_json`, whisper.cpp JSON, SRT, VTT or a plain word list. If the local FFmpeg has the Whisper filter, `wecut doctor` reports `local_transcription: true`.
+It reads word timings from OpenAI or Groq Whisper `verbose_json`, whisper.cpp JSON, SRT, VTT or a plain word list. `wecut transcribe media/talk.mp4` writes those timings locally: FFmpeg's whisper filter when this build has it, otherwise a `whisper-cli` (or `whisper-cpp` / `whisper`) binary on PATH. Both need a ggml model (`--model`, `WECUT_WHISPER_MODEL`, or `models/ggml-base.bin`). Nothing is downloaded. `wecut doctor` reports `local_transcription: true` when either engine is available.
 
 **Does it upload my video anywhere?**
 No. WeCut makes no network requests and has no telemetry. Media paths are refused if they are URLs or outside the workspace.
@@ -319,7 +320,6 @@ Tests: `go test ./...` (the CLI tests render real video and are skipped without 
 ## Roadmap
 
 - `uvx wecut` (PyPI wheels) and an MCPB bundle for one-click install in Claude Desktop
-- Local transcription through FFmpeg's Whisper filter, loudness normalisation
 - Video overlays (picture-in-picture), stickers, more effects
 - Optional Wefluence bridge for paid clipping campaigns (separate package)
 

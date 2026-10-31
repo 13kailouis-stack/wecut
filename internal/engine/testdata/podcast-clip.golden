@@ -90,7 +90,7 @@ mp4
 [2:a]atrim=duration=43.3,asetpts=PTS-STARTPTS,volume=0.25,aresample=48000,aformat=sample_fmts=fltp:channel_layouts=stereo,afade=t=out:st=41.8:d=1.5[t0];
 [aj2]asplit=2[am4][sc5];
 [t0][sc5]sidechaincompress=threshold=0.02:ratio=8:attack=20:release=350:makeup=1[td6];
-[am4][td6]amix=inputs=2:duration=first:dropout_transition=0:normalize=0,alimiter=limit=0.97:level=0[aout]
+[am4][td6]amix=inputs=2:duration=first:dropout_transition=0:normalize=0,loudnorm=I=-14:TP=-1.5:LRA=11,alimiter=limit=0.97:level=0[aout]
 
 # ass
 [Script Info]
