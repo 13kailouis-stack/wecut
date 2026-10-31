@@ -40,6 +40,18 @@ type Recipe struct {
 	Overlays    []OverlaySlot   `json:"overlays,omitempty"`
 	Gradients   []spec.Gradient `json:"gradients,omitempty"`
 	Source      *Source         `json:"source,omitempty"`
+	// Tempo is the beat grid a cloned recipe was cut to. Shot and text
+	// beat indices count from Offset. Seconds in dur and start stay valid
+	// on their own; recipe apply retimes them when new music brings its
+	// own grid.
+	Tempo *Tempo `json:"tempo,omitempty"`
+}
+
+// Tempo is a regular beat clock. Offset is the time of beat 0 in the
+// video the recipe was measured from.
+type Tempo struct {
+	BPM    float64 `json:"bpm"`
+	Offset float64 `json:"offset,omitempty"`
 }
 
 // Source records where a cloned recipe came from, so a person can find the
@@ -100,6 +112,10 @@ type Shot struct {
 	Inset    *spec.Inset      `json:"inset,omitempty"` // shows the footage in a card
 	Join     *spec.Transition `json:"join,omitempty"`  // into the next shot of this section
 	Ref      *float64         `json:"ref,omitempty"`   // where this shot sits in the source video (seconds)
+	// Beat is where this shot starts, in beats of Tempo. dur is still
+	// seconds of the original; a fractional beat means the cut sits
+	// between beats.
+	Beat *float64 `json:"beat,omitempty"`
 }
 
 // OverlaySlot is a picture laid over the video, such as a logo, whose file
@@ -123,12 +139,17 @@ type OverlaySlot struct {
 // Times are seconds from the start of its section (or of the video for
 // recipe-level slots); FromEnd places it that many seconds before the end.
 type Slot struct {
-	Slot       string     `json:"slot"`
-	About      string     `json:"about,omitempty"`
-	Text       string     `json:"text,omitempty"` // example or default words
-	Start      float64    `json:"start,omitempty"`
-	End        *float64   `json:"end,omitempty"`
-	FromEnd    *float64   `json:"fromEnd,omitempty"`
+	Slot    string   `json:"slot"`
+	About   string   `json:"about,omitempty"`
+	Text    string   `json:"text,omitempty"` // example or default words
+	Start   float64  `json:"start,omitempty"`
+	End     *float64 `json:"end,omitempty"`
+	FromEnd *float64 `json:"fromEnd,omitempty"`
+	// StartBeat and EndBeat are start and end counted on Tempo. They are
+	// kept beside the seconds so a new piece of music can land the same
+	// words on its own beats.
+	StartBeat  *float64   `json:"startBeat,omitempty"`
+	EndBeat    *float64   `json:"endBeat,omitempty"`
 	X          *float64   `json:"x,omitempty"`
 	Y          *float64   `json:"y,omitempty"`
 	Rotate     float64    `json:"rotate,omitempty"`
@@ -293,6 +314,9 @@ func Validate(r *Recipe) []spec.Issue {
 			if f := sh.Focus; f != nil && (f.X < 0 || f.X > 1 || f.Y < 0 || f.Y > 1) {
 				add("E_VALUE", q+"/focus", "focus x and y must be 0 to 1", "")
 			}
+			if sh.Beat != nil && (*sh.Beat < -1000 || *sh.Beat > 10000) {
+				add("E_VALUE", q+"/beat", "beat is out of range", "")
+			}
 			if j == 0 && sh.Continue {
 				add("E_VALUE", q+"/continue", "the first shot of a section has no shot before it to continue", "")
 			}
@@ -362,6 +386,14 @@ func Validate(r *Recipe) []spec.Issue {
 			add("E_VALUE", "/music/from", "from must be 0 or more", "")
 		}
 	}
+	if t := r.Tempo; t != nil {
+		if t.BPM < 30 || t.BPM > 240 {
+			add("E_VALUE", "/tempo/bpm", "bpm must be 30 to 240", "")
+		}
+		if t.Offset < 0 || t.Offset > spec.MaxDuration {
+			add("E_VALUE", "/tempo/offset", "offset must be 0 to 600 seconds", "")
+		}
+	}
 	for i, e := range r.Effects {
 		p := fmt.Sprintf("/effects/%d", i)
 		if _, ok := spec.EffectByKey(e.Name); !ok {
@@ -405,6 +437,18 @@ func validateSlot(s *Slot, p string, seen map[string]bool) []spec.Issue {
 	}
 	if s.FromEnd != nil && *s.FromEnd <= 0 {
 		add("E_VALUE", p+"/fromEnd", "fromEnd must be more than 0", "")
+	}
+	if s.StartBeat != nil && (*s.StartBeat < -1000 || *s.StartBeat > 10000) {
+		add("E_VALUE", p+"/startBeat", "startBeat is out of range", "")
+	}
+	if s.EndBeat != nil && (*s.EndBeat < -1000 || *s.EndBeat > 10000) {
+		add("E_VALUE", p+"/endBeat", "endBeat is out of range", "")
+	}
+	if s.StartBeat != nil && s.EndBeat != nil && *s.EndBeat <= *s.StartBeat {
+		add("E_VALUE", p+"/endBeat", "endBeat must be after startBeat", "")
+	}
+	if s.In != nil && s.In.Type != "" && !slices.Contains(spec.AnimIn, s.In.Type) {
+		add("E_VALUE", p+"/in/type", "unknown in animation "+s.In.Type, "Use fade, pop, up or type.")
 	}
 	if s.Style != "" {
 		if _, ok := spec.TextStyleByKey(s.Style); !ok {

@@ -24,6 +24,8 @@ Fase 1 dibangun 23 Okt 2026, fase 2 (MCP + npm) di hari yang sama. Arsitektur da
 
 - **Berburu bug (31 Okt)**: sekitar 150 kasus lewat CLI, MCP, dan Studio. Skrip ujinya tidak masuk repo; yang penting jadi tes Go. Temuan terberat: `--out` ke folder pengguna menghapus dan menimpa file (sekarang ditolak), `setup` bisa membuat `config.toml` Codex tidak valid kalau judul tabelnya ditulis dengan spasi, kutip, atau komentar (sekarang dibaca seperti TOML, dan bentuk inline ditolak). Claude Desktop bisa menimpa entri `setup` kalau sedang berjalan, jadi tutup dulu.
 
+- **Klon batch 1 (31 Okt)**: `wecut clone` membaca cara kartu teks masuk (skala → `pop`, geser vertikal → `up`, huruf muncul berurutan → `type`, pudar → `fade`) dari ~0,3 detik pertama dan menyimpannya di slot resep, jadi render mengulang animasi yang sama. Kalau temponya mantap, potongan dan slot teks juga disimpan sebagai indeks ketukan (`tempo`, `beat`, `startBeat`/`endBeat`) di samping detik. `recipe apply` dengan musik baru menempelkan potongan itu ke ketukan lagu baru (setengah sampai dua kali tempo; `--no-beat-sync` mematikan). Render menormalkan kenyaringan ke −14 LUFS (`loudnorm`; `--no-loudnorm` melewatinya). `wecut transcribe` mengisi timing kata: filter Whisper FFmpeg kalau ada, kalau tidak `whisper-cli` / `whisper-cpp` / `whisper` di PATH, plus model ggml (`--model` atau `models/ggml-base.bin`). Tidak mengunduh apa pun. Belum: PiP, stiker, speed ramp, animasi keluar teks.
+
 ## Cara coba
 
 ```
@@ -106,8 +108,7 @@ Yang hanya bisa dilakukan pemilik akun, setelah npm terbit:
 ## Belum dikerjakan
 
 - `uvx wecut` (wheel PyPI), bundel MCPB. Daftar di MCP Registry sudah siap (`server.json`), tinggal diterbitkan setelah npm.
-- Transkripsi lokal (filter Whisper FFmpeg 8 hanya ada di sebagian build; Ubuntu dan Chocolatey tidak punya).
-- Video PiP, stiker Twemoji, efek PNG dari app (vinyet, debu, VHS, dll.), normalisasi loudness, `batch`.
+- Video PiP, stiker Twemoji, efek PNG dari app (vinyet, debu, VHS, dll.), `batch`.
 - Render per segmen. Sekarang tiap klip dibuka sebagai input FFmpeg terpisah, jadi batasnya 100 klip per proyek supaya RAM mesin agent aman.
 - Jembatan Wefluence untuk kampanye clipping.
 - Konverter proyek app WeCut (model v2) ke format ini dan sebaliknya.

@@ -93,7 +93,7 @@ anullsrc=r=48000:cl=stereo,atrim=duration=3,aresample=48000,aformat=sample_fmts=
 [vj3]lutyuv=y='val*0.88+19.305':u='val*0.88+9.186':v='val*0.88+21.138':enable='between(t,0,7.9)'[vf5];
 [vf5]ass=f=wecut.ass:fontsdir=fonts,format=yuv420p[vout];
 [3:a]atrim=duration=7.9,asetpts=PTS-STARTPTS,aresample=48000,aformat=sample_fmts=fltp:channel_layouts=stereo,afade=t=in:st=0:d=0.5,afade=t=out:st=6.9:d=1[t0];
-[aj4][t0]amix=inputs=2:duration=first:dropout_transition=0:normalize=0,alimiter=limit=0.97:level=0[aout]
+[aj4][t0]amix=inputs=2:duration=first:dropout_transition=0:normalize=0,loudnorm=I=-14:TP=-1.5:LRA=11,alimiter=limit=0.97:level=0[aout]
 
 # ass
 [Script Info]

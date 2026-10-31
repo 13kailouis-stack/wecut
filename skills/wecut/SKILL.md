@@ -7,7 +7,7 @@ description: Cut, caption and edit videos locally with the `wecut` CLI (FFmpeg o
 
 `wecut` renders a JSON project into an MP4 (or GIF) with the FFmpeg installed on this machine. You describe the edit; WeCut does the video work. It never calls a network service.
 
-If `wecut` is not on PATH, use `npx -y wecut` (Node 16+) in its place everywhere below. If WeCut is connected as an MCP server, the same steps are the tools `wecut_doctor`, `wecut_probe`, `wecut_validate`, `wecut_preview` (returns the frames as images), `wecut_render`, `wecut_list`, `wecut_schema`, `wecut_example`, `wecut_analyze` (returns the frame sheet as an image), `wecut_clone` (video to template; returns the comparison sheet and text crops as images), `wecut_recipe_list`, `wecut_recipe_show`, `wecut_recipe_apply` and `wecut_recipe_from_project`; pass a project as `project` (object) or `projectFile` (path).
+If `wecut` is not on PATH, use `npx -y wecut` (Node 16+) in its place everywhere below. If WeCut is connected as an MCP server, the same steps are the tools `wecut_doctor`, `wecut_probe`, `wecut_validate`, `wecut_preview` (returns the frames as images), `wecut_render`, `wecut_list`, `wecut_schema`, `wecut_example`, `wecut_analyze` (returns the frame sheet as an image), `wecut_transcribe` (word timings, via FFmpeg's whisper filter or whisper.cpp on PATH), `wecut_clone` (video to template; returns the comparison sheet and text crops as images), `wecut_recipe_list`, `wecut_recipe_show`, `wecut_recipe_apply` and `wecut_recipe_from_project`; pass a project as `project` (object) or `projectFile` (path).
 
 ## Workflow
 
@@ -17,7 +17,7 @@ If `wecut` is not on PATH, use `npx -y wecut` (Node 16+) in its place everywhere
 4. **Write `project.json`** (format below). `wecut example podcast-clip` prints a full example; `wecut schema` prints the JSON Schema; `wecut list` shows every style, font, transition and filter name.
 5. **Validate:** `wecut validate project.json`. Errors come back with a JSON pointer (`/clips/0/to`) and a `hint`. Fix and repeat.
 6. **Look before rendering:** `wecut preview project.json --at 0.5,3,10` writes small JPG frames to `out/preview/`. Open them and check framing, text size and caption position.
-7. **Render:** `wecut render project.json`. Use `--preset draft` for a fast 540p check, the default `final` for delivery.
+7. **Render:** `wecut render project.json`. Use `--preset draft` for a fast 540p check, the default `final` for delivery. Renders are loudness-normalised toward −14 LUFS; `--no-loudnorm` leaves the levels as mixed.
 
 Every command prints one JSON object. Exit codes: 0 ok, 2 invalid input, 3 missing dependency, 4 render failed, 5 over a limit. You can pipe a project in with `wecut render -`.
 
@@ -61,7 +61,7 @@ Give WeCut a transcript with word timings and it builds subtitles:
 - `accent`: sets key words apart: `{"color": "#FFD60A", "scale": 130, "italic": true, "font": "kanit-black", "words": ["word"]}`. Without `words`, the longest word of each phrase. Mode `reveal` lights words up one after another and keeps them lit (`color` = still to come, `highlight` = spoken).
 - `style`: `classic`, `yellow`, `box-black`, `box-white`, `bold`, `comic`, `shadow`, `bebas`, `news` (a phrase at a time), `karaoke`, `karaoke-green`, `kanit` (spoken word lights up), `pop`, `word`, `fire`, `bubble`, `rounded` (one or two words at a time), `phrase` (short caps phrases).
 
-If you need a transcript: `wecut doctor` reports `local_transcription: true` when this FFmpeg has the Whisper filter. Otherwise use whatever speech-to-text you already have and save its word timings as JSON.
+If you need a transcript: `wecut transcribe media/talk.mp4 --write media/talk.words.json`. It uses this FFmpeg's Whisper filter when the build has one, and otherwise `whisper-cli` (or `whisper-cpp` / `whisper`) on PATH. Both need a ggml model (`--model`, `WECUT_WHISPER_MODEL`, or `models/ggml-base.bin`); nothing is downloaded. `wecut doctor` reports `local_transcription: true` when either is available. If neither is, use whatever speech-to-text you already have and save its word timings as JSON.
 
 ## Templates: copy what works
 
@@ -71,7 +71,7 @@ Keep two explicit inputs: **reference video** (the style to clone) and **destina
 
 `clone` returns `status: needs_visual_review` or `comparison_failed`. Its `template_preview_project` contains numbered stand-ins to inspect the template, not the finished adaptation. A successful measurement alone does not prove visual similarity. Correct the review and inspect `compare` before applying. Text answers support `x`, `y`, `align`, `size`, `max_width`, `line_height`, `start`, and `end`; the review's `now` reports their current values. Coordinates are canvas fractions; `x` is the anchor selected by `align`. Captions accept `x` and `y`. Keep edits in the answer file so rerunning clone preserves them.
 
-0. **Clone a video that worked (fastest):** `wecut clone media/viral.mp4 --name my-style --ocr off` writes `recipes/my-style.json` with the original's exact shots as media slots, its transitions, framing and zoom, the text cards (size, colour, card, line spacing, timing), the caption style and the logo slot. It also returns `review`: what it measured, where each value came from, what it cannot tell, and the images behind it. **You are the eyes; WeCut has no model, so no OCR or API key is needed.** Open each image and answer what you can see in a JSON file, then run `wecut clone media/viral.mp4 --name my-style --force --read answers.json` (the frame analysis is reused, so only the template and its check run again):
+0. **Clone a video that worked (fastest):** `wecut clone media/viral.mp4 --name my-style --ocr off` writes `recipes/my-style.json` with the original's exact shots as media slots, its transitions, framing and zoom, the text cards (size, colour, card, line spacing, timing, and an entrance of fade, pop, up or type when the first third of a second shows one), the caption style and the logo slot. A steady beat is stored as `tempo` plus beat indexes on shots and text slots; `recipe apply` with new music snaps those cuts onto the new track (`--no-beat-sync` keeps the original seconds). It also returns `review`: what it measured, where each value came from, what it cannot tell, and the images behind it. **You are the eyes; WeCut has no model, so no OCR or API key is needed.** Open each image and answer what you can see in a JSON file, then run `wecut clone media/viral.mp4 --name my-style --force --read answers.json` (the frame analysis is reused, so only the template and its check run again):
 
    ```json
    {

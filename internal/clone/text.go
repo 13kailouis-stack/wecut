@@ -749,7 +749,8 @@ func (a *Analyzer) appeared(b Box, s, e float64) bool {
 }
 
 // refineTiming finds the exact first and last frame of a block on the
-// full-rate stream, and whether it fades in.
+// full-rate stream, and how the block comes in (fade, or a scale, drift
+// or letter reveal when the first third of a second shows one).
 func (a *Analyzer) refineTiming(bl *Block, evs []Event, end float64) {
 	if len(a.lowGray) == 0 {
 		return
@@ -806,6 +807,12 @@ func (a *Analyzer) refineTiming(bl *Block, evs []Event, end float64) {
 		stop = end
 	}
 	bl.Start, bl.End = r2(start), r2(stop)
+	// A measured scale, drift or letter reveal replaces the fade guess.
+	// The fade above stays when the entrance is only a contrast ramp the
+	// shape test does not see (a short card, a block that starts at 0).
+	if kind, dur := a.classifyEntrance(bl.Box, bl.Start, bl.End); kind != "" {
+		bl.In, bl.InDur = kind, dur
+	}
 }
 
 func itoa(n int) string {

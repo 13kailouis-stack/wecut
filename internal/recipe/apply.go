@@ -27,6 +27,7 @@ type SlotText struct {
 }
 
 // Input is everything that is new in this video: footage, words, music.
+// MusicBPM, when set with a replacement track, retimes a beat-synced recipe.
 type Input struct {
 	Clips      []Clip              `json:"clips"`
 	Texts      map[string]SlotText `json:"texts,omitempty"`
@@ -36,7 +37,12 @@ type Input struct {
 	CaptionAccent []string `json:"captionAccent,omitempty"`
 	CaptionSrc    string   `json:"captionSrc,omitempty"` // default: the source used longest
 	Music         string   `json:"music,omitempty"`      // replaces the recipe's track; "none" = no music
-	Output        string   `json:"output,omitempty"`     // default out/<recipe name>.mp4
+	// MusicBPM and MusicOffset are the replacement track's beat grid.
+	// MusicOffset is seconds of beat 0 in that file. Zero keeps the
+	// template's own seconds.
+	MusicBPM    float64 `json:"musicBpm,omitempty"`
+	MusicOffset float64 `json:"musicOffset,omitempty"`
+	Output      string  `json:"output,omitempty"` // default out/<recipe name>.mp4
 	// Overlays gives a picture per overlay slot (e.g. {"logo":
 	// "media/logo.png"}); "none" leaves a slot out.
 	Overlays map[string]string `json:"overlays,omitempty"`
@@ -122,6 +128,14 @@ func Apply(r *Recipe, in Input, m media.Set) (*spec.Project, []spec.Issue, []spe
 	}
 	if len(errs) > 0 {
 		return nil, nil, errs
+	}
+	beatSnapped := false
+	if cp, note, changed := snapBeats(r, in); note != "" {
+		warn("/music", note)
+		if changed {
+			r = cp
+			beatSnapped = true
+		}
 	}
 	dealClips(r, in, queues, defaultRole)
 
@@ -396,6 +410,12 @@ func Apply(r *Recipe, in Input, m media.Set) (*spec.Project, []spec.Issue, []spe
 		if mu := r.Music; mu != nil {
 			tr.At, tr.Duration = mu.At, mu.Duration
 			tr.Volume, tr.Duck, tr.Loop, tr.FadeIn, tr.FadeOut = mu.Volume, mu.Duck, mu.Loop, mu.FadeIn, mu.FadeOut
+			// A snapped grid stores the new track's phase on the copy.
+			// The recipe's own From is a point in the original song, so
+			// it is only used when that song is the one playing.
+			if beatSnapped {
+				tr.From, tr.At = mu.From, mu.At
+			}
 		}
 		p.Audio = append(p.Audio, tr)
 		if in.Music == "" {

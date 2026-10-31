@@ -88,6 +88,7 @@ func TestRecipeSchemaMatchesTypes(t *testing.T) {
 	check("shot", keys("$defs", "shot", "properties"), Shot{})
 	check("overlay", keys("properties", "overlays", "items", "properties"), OverlaySlot{})
 	check("source", keys("properties", "source", "properties"), Source{})
+	check("tempo", keys("properties", "tempo", "properties"), Tempo{})
 }
 
 func TestValidateCatchesMistakes(t *testing.T) {
@@ -275,5 +276,83 @@ func TestRecipeMusicDefault(t *testing.T) {
 	p, _, _ = Apply(r, Input{Clips: clips, Music: "none"}, mset)
 	if len(p.Audio) != 0 {
 		t.Fatalf("none: %+v", p.Audio)
+	}
+}
+
+func TestApplyKeepsTextAnimation(t *testing.T) {
+	r := &Recipe{Recipe: "1", Name: "card", Sections: []Section{{Role: "body", Duration: 4}},
+		Texts: []Slot{{Slot: "title", Text: "Hi", Start: 0.2, End: spec.F(2), In: &spec.Anim{Type: "pop", Duration: 0.28}}}}
+	if issues := Validate(r); len(issues) > 0 {
+		t.Fatal(issues)
+	}
+	p, _, errs := Apply(r, Input{Clips: []Clip{{Src: "m/talk.mp4", To: spec.F(10)}}}, mset)
+	if len(errs) > 0 {
+		t.Fatal(errs)
+	}
+	if len(p.Texts) != 1 || p.Texts[0].In == nil || p.Texts[0].In.Type != "pop" || p.Texts[0].In.Duration != 0.28 {
+		t.Fatalf("text %+v", p.Texts)
+	}
+}
+
+func TestApplySnapsShotsToNewTempo(t *testing.T) {
+	r := &Recipe{
+		Recipe: "1", Name: "beat", MaxDuration: 8,
+		Tempo: &Tempo{BPM: 120, Offset: 0.1},
+		Sections: []Section{{Role: "body", Shots: []Shot{
+			{Dur: 1, Beat: spec.F(0), Join: &spec.Transition{Type: "fade", Duration: 0.2}},
+			{Dur: 1, Beat: spec.F(2)},
+			{Dur: 1, Beat: spec.F(4)},
+		}}},
+		Texts: []Slot{{Slot: "title", Text: "Hi", Start: 0, End: spec.F(1), StartBeat: spec.F(0), EndBeat: spec.F(2)}},
+		Music: &Music{Volume: spec.F(40), Duck: true},
+	}
+	if issues := Validate(r); len(issues) > 0 {
+		t.Fatal(issues)
+	}
+	p, warns, errs := Apply(r, Input{
+		Clips:       []Clip{{Src: "m/talk.mp4", To: spec.F(30)}},
+		Music:       "m/music.mp3",
+		MusicBPM:    60,
+		MusicOffset: 0.05,
+	}, mset)
+	if len(errs) > 0 {
+		t.Fatal(errs)
+	}
+	// 120 → 60 BPM doubles every second. Phase 0.1*2 - 0.05 = 0.15, so the
+	// new track waits 0.15 s and its beat lands on the scaled edit.
+	if len(p.Clips) != 3 || !near(*p.Clips[0].To-p.Clips[0].From, 2) || !near(*p.Clips[2].To-p.Clips[2].From, 2) {
+		t.Fatalf("clips %+v", p.Clips)
+	}
+	if p.Clips[0].Transition == nil || !near(p.Clips[0].Transition.Duration, 0.4) {
+		t.Fatalf("join %+v", p.Clips[0].Transition)
+	}
+	if len(p.Texts) != 1 || !near(*p.Texts[0].End, 2) {
+		t.Fatalf("text %+v", p.Texts)
+	}
+	if len(p.Audio) != 1 || p.Audio[0].Src != "m/music.mp3" || !near(p.Audio[0].At, 0.15) || p.Audio[0].From != 0 || *p.Audio[0].Volume != 40 {
+		t.Fatalf("music %+v", p.Audio)
+	}
+	var note string
+	for _, w := range warns {
+		note += w.Message
+	}
+	if !strings.Contains(note, "60 BPM") {
+		t.Fatalf("warning %q", note)
+	}
+	// The caller's recipe is unchanged, and no new grid means no snap.
+	if r.Sections[0].Shots[0].Dur != 1 {
+		t.Fatalf("recipe mutated: %v", r.Sections[0].Shots[0].Dur)
+	}
+	same, _, errs := Apply(r, Input{Clips: []Clip{{Src: "m/talk.mp4", To: spec.F(30)}}, Music: "m/music.mp3"}, mset)
+	if len(errs) > 0 || !near(*same.Clips[0].To-same.Clips[0].From, 1) {
+		t.Fatalf("without a measured tempo: %+v %v", same.Clips[0], errs)
+	}
+	// Same song, far from the template's tempo, keeps the seconds.
+	far, warns, errs := Apply(r, Input{Clips: []Clip{{Src: "m/talk.mp4", To: spec.F(30)}}, Music: "m/music.mp3", MusicBPM: 300}, mset)
+	if len(errs) > 0 || !near(*far.Clips[0].To-far.Clips[0].From, 1) {
+		t.Fatalf("too far: %+v %v", far.Clips[0], errs)
+	}
+	if joined := warns[0].Message; !strings.Contains(joined, "left off") {
+		t.Fatalf("warning %q", joined)
 	}
 }

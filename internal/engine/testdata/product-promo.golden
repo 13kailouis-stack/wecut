@@ -109,7 +109,7 @@ anullsrc=r=48000:cl=stereo,atrim=duration=3.333,aresample=48000,aformat=sample_f
 [3:a]atrim=duration=7.033,asetpts=PTS-STARTPTS,volume=0.4,aresample=48000,aformat=sample_fmts=fltp:channel_layouts=stereo[t0];
 [aj6]asplit=2[am8][sc9];
 [t0][sc9]sidechaincompress=threshold=0.02:ratio=8:attack=20:release=350:makeup=1[td10];
-[am8][td10]amix=inputs=2:duration=first:dropout_transition=0:normalize=0,alimiter=limit=0.97:level=0[aout]
+[am8][td10]amix=inputs=2:duration=first:dropout_transition=0:normalize=0,loudnorm=I=-14:TP=-1.5:LRA=11,alimiter=limit=0.97:level=0[aout]
 
 # ass
 [Script Info]

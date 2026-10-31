@@ -22,7 +22,12 @@ type Options struct {
 	FramePath   string    // preview: output pattern, e.g. /abs/out/preview/clip-%02d.jpg
 	OutPath     string    // absolute output path (the runner picks a temp name)
 	FFmpegMajor int       // 7+ reads the graph with -/filter_complex
+	NoLoudnorm  bool      // skip the -14 LUFS pass (the limiter stays)
 }
+
+// loudnormTarget is the integrated loudness renders aim for, the level
+// short-form platforms expect. True peak stays under -1.5 dBTP.
+const loudnormFilter = "loudnorm=I=-14:TP=-1.5:LRA=11"
 
 // Plan is everything the runner needs. Args assume FFmpeg runs inside a job
 // directory that holds graph.txt, wecut.ass and fonts/.
@@ -290,7 +295,7 @@ func Compile(e *Edit, opt Options) (*Plan, error) {
 	// Extra audio tracks, mixed over the clips' own sound.
 	aout := ""
 	if withAudio {
-		aout = mixAudio(g, e, acur, addInput)
+		aout = mixAudio(g, e, acur, addInput, opt.NoLoudnorm)
 	}
 
 	p.Graph = strings.Join(g.lines, ";\n") + "\n"
@@ -510,7 +515,7 @@ func atempo(speed float64) []string {
 	return out
 }
 
-func mixAudio(g *graph, e *Edit, main string, addInput func([]string, string) int) string {
+func mixAudio(g *graph, e *Edit, main string, addInput func([]string, string) int, noLoudnorm bool) string {
 	type track struct {
 		label string
 		duck  bool
@@ -569,7 +574,7 @@ func mixAudio(g *graph, e *Edit, main string, addInput func([]string, string) in
 		tracks = append(tracks, track{l, a.Duck})
 	}
 	if len(tracks) == 0 {
-		g.add("[%s]alimiter=limit=0.97:level=0[aout]", main)
+		g.add("[%s]%s[aout]", main, audioTail(noLoudnorm))
 		return "aout"
 	}
 	ducks := 0
@@ -601,8 +606,17 @@ func mixAudio(g *graph, e *Edit, main string, addInput func([]string, string) in
 	for _, t := range tracks {
 		ins += "[" + t.label + "]"
 	}
-	g.add("%samix=inputs=%d:duration=first:dropout_transition=0:normalize=0,alimiter=limit=0.97:level=0[aout]", ins, len(tracks)+1)
+	g.add("%samix=inputs=%d:duration=first:dropout_transition=0:normalize=0,%s[aout]", ins, len(tracks)+1, audioTail(noLoudnorm))
 	return "aout"
+}
+
+// audioTail normalises the mix to -14 LUFS, then catches anything still
+// over full scale. Projects that pass NoLoudnorm keep the limiter only.
+func audioTail(noLoudnorm bool) string {
+	if noLoudnorm {
+		return "alimiter=limit=0.97:level=0"
+	}
+	return loudnormFilter + ",alimiter=limit=0.97:level=0"
 }
 
 // encoderArgs picks codec settings. libx264 is the reference; the others are

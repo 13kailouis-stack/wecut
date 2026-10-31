@@ -84,6 +84,22 @@ func TestBursts(t *testing.T) {
 	}
 }
 
+func TestGridIndex(t *testing.T) {
+	a := Sound(synth(11025, 8, 120, -1, -1), 11025)
+	g, ok := a.Grid()
+	if !ok || math.Abs(g.BPM-120) > 2 {
+		t.Fatalf("grid %+v ok %v", g, ok)
+	}
+	// A time on a later beat is a whole number of beats from beat 0.
+	at := g.Offset + 4*g.Period()
+	if math.Abs(g.SnapIndex(at, 0.08)-4) > 0.01 {
+		t.Fatalf("index %v at %v (offset %v)", g.Index(at), at, g.Offset)
+	}
+	if _, ok := (Audio{}).Grid(); ok {
+		t.Fatal("silence has no grid")
+	}
+}
+
 func TestBeatSync(t *testing.T) {
 	beats := []float64{0, 0.5, 1, 1.5, 2, 2.5}
 	if got := BeatSync([]float64{0.52, 1.2, 2.04}, beats, 0.08); got != 0.67 {

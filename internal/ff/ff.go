@@ -141,9 +141,11 @@ var (
 	// Core filters every render may use. ass (text, captions) and whisper
 	// (local transcription) are features: a build without them still works
 	// for projects that do not need them.
-	coreFilters  = []string{"xfade", "acrossfade", "zoompan", "sidechaincompress", "amix", "alimiter", "drawbox", "lutyuv", "palettegen", "paletteuse", "boxblur", "tpad", "apad", "atempo", "colorchannelmixer", "rotate"}
-	wantFilters  = append(append([]string{}, coreFilters...), "ass", "whisper")
-	filterNeeded = map[string]string{"ass": "text and captions", "whisper": "local transcription", "zoompan": "photo motion", "xfade": "transitions", "sidechaincompress": "ducking"}
+	coreFilters = []string{"xfade", "acrossfade", "zoompan", "sidechaincompress", "amix", "alimiter", "drawbox", "lutyuv", "palettegen", "paletteuse", "boxblur", "tpad", "apad", "atempo", "colorchannelmixer", "rotate"}
+	// loudnorm is used by every render. It is not in coreFilters: a build
+	// without it can still render with --no-loudnorm, and doctor stays ok.
+	wantFilters  = append(append([]string{}, coreFilters...), "ass", "whisper", "loudnorm")
+	filterNeeded = map[string]string{"ass": "text and captions", "whisper": "local transcription", "loudnorm": "loudness normalisation to -14 LUFS", "zoompan": "photo motion", "xfade": "transitions", "sidechaincompress": "ducking"}
 )
 
 func (t *Tools) Capabilities(ctx context.Context) (*Caps, error) {

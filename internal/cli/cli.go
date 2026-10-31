@@ -63,6 +63,8 @@ func Run(ctx context.Context, args []string, stdin io.Reader, stdout, stderr io.
 		return a.probe(rest)
 	case "analyze":
 		return a.analyze(rest)
+	case "transcribe":
+		return a.transcribe(rest)
 	case "clone":
 		return a.clone(rest)
 	case "setup":
@@ -92,7 +94,7 @@ func Run(ctx context.Context, args []string, stdin io.Reader, stdout, stderr io.
 	case "example":
 		return a.example(rest)
 	}
-	return a.fail(exitInput, nil, spec.Issue{Code: "E_USAGE", Message: fmt.Sprintf("unknown command %q", cmd), Hint: "Commands: guide, setup, doctor, probe, analyze, clone, recipe, validate, preview, render, schema, list, example, mcp, version. Run `wecut help`."})
+	return a.fail(exitInput, nil, spec.Issue{Code: "E_USAGE", Message: fmt.Sprintf("unknown command %q", cmd), Hint: "Commands: guide, setup, doctor, probe, analyze, transcribe, clone, recipe, validate, preview, render, schema, list, example, mcp, version. Run `wecut help`."})
 }
 
 const usage = `wecut: video editing engine for AI agents. Renders on this machine with FFmpeg.
@@ -104,6 +106,8 @@ Usage:
   wecut doctor                      check FFmpeg, encoders and filters
   wecut probe <file>...             duration, size, fps and audio of media files
   wecut analyze <video>             cuts, pace, hook, beat, pauses + a frame sheet (--transcript words.json)
+  wecut transcribe <media>          word timings for captions. Uses FFmpeg's whisper filter, or whisper.cpp
+                                    on PATH when that filter is missing (--model, --write, --language)
   wecut clone <video>               turn a finished video into a template with its exact cuts, transitions,
                                     framing, text cards, captions and logo. Returns a review for an agent's
                                     eyes; its answers go back with --read answers.json, so no OCR is needed
@@ -130,6 +134,7 @@ Render flags:
   --progress        progress lines as JSON on stderr
   --timeout SEC     stop after this many seconds (default: scales with video length)
   --dry-run         print the FFmpeg plan without running it
+  --no-loudnorm     skip loudness normalisation (renders otherwise aim for -14 LUFS)
 
 Use "-" as the project path to read the project from stdin. Output is one JSON object on stdout
 (guide and schema print a document instead).
@@ -257,7 +262,14 @@ func (a *app) doctor(args []string) int {
 		"default_encoder":     caps.DefaultEncoder(),
 		"cpus":                runtime.NumCPU(),
 		"os":                  runtime.GOOS + "/" + runtime.GOARCH,
-		"local_transcription": caps.Filters["whisper"],
+		"local_transcription": caps.Filters["whisper"] || ff.FindWhisper() != "",
+		"loudnorm":            caps.Filters["loudnorm"],
+	}
+	if bin := ff.FindWhisper(); bin != "" {
+		res["whisper_cpp"] = bin
+	}
+	if !res["local_transcription"].(bool) {
+		res["transcription_hint"] = "No FFmpeg whisper filter and no whisper-cli on PATH. wecut transcribe needs one of them, plus a ggml model (--model or models/ggml-base.bin)."
 	}
 	var problems []spec.Issue
 	if m := caps.Missing(); len(m) > 0 {
@@ -519,7 +531,7 @@ func (a *app) validate(args []string) int {
 func (a *app) render(args []string, preview bool) int {
 	var c common
 	var preset, outFlag, encoder, at string
-	var progress, dry, keep bool
+	var progress, dry, keep, noLoudnorm bool
 	var timeout float64
 	name := "render"
 	if preview {
@@ -537,6 +549,7 @@ func (a *app) render(args []string, preview bool) int {
 		fs.StringVar(&preset, "preset", "", "draft, final or high")
 		fs.StringVar(&encoder, "encoder", "", "video encoder")
 		fs.BoolVar(&progress, "progress", false, "progress on stderr")
+		fs.BoolVar(&noLoudnorm, "no-loudnorm", false, "skip loudness normalisation to -14 LUFS")
 	}
 	pos, err := parse(fs, args)
 	if err != nil || len(pos) != 1 {
@@ -562,7 +575,7 @@ func (a *app) render(args []string, preview bool) int {
 		return a.fail(exitDep, nil, spec.Issue{Code: "E_DEPENDENCY", Message: fmt.Sprintf("encoder %q is not available", encoder), Hint: "Run `wecut doctor` to see the encoders this FFmpeg has."})
 	}
 
-	opt := engine.Options{Preset: preset, Encoder: encoder, FFmpegMajor: l.tools.Major}
+	opt := engine.Options{Preset: preset, Encoder: encoder, FFmpegMajor: l.tools.Major, NoLoudnorm: noLoudnorm}
 	var finalPath, framesDir, stem string
 	var times []float64
 	if preview {

@@ -136,6 +136,15 @@
         }
       }
     },
+    "tempo": {
+      "type": "object", "additionalProperties": false,
+      "description": "Beat grid of the video this recipe was cloned from. Shot beat and text startBeat/endBeat count from offset. Seconds in dur and start stay valid on their own; recipe apply retimes them when new music brings musicBpm.",
+      "required": ["bpm"],
+      "properties": {
+        "bpm": { "type": "number", "minimum": 30, "maximum": 240 },
+        "offset": { "type": "number", "minimum": 0, "maximum": 600, "description": "Seconds of beat 0 in the source." }
+      }
+    },
     "source": {
       "type": "object", "additionalProperties": false,
       "description": "Where a cloned recipe came from. Information only.",
@@ -208,7 +217,8 @@
         "focus": { "type": "object", "properties": { "x": { "type": "number" }, "y": { "type": "number" } } },
         "continue": { "type": "boolean", "description": "Carry on the clip of the shot before (its next seconds) instead of taking the next clip, like a punch-in on one take." },
         "join": { "$ref": "#/$defs/transition", "description": "Into the next shot of this section." },
-        "ref": { "type": "number", "description": "Where this shot sits in the source video, in seconds (clone)." }
+        "ref": { "type": "number", "description": "Where this shot sits in the source video, in seconds (clone)." },
+        "beat": { "type": "number", "description": "Where this shot starts, in beats of tempo. dur is still seconds. A fraction means the cut sits between beats." }
       }
     },
     "slot": {
@@ -221,6 +231,8 @@
         "start": { "type": "number", "minimum": 0 },
         "end": { "type": "number" },
         "fromEnd": { "type": "number", "exclusiveMinimum": 0, "description": "Start this many seconds before the end of its section (or video) and run to the end." },
+        "startBeat": { "type": "number", "description": "start, counted in beats of tempo." },
+        "endBeat": { "type": "number", "description": "end, counted in beats of tempo." },
         "x": { "type": "number", "minimum": 0, "maximum": 1 },
         "y": { "type": "number", "minimum": 0, "maximum": 1 },
         "rotate": { "type": "number" },
