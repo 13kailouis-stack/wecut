@@ -360,13 +360,17 @@ type Block struct {
 	// Filled in by Measure.
 	// Badge is a small mark shown with the block, like a quote icon on a
 	// hook card: the mark found by the line finder (its glyph).
-	Badge   *Box   `json:"badge,omitempty"`
-	badges  []Box  // candidates for Badge, best first; Measure keeps the one that is a filled shape
-	Look    *Look  `json:"look,omitempty"`
-	Words   string `json:"words,omitempty"`
-	Slot    string `json:"slot,omitempty"` // the recipe slot it became
-	Kind    string `json:"kind"`           // text, label, logo
-	stillAt []float64
+	Badge  *Box  `json:"badge,omitempty"`
+	badges []Box // candidates for Badge, best first; Measure keeps the one that is a filled shape
+	// words is how many line tracks of widths wlo..whi a one-line block was
+	// stitched from.
+	words    int
+	wlo, whi float64
+	Look     *Look  `json:"look,omitempty"`
+	Words    string `json:"words,omitempty"`
+	Slot     string `json:"slot,omitempty"` // the recipe slot it became
+	Kind     string `json:"kind"`           // text, label, logo
+	stillAt  []float64
 }
 
 // CaptionBand is where spoken words appear, one word or a short phrase at
@@ -436,7 +440,7 @@ func (a *Analyzer) textResults(p *Plan) {
 		// It must also stay a while: bits of a screen or a scrolling page
 		// come and go in half a second, a title stays up.
 		midShot := e-s >= 1 && !nearCut(s) && !nearCut(e) && a.popsIn(b, s, e) && (t.moved >= 1 || t.still*2 >= t.seen)
-		lines = append(lines, span{s, e, b, t.moved >= 2 || crossesCut(s, e) || midShot})
+		lines = append(lines, span{s, e, b, t.moved >= 2 || crossesCut(s, e) || midShot, 1, b.W, b.W})
 	}
 	// One line seen as several tracks (lost for a moment behind a flash or
 	// a busy background) is stitched back together, before and after its
@@ -476,12 +480,14 @@ func (a *Analyzer) textResults(p *Plan) {
 			}
 		}
 		if into == nil {
-			groups = append(groups, &group{&Block{Start: l.s, End: l.e, Box: l.b, Lines: []Box{l.b}, Kind: "text"}, l.ev})
+			groups = append(groups, &group{&Block{Start: l.s, End: l.e, Box: l.b, Lines: []Box{l.b}, Kind: "text", words: l.n, wlo: l.wlo, whi: l.whi}, l.ev})
 			continue
 		}
 		into.bl.Lines = append(into.bl.Lines, l.b)
 		into.bl.Box = into.bl.Box.union(l.b)
 		into.bl.Start, into.bl.End = math.Min(into.bl.Start, l.s), math.Max(into.bl.End, l.e)
+		into.bl.words = max(into.bl.words, l.n)
+		into.bl.wlo, into.bl.whi = math.Min(into.bl.wlo, l.wlo), math.Max(into.bl.whi, l.whi)
 		into.ev = into.ev || l.ev
 	}
 	// A card's lines see only the card around them; the block as a whole
@@ -537,7 +543,7 @@ func (a *Analyzer) textResults(p *Plan) {
 	// line where each took the last one's place: those words still count.
 	inBlock := func(b Box, s, e float64) bool {
 		for _, bl := range blocks {
-			if len(bl.Lines) == 1 && math.Abs(bl.Box.cx()-0.5) <= 0.1 && bl.End-bl.Start <= 8 {
+			if len(bl.Lines) <= 2 && math.Abs(bl.Box.cx()-0.5) <= 0.15 {
 				continue
 			}
 			if bl.Box.iou(b) > 0.2 && s < bl.End+0.5 && e > bl.Start-0.5 {
@@ -553,17 +559,37 @@ func (a *Analyzer) textResults(p *Plan) {
 		if s >= end || e-s > 3 || b.H < 0.01 {
 			continue
 		}
-		if math.Abs(b.cx()-0.5) > 0.1 || b.W > 0.92 || inBlock(b, s, e) {
+		// Captions sit about the middle; some editors set them a little
+		// to one side.
+		if math.Abs(b.cx()-0.5) > 0.15 || b.W > 0.92 || inBlock(b, s, e) {
 			continue
 		}
 		if !a.appeared(b, s, e) {
 			continue // scenery, not a word: the same thing was there before
 		}
-		shorts = append(shorts, short{t, s, e, b, a.steady(b, s, e)})
+		// A word shows for a beat; a flicker of the picture for a frame or two.
+		shorts = append(shorts, short{t, s, e, b, e-s >= 0.25 && a.steady(b, s, e)})
+	}
+	// A one-line block stitched from many lines of unlike widths in one
+	// place is caption words, each in the last one's place: count its words.
+	for _, bl := range blocks {
+		if len(bl.Lines) > 2 || bl.words < 4 || math.Abs(bl.Box.cx()-0.5) > 0.15 || bl.whi-bl.wlo < 0.25*bl.Box.W {
+			continue
+		}
+		step := (bl.End - bl.Start) / float64(bl.words)
+		for k := 0; k < bl.words; k++ {
+			shorts = append(shorts, short{nil, bl.Start + float64(k)*step, bl.Start + float64(k+1)*step, bl.Box, true})
+		}
 	}
 	bins := make([]float64, 50)
+	// Words hold still while they show; scenery picked up in a moving shot
+	// mostly does not, so it counts for less.
 	for _, sh := range shorts {
-		bins[clampi(int(sh.b.cy()*50), 0, 49)] += sh.e - sh.s
+		w := 0.25
+		if sh.steady {
+			w = 1
+		}
+		bins[clampi(int(sh.b.cy()*50), 0, 49)] += (sh.e - sh.s) * w
 	}
 	peak := 0
 	for i := range bins {
@@ -579,12 +605,13 @@ func (a *Analyzer) textResults(p *Plan) {
 	}
 	if len(cap) >= 5 {
 		sort.Slice(cap, func(i, j int) bool { return cap[i].s < cap[j].s })
-		// Keep the busiest stretch: words come every second or so; a stray
-		// line far from the rest is not part of it.
+		// Keep the busiest stretch: words come every second or so, with a
+		// pause for breath or a bar of music; a stray line far from the rest
+		// is not part of it.
 		bestA, bestB, bestN := 0, 0, 0
 		for i := 0; i < len(cap); {
 			j, reach := i, cap[i].e
-			for j+1 < len(cap) && cap[j+1].s-reach <= 1.5 {
+			for j+1 < len(cap) && cap[j+1].s-reach <= 3 {
 				j++
 				reach = math.Max(reach, cap[j].e)
 			}
@@ -594,6 +621,15 @@ func (a *Analyzer) textResults(p *Plan) {
 			i = j + 1
 		}
 		cap = cap[bestA : bestB+1]
+		// A long pause belongs inside the words, not at their ends: a lone
+		// piece before the first run or after the last is not a caption.
+		// Nor is a piece that did not hold still (picture, not a word).
+		for len(cap) > 5 && (cap[1].s-cap[0].e > 1.5 || !cap[0].steady) {
+			cap = cap[1:]
+		}
+		for n := len(cap); n > 5 && (cap[n-1].s-cap[n-2].e > 1.5 || !cap[n-1].steady); n = len(cap) {
+			cap = cap[:n-1]
+		}
 	}
 	if len(cap) >= 5 {
 		s0, s1 := cap[0].s, cap[len(cap)-1].e
@@ -645,7 +681,7 @@ func (a *Analyzer) textResults(p *Plan) {
 			}
 			var keep []*Block
 			for _, bl := range blocks {
-				if math.Abs(bl.Box.cy()-band.Y) < 0.035 && len(bl.Lines) == 1 && (bl.End-bl.Start < 3 || changing(bl)) {
+				if math.Abs(bl.Box.cy()-band.Y) < 0.035 && (len(bl.Lines) == 1 && bl.End-bl.Start < 3 || len(bl.Lines) <= 2 && changing(bl)) {
 					continue
 				}
 				keep = append(keep, bl)
@@ -897,6 +933,10 @@ type span struct {
 	s, e float64
 	b    Box
 	ev   bool // evidence that it is laid over the picture
+	// n tracks were stitched into it, wlo..whi wide: many of unlike widths
+	// are words taking each other's place, as captions do.
+	n        int
+	wlo, whi float64
 }
 
 // pack keeps an edge map as bits.
@@ -1002,7 +1042,7 @@ func stitch(lines []span) []span {
 				}
 				wi, wj := li.e-li.s, lj.e-lj.s
 				b := Box{(li.b.X*wi + lj.b.X*wj) / (wi + wj), (li.b.Y*wi + lj.b.Y*wj) / (wi + wj), (li.b.W*wi + lj.b.W*wj) / (wi + wj), (li.b.H*wi + lj.b.H*wj) / (wi + wj)}
-				lines[i] = span{math.Min(li.s, lj.s), math.Max(li.e, lj.e), b, li.ev || lj.ev}
+				lines[i] = span{math.Min(li.s, lj.s), math.Max(li.e, lj.e), b, li.ev || lj.ev, li.n + lj.n, math.Min(li.wlo, lj.wlo), math.Max(li.whi, lj.whi)}
 				lines = append(lines[:j], lines[j+1:]...)
 				merged = true
 				break

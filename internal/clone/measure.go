@@ -618,6 +618,28 @@ func measureBlock(bl *Block, f1, f2 *RGB) *Look {
 				glyph = append(glyph, c)
 			}
 		}
+		// Thin letters over skin or sky: the brightest tenth is the
+		// letters even when the next brightest part of the picture
+		// outnumbers them.
+		if len(lum) >= 50 && len(glyph) > 0 {
+			top := math.Max(cut, lum[len(lum)*90/100])
+			var hi []rgb
+			for _, c := range cs {
+				if c.luma()+80*c.sat() >= top {
+					hi = append(hi, c)
+				}
+			}
+			fill, _ := dominant(glyph)
+			if tf, sh := dominant(hi); sh >= 0.5 && dist(tf, fill) > 60 && tf.luma()+80*tf.sat() > fill.luma()+80*fill.sat()+30 {
+				var near []rgb
+				for _, c := range glyph {
+					if dist(c, tf) < 70 {
+						near = append(near, c)
+					}
+				}
+				glyph = near
+			}
+		}
 		if len(glyph) > 0 {
 			fill, _ := dominant(glyph)
 			bg = rgb{0, 0, 0}

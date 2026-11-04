@@ -105,6 +105,8 @@ Dari video 04 (kartu putih membulat + kutip merah, caption satu kata):
 - Caption yang katanya berganti di tempat yang sama tidak lagi tertelan jadi satu blok teks, jadi pita caption ketemu.
 - Huruf putih bergaris hitam tidak lagi dibaca sebagai kotak putih: kotak asli harus punya baris penuh warnanya di atas atau bawah huruf.
 - Catatan: kalau menguji ulang dengan `--read`, pakai `--fresh`; tanpa itu hasil deteksi lama dari `analysis.json` bisa terpakai.
+- Caption (video 02 lirik lagu, 03 subtitle 2 baris, 01): baris yang dijahit dari banyak kata berbeda lebar dihitung sebagai caption, termasuk blok 2 baris dan caption yang agak ke samping (pusat sampai 0,15 dari tengah). Jeda sampai 3 detik (bait musik) tidak memutus pita, potongan terpencil atau kedipan 1-2 frame di ujung dibuang. Warna caption putih tipis di atas kulit sekarang terbaca putih.
+- Masih terbuka: warna caption putih tipis di latar terang (03) terbaca gelap; akhir pita 03 terpotong di 11,8 dtk (aslinya 18).
 - Masih terbuka: bobot huruf gelap kecil di atas putih terbaca terlalu tipis (tabel bobot dikalibrasi di kapital 33 px), mode caption satu kata vs dua kata belum bisa dibedakan tanpa membaca kata.
 
 Masih terbuka: label di rak belakang pada video tripod (scenery yang diam) masih jadi slot teks palsu dan harus di-drop oleh agent; caption bicara di footage ramai sering tidak ketemu atau hanya sebagian; layar HP yang ditempel (PiP) belum jadi slot gambar; emoji belum digambar.
