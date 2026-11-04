@@ -106,10 +106,12 @@ Dari video 04 (kartu putih membulat + kutip merah, caption satu kata):
 - Huruf putih bergaris hitam tidak lagi dibaca sebagai kotak putih: kotak asli harus punya baris penuh warnanya di atas atau bawah huruf.
 - Catatan: kalau menguji ulang dengan `--read`, pakai `--fresh`; tanpa itu hasil deteksi lama dari `analysis.json` bisa terpakai.
 - Caption (video 02 lirik lagu, 03 subtitle 2 baris, 01): baris yang dijahit dari banyak kata berbeda lebar dihitung sebagai caption, termasuk blok 2 baris dan caption yang agak ke samping (pusat sampai 0,15 dari tengah). Jeda sampai 3 detik (bait musik) tidak memutus pita, potongan terpencil atau kedipan 1-2 frame di ujung dibuang. Warna caption putih tipis di atas kulit sekarang terbaca putih.
-- Masih terbuka: warna caption putih tipis di latar terang (03) terbaca gelap; akhir pita 03 terpotong di 11,8 dtk (aslinya 18).
+- Warna caption 03 (krem bergaris gelap) sekarang benar: kotak hanya dipakai kalau mayoritas sampel caption punya kotak berwarna sama, dan "kotak" yang jauh lebih besar dari hurufnya (kaos, lantai) ditolak. Sampel diambil dari kata yang dilihat pelacak sendiri dulu, bukan potongan blok jahitan.
+- Teks yang melewati potongan shot dulu otomatis dianggap tempelan. Sekarang harus juga diam selama tampil: label rak, tulisan kaos, ornamen di jump cut ikut bergerak dengan gambar, jadi tidak lagi jadi slot (01: 16 -> 7 slot, 03: 14 -> 0, 04: 14 -> 7; kartu hook, caption dan logo tetap).
+- Masih terbuka: akhir pita caption terlalu cepat kalau pelacak resolusi rendah tidak melihat katanya: 01 berhenti 19,7 (aslinya 40, caption putih garis pink di atas layar HP abu terang), 03 berhenti 11,8 (aslinya 18, huruf tipis di atas sepatu hitam), 02 berhenti 110 (aslinya 127). Agent menjawab `captions.start/end`.
 - Masih terbuka: bobot huruf gelap kecil di atas putih terbaca terlalu tipis (tabel bobot dikalibrasi di kapital 33 px), mode caption satu kata vs dua kata belum bisa dibedakan tanpa membaca kata.
 
-Masih terbuka: label di rak belakang pada video tripod (scenery yang diam) masih jadi slot teks palsu dan harus di-drop oleh agent; caption bicara di footage ramai sering tidak ketemu atau hanya sebagian; layar HP yang ditempel (PiP) belum jadi slot gambar; emoji belum digambar.
+Masih terbuka: potongan latar kecil yang diam dalam satu shot (pinggir kotak, huruf kaos) masih bisa jadi slot dan harus di-drop oleh agent; caption bicara di footage ramai sering tidak ketemu atau hanya sebagian; layar HP yang ditempel (PiP) belum jadi slot gambar; emoji belum digambar.
 
 ## Supaya agent menemukan dan memakai WeCut
 

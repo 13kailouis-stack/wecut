@@ -156,7 +156,7 @@ func (a *Analyzer) Measure(frames []*RGB) []Crop {
 		for k, i := range p.stillOf["captions"] {
 			b := c.Samples[k]
 			bl := &Block{Box: b, Lines: []Box{b}}
-			l := measureBlock(bl, frames[i], nil)
+			l := measureCaption(bl, frames[i])
 			looks = append(looks, l)
 			if cr := cropFor(fmt.Sprintf("caption%d", k+1), "caption", p.Stills[i], frames[i], b, l); cr != nil {
 				crops = append(crops, *cr)
@@ -209,6 +209,25 @@ func splitByStyle(bl *Block, f *RGB) []*Block {
 func mergeLooks(ls []*Look) *Look {
 	if len(ls) == 0 {
 		return nil
+	}
+	// A caption box is behind every sample, in one colour. A dark shirt or
+	// a shoe behind one sample is the picture: go by the samples without.
+	var boxed, plain []*Look
+	for _, l := range ls {
+		if l.Background != "" {
+			boxed = append(boxed, l)
+		} else {
+			plain = append(plain, l)
+		}
+	}
+	same := len(boxed) > 0
+	for _, l := range boxed {
+		if dist(parseHex(boxed[0].Background), parseHex(l.Background)) > 40 {
+			same = false
+		}
+	}
+	if len(plain) > 0 && (len(boxed)*2 <= len(ls) || !same) {
+		ls = plain
 	}
 	out := *ls[0]
 	var sizes, glyphs []float64
@@ -341,7 +360,13 @@ func dominant(cs []rgb) (rgb, float64) {
 // measureBlock reads a block's colours, box, size, slant and alignment. f2
 // (another moment of the same block, or nil) separates the text from a
 // moving background.
-func measureBlock(bl *Block, f1, f2 *RGB) *Look {
+func measureBlock(bl *Block, f1, f2 *RGB) *Look { return measureAs(bl, f1, f2, false) }
+
+// measureCaption measures one caption sample. A caption's own box hugs its
+// words; a dark shirt or a shoe all around them is the picture.
+func measureCaption(bl *Block, f *RGB) *Look { return measureAs(bl, f, nil, true) }
+
+func measureAs(bl *Block, f1, f2 *RGB, caption bool) *Look {
 	W, H := f1.W, f1.H
 	short := float64(min(W, H))
 	tr := bl.Box.rect(W, H)
@@ -519,6 +544,10 @@ func measureBlock(bl *Block, f1, f2 *RGB) *Look {
 	if boxed {
 		a := boxArea(f1, tr, bg)
 		if a.W >= W*97/100 && (a.Y <= 1 || a.Y+a.H >= H-1) {
+			boxed = false
+		}
+		lineH := tr.H / max(1, len(bl.Lines))
+		if caption && !tightBox && (a.W-tr.W > 4*lineH || a.H-tr.H > 3*lineH) {
 			boxed = false
 		}
 	}

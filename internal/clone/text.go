@@ -524,7 +524,10 @@ func (a *Analyzer) textResults(p *Plan) {
 		// (A sign or a screen the camera holds on moves with the picture.)
 		opening := steady && oneShot && bl.Start < 0.8 && len(bl.Lines) >= 2 && bl.End-bl.Start >= 2 &&
 			a.movesAround(bl.Box, bl.Start, bl.End)
-		if g.ev || crossesCut(bl.Start, bl.End) || (steady && !oneShot && a.behindMoves(bl.Box, bl.Start, bl.End)) ||
+		// A block that spans a cut only as pieces stitched together on
+		// either side of it is the same spot of a setting filmed twice (a
+		// jump cut): laid-over text that runs through a cut stays the same.
+		if g.ev || (crossesCut(bl.Start, bl.End) && steady) || (steady && !oneShot && a.behindMoves(bl.Box, bl.Start, bl.End)) ||
 			(steady && !nearCut(bl.Start) && !nearCut(bl.End) && a.popsIn(bl.Box, bl.Start, bl.End)) || opening {
 			blocks = append(blocks, bl)
 		}
@@ -598,10 +601,24 @@ func (a *Analyzer) textResults(p *Plan) {
 		}
 	}
 	var cap []short
+	var capH []float64
 	for _, sh := range shorts {
 		if math.Abs(sh.b.cy()-(float64(peak)+0.5)/50) <= 0.04 {
 			cap = append(cap, sh)
+			capH = append(capH, sh.b.H)
 		}
+	}
+	// Words in a band are one or two lines high; a big patch of the
+	// picture that happens to centre there is not one of them.
+	if len(capH) > 0 {
+		mh := median(capH)
+		kept := cap[:0]
+		for _, c := range cap {
+			if c.b.H <= 2.6*mh {
+				kept = append(kept, c)
+			}
+		}
+		cap = kept
 	}
 	if len(cap) >= 5 {
 		sort.Slice(cap, func(i, j int) bool { return cap[i].s < cap[j].s })
@@ -661,7 +678,14 @@ func (a *Analyzer) textResults(p *Plan) {
 			}
 			// Sample the band at a few of its longest words.
 			byLen := append([]short(nil), cap...)
-			sort.Slice(byLen, func(i, j int) bool { return byLen[i].e-byLen[i].s > byLen[j].e-byLen[j].s })
+			// Words the tracker saw on their own first: a stitched block's
+			// pieces carry the whole block's box.
+			sort.Slice(byLen, func(i, j int) bool {
+				if (byLen[i].t == nil) != (byLen[j].t == nil) {
+					return byLen[i].t != nil
+				}
+				return byLen[i].e-byLen[i].s > byLen[j].e-byLen[j].s
+			})
 			for _, c := range byLen[:min(3, len(byLen))] {
 				band.Samples = append(band.Samples, c.b)
 				band.sampleAt = append(band.sampleAt, (c.s+c.e)/2)
