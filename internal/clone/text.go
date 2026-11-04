@@ -513,8 +513,13 @@ func (a *Analyzer) textResults(p *Plan) {
 		// spans shots: inside one shot, text on a screen or a sign that the
 		// camera holds on looks the same.
 		oneShot := !crossesCut(bl.Start-0.3, bl.End+0.3)
+		// An opening card of several lines over a moving first shot: the
+		// picture moves past the card's edges while its words hold still.
+		// (A sign or a screen the camera holds on moves with the picture.)
+		opening := steady && oneShot && bl.Start < 0.8 && len(bl.Lines) >= 2 && bl.End-bl.Start >= 2 &&
+			a.movesAround(bl.Box, bl.Start, bl.End)
 		if g.ev || crossesCut(bl.Start, bl.End) || (steady && !oneShot && a.behindMoves(bl.Box, bl.Start, bl.End)) ||
-			(steady && !nearCut(bl.Start) && !nearCut(bl.End) && a.popsIn(bl.Box, bl.Start, bl.End)) {
+			(steady && !nearCut(bl.Start) && !nearCut(bl.End) && a.popsIn(bl.Box, bl.Start, bl.End)) || opening {
 			blocks = append(blocks, bl)
 		}
 	}
@@ -528,8 +533,13 @@ func (a *Analyzer) textResults(p *Plan) {
 		b      Box
 		steady bool
 	}
+	// A one-line block in the middle can be caption words stitched into one
+	// line where each took the last one's place: those words still count.
 	inBlock := func(b Box, s, e float64) bool {
 		for _, bl := range blocks {
+			if len(bl.Lines) == 1 && math.Abs(bl.Box.cx()-0.5) <= 0.1 && bl.End-bl.Start <= 8 {
+				continue
+			}
 			if bl.Box.iou(b) > 0.2 && s < bl.End+0.5 && e > bl.Start-0.5 {
 				return true
 			}
@@ -623,9 +633,19 @@ func (a *Analyzer) textResults(p *Plan) {
 			p.Captions = band
 			// A caption that stayed up long enough to look like a block is
 			// still a caption.
+			// So is one whose words kept changing under it.
+			changing := func(bl *Block) bool {
+				n := 0
+				for _, c := range cap {
+					if c.s >= bl.Start-0.1 && c.e <= bl.End+0.1 && c.b.iou(bl.Box) > 0.2 {
+						n++
+					}
+				}
+				return n >= 2
+			}
 			var keep []*Block
 			for _, bl := range blocks {
-				if math.Abs(bl.Box.cy()-band.Y) < 0.035 && bl.End-bl.Start < 3 && len(bl.Lines) == 1 {
+				if math.Abs(bl.Box.cy()-band.Y) < 0.035 && len(bl.Lines) == 1 && (bl.End-bl.Start < 3 || changing(bl)) {
 					continue
 				}
 				keep = append(keep, bl)
@@ -722,6 +742,38 @@ func (a *Analyzer) behindMoves(b Box, s, e float64) bool {
 	return n >= 3 && n*10 >= moving*6
 }
 
+// movesAround is behindMoves for a card: the picture is looked at past a
+// margin as wide as a card's padding, and the words inside hold still.
+func (a *Analyzer) movesAround(b Box, s, e float64) bool {
+	if len(a.lowGray) == 0 {
+		return false
+	}
+	W, H := a.lowGray[0].W, a.lowGray[0].H
+	r, out := b.rect(W, H), b.grow(0.05, 0.03).rect(W, H)
+	// The strips above and below the card on their own: one of them is
+	// often a plain dark band that never moves.
+	strip := max(3, out.H/2)
+	above := Rect{out.X, max(0, out.Y-strip), out.W, min(strip, out.Y)}
+	below := Rect{out.X, out.Y + out.H, out.W, min(strip, H-out.Y-out.H)}
+	n, all := 0, 0
+	for t := s + math.Min(0.6, 0.15*(e-s)); t+0.25 < e; t += 0.25 {
+		f, g := a.lowGray[a.lowIndex(t)], a.lowGray[a.lowIndex(t+0.25)]
+		all++
+		moved := 0.0
+		for _, st := range []Rect{above, below} {
+			if st.H > 1 && st.W > 1 {
+				moved = math.Max(moved, regionDiff(f, g, st))
+			}
+		}
+		// Laid-over words hold still to the pixel; footage, even of a sign
+		// on a tripod, keeps some noise.
+		if in := regionDiff(f, g, r); moved >= 3 && in <= 0.5 && in*8 <= moved {
+			n++
+		}
+	}
+	return n >= 3 && n*10 >= all*5
+}
+
 // steady says whether what is inside b stays the same while it is shown:
 // laid-over text does, scenery in a moving shot does not.
 func (a *Analyzer) steady(b Box, s, e float64) bool {
@@ -729,7 +781,8 @@ func (a *Analyzer) steady(b Box, s, e float64) bool {
 		return false
 	}
 	r := b.rect(a.lowGray[0].W, a.lowGray[0].H)
-	lo, hi := s+math.Min(0.1, (e-s)/4), e-math.Min(0.1, (e-s)/4)
+	// Past its entrance: a card that pops or types in changes at first.
+	lo, hi := s+math.Min(math.Max(0.1, 0.15*(e-s)), 0.6), e-math.Min(0.1, (e-s)/4)
 	f, g, m := a.lowGray[a.lowIndex(lo)], a.lowGray[a.lowIndex(hi)], a.lowGray[a.lowIndex((lo+hi)/2)]
 	return regionDiff(f, g, r) <= 7 && regionDiff(f, m, r) <= 7
 }

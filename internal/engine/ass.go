@@ -333,10 +333,12 @@ func buildASS(e *Edit) (string, []string) {
 			}
 			body = emphasize(text, t.Emphasis, color, l.Color)
 		}
-		if t.Badge != nil {
-			d.badge(e, t, name, l, scale, t.Start, end)
-		}
+		// A badge is drawn after the text and its card, so one set on the
+		// card's edge shows over it.
 		if t.LineHeight > 0 && t.Rotate == 0 && d.layoutText(e, &e.P.Texts[i], name, l, scale, t.Start, end, x*float64(e.W), y*float64(e.H)) {
+			if t.Badge != nil {
+				d.badge(e, t, name, l, scale, t.Start, end)
+			}
 			continue
 		}
 		margin := 0
@@ -344,6 +346,9 @@ func buildASS(e *Edit) (string, []string) {
 			margin = max(1, int(math.Round(float64(e.W)*(1-t.MaxWidth)/2)))
 		}
 		d.textEvents(name, l, t.Start, end, x*float64(e.W), y*float64(e.H), t.Rotate, margin, text, body, t.In, t.Out)
+		if t.Badge != nil {
+			d.badge(e, t, name, l, scale, t.Start, end)
+		}
 	}
 	if c := e.P.Captions; c != nil && len(e.Words) > 0 {
 		d.captions(e, c, scale)

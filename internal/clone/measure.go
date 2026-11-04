@@ -135,6 +135,11 @@ func (a *Analyzer) Measure(frames []*RGB) []Crop {
 				}
 			}
 		}
+		if bl.Look.Badge == nil && bl.Look.Background != "" && bl.Look.BoxArea != nil {
+			// A coloured disc set on the card's top edge has no letters of
+			// its own for the line finder to see.
+			bl.Look.Badge = edgeBadge(f1, *bl.Look.BoxArea)
+		}
 		if c := cropFor(bl.ID, "text", p.Stills[idx[0]], f1, bl.Box, bl.Look); c != nil {
 			crops = append(crops, *c)
 		}
@@ -459,6 +464,26 @@ func measureBlock(bl *Block, f1, f2 *RGB) *Look {
 				return false
 			}
 			if !edge(r.X-6, 1) && !edge(r.X+r.W+5, -1) {
+				return false
+			}
+			// A box has rows of its colour clear across, above or below
+			// the letters. Light letters in a dark outline never do.
+			full := func(y0, y1 int) bool {
+				for y := max(0, y0); y < min(H, y1); y++ {
+					k, m := 0, 0
+					for x := r.X + r.W/10; x < r.X+r.W*9/10; x++ {
+						m++
+						if dist(px(f1, x, y), c) < 36 {
+							k++
+						}
+					}
+					if m > 0 && k*100 >= m*85 {
+						return true
+					}
+				}
+				return false
+			}
+			if !full(r.Y-3, r.Y+r.H/3) && !full(r.Y+r.H*2/3, r.Y+r.H+3) {
 				return false
 			}
 		}
@@ -1201,4 +1226,113 @@ func measureBadge(b Box, f *RGB) *BadgeLook {
 	bb := area.box(W, H)
 	return &BadgeLook{X: r3(bb.X), Y: r3(bb.Y), W: r3(bb.W), H: r3(bb.H), Color: fill.hex(), Glyph: glyph.hex(),
 		Round: r2(clampf(cornerRadius(f, area, fill)/float64(max(1, min(area.W, area.H))), 0, 0.5))}
+}
+
+// edgeBadge finds a filled, coloured shape sitting across the top edge of a
+// card (a red quote disc half on, half off the card): the largest run of
+// saturated pixels in a band around the edge that reaches both sides of it.
+func edgeBadge(f *RGB, card Box) *BadgeLook {
+	W, H := f.W, f.H
+	ar := card.rect(W, H)
+	band := max(6, H*4/100)
+	y0, y1 := max(0, ar.Y-band), min(H, ar.Y+band/2)
+	x0, x1 := max(0, ar.X), min(W, ar.X+ar.W)
+	if y1 <= y0 || x1 <= x0 {
+		return nil
+	}
+	hit := func(c rgb) bool { return c.sat() > 0.45 && math.Max(c.r, math.Max(c.g, c.b)) > 60 }
+	cols := make([]int, x1-x0)
+	for y := y0; y < y1; y++ {
+		for x := x0; x < x1; x++ {
+			if hit(px(f, x, y)) {
+				cols[x-x0]++
+			}
+		}
+	}
+	// The widest run of busy columns.
+	bestA, bestB, a := -1, -1, -1
+	for i := 0; i <= len(cols); i++ {
+		if i < len(cols) && cols[i] >= 2 {
+			if a < 0 {
+				a = i
+			}
+			continue
+		}
+		if a >= 0 && (bestA < 0 || i-a > bestB-bestA) {
+			bestA, bestB = a, i
+		}
+		a = -1
+	}
+	if bestA < 0 {
+		return nil
+	}
+	bx0, bx1 := x0+bestA, x0+bestB
+	by0, by1, n := -1, -1, 0
+	var fill []rgb
+	for y := y0; y < y1; y++ {
+		for x := bx0; x < bx1; x++ {
+			if c := px(f, x, y); hit(c) {
+				if by0 < 0 {
+					by0 = y
+				}
+				by1 = y + 1
+				n++
+				fill = append(fill, c)
+			}
+		}
+	}
+	w, h := bx1-bx0, by1-by0
+	if by0 < 0 || w < W*15/1000 || w > W*15/100 || h < 4 {
+		return nil
+	}
+	if ratio := float64(w) / float64(h); ratio < 0.5 || ratio > 2.5 || float64(n) < 0.4*float64(w*h) {
+		return nil
+	}
+	if by0 > ar.Y || by1 < ar.Y {
+		return nil // it must reach across the edge
+	}
+	col, share := dominant(fill)
+	if share < 0.5 {
+		return nil
+	}
+	var gl []rgb
+	for y := by0; y < by1; y++ {
+		for x := bx0; x < bx1; x++ {
+			if c := px(f, x, y); c.luma() > col.luma()+70 {
+				gl = append(gl, c)
+			}
+		}
+	}
+	// A badge carries a light mark, and stands apart from what is around
+	// it: a run of orange in a warm scene is not one.
+	if len(gl) < w*h/20 {
+		return nil
+	}
+	glyph, _ := dominant(gl)
+	near, around := 0, 0
+	for y := max(0, by0-h/2); y < by0; y++ {
+		for x := max(0, bx0-w/2); x < min(W, bx1+w/2); x++ {
+			around++
+			if dist(px(f, x, y), col) < 60 {
+				near++
+			}
+		}
+	}
+	for y := by0; y < by1; y++ {
+		for _, x := range []int{bx0 - 2, bx0 - 1, bx1, bx1 + 1} {
+			if x >= 0 && x < W {
+				around++
+				if dist(px(f, x, y), col) < 60 {
+					near++
+				}
+			}
+		}
+	}
+	if around == 0 || near*10 > around*2 {
+		return nil
+	}
+	area := Rect{bx0, by0, w, h}
+	bb := area.box(W, H)
+	return &BadgeLook{X: r3(bb.X), Y: r3(bb.Y), W: r3(bb.W), H: r3(bb.H), Color: col.hex(), Glyph: glyph.hex(),
+		Round: r2(clampf(cornerRadius(f, area, col)/float64(max(1, min(w, h))), 0, 0.5))}
 }

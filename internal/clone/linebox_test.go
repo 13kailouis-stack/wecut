@@ -114,3 +114,80 @@ func hexRGB(t *testing.T, s string) rgb {
 	c.r, c.g, c.b = float64(v(1)), float64(v(3)), float64(v(5))
 	return c
 }
+
+// Heavy white caption letters in a black outline fill most of their line
+// but are no white box: no row of white runs clear across them.
+func TestOutlinedLettersAreNotABox(t *testing.T) {
+	const W, H = 540, 960
+	f, _, _ := lineBoxFrame()
+	set := func(x, y int, c rgb) {
+		i := 3 * (y*W + x)
+		f.Pix[i], f.Pix[i+1], f.Pix[i+2] = uint8(c.r), uint8(c.g), uint8(c.b)
+	}
+	fill := func(x0, y0, x1, y1 int, c rgb) {
+		for y := y0; y < y1; y++ {
+			for x := x0; x < x1; x++ {
+				set(x, y, c)
+			}
+		}
+	}
+	// Letters 40 px tall: thick white strokes, each in a black outline.
+	for x := 160; x < 380; x += 24 {
+		fill(x, 420, x+22, 464, rgb{8, 5, 4})
+		fill(x+3, 423, x+19, 461, rgb{255, 255, 255})
+		fill(x+8, 432, x+14, 452, rgb{8, 5, 4}) // a counter
+	}
+	ln := Box{158.0 / W, 418.0 / H, 226.0 / W, 48.0 / H}
+	l := measureBlock(&Block{Lines: []Box{ln}, Box: ln}, f, nil)
+	if l.Background != "" {
+		t.Fatalf("background %q: outlined letters read as a box", l.Background)
+	}
+	if dist(hexRGB(t, l.Color), rgb{255, 255, 255}) > 40 {
+		t.Fatalf("color %q, want the white letters", l.Color)
+	}
+}
+
+// A red disc set half over a white card's top edge, on a dark picture.
+func TestEdgeBadge(t *testing.T) {
+	const W, H = 540, 960
+	f := &RGB{W: W, H: H, Pix: make([]uint8, 3*W*H)}
+	set := func(x, y int, c rgb) {
+		i := 3 * (y*W + x)
+		f.Pix[i], f.Pix[i+1], f.Pix[i+2] = uint8(c.r), uint8(c.g), uint8(c.b)
+	}
+	for y := 0; y < H; y++ {
+		for x := 0; x < W; x++ {
+			set(x, y, rgb{12, 10, 10})
+			if x >= 60 && x < 480 && y >= 700 && y < 860 {
+				set(x, y, rgb{252, 251, 251})
+			}
+			dx, dy := float64(x-270), float64(y-700)
+			if dx*dx+dy*dy <= 20*20 {
+				set(x, y, rgb{174, 7, 4})
+				if (x >= 258 && x < 266 || x >= 274 && x < 282) && y >= 692 && y < 704 {
+					set(x, y, rgb{250, 250, 249})
+				}
+			}
+		}
+	}
+	card := Box{60.0 / W, 700.0 / H, 420.0 / W, 160.0 / H}
+	b := edgeBadge(f, card)
+	if b == nil {
+		t.Fatal("no badge found on the card's edge")
+	}
+	if dist(hexRGB(t, b.Color), rgb{174, 7, 4}) > 30 || b.Round < 0.35 {
+		t.Fatalf("badge %+v, want a red disc", b)
+	}
+	if cx := b.X + b.W/2; cx < 0.48 || cx > 0.52 {
+		t.Fatalf("badge centre %.3f, want 0.5", cx)
+	}
+	// The same red as a run of the picture around it is no badge.
+	for y := 640; y < 700; y++ {
+		for x := 200; x < 340; x++ {
+			set(x, y, rgb{174, 7, 4})
+		}
+	}
+	if b := edgeBadge(f, card); b != nil {
+		t.Fatalf("badge %+v found in a red picture", b)
+	}
+}

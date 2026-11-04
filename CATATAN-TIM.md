@@ -98,6 +98,15 @@ Diuji pada video viral dari data Wefluence (diunduh ke `media/viral-uji/`, tidak
 - Jawaban baru untuk agent: `box`, `radius`, `badge`, `fit` per shot, `join: "cut"`, `start`/`end` caption.
 - Resep dari proyek (`recipe from-project`) dulu membuang `lineHeight`, `padding`, `maxWidth`; sekarang ikut tersimpan.
 
+Dari video 04 (kartu putih membulat + kutip merah, caption satu kata):
+
+- Kartu pembuka yang cuma ada di shot pertama dulu dibuang (tidak ada "bukti" dia tempelan). Sekarang diterima kalau hurufnya diam sempurna sementara gambar di atas/bawah kartu bergerak. Teks yang muncul dengan animasi juga dinilai setelah animasinya selesai.
+- Badge yang menempel di tepi atas kartu (lingkaran merah, tanpa huruf untuk pelacak) dicari langsung dari warna; badge digambar di atas kartu.
+- Caption yang katanya berganti di tempat yang sama tidak lagi tertelan jadi satu blok teks, jadi pita caption ketemu.
+- Huruf putih bergaris hitam tidak lagi dibaca sebagai kotak putih: kotak asli harus punya baris penuh warnanya di atas atau bawah huruf.
+- Catatan: kalau menguji ulang dengan `--read`, pakai `--fresh`; tanpa itu hasil deteksi lama dari `analysis.json` bisa terpakai.
+- Masih terbuka: bobot huruf gelap kecil di atas putih terbaca terlalu tipis (tabel bobot dikalibrasi di kapital 33 px), mode caption satu kata vs dua kata belum bisa dibedakan tanpa membaca kata.
+
 Masih terbuka: label di rak belakang pada video tripod (scenery yang diam) masih jadi slot teks palsu dan harus di-drop oleh agent; caption bicara di footage ramai sering tidak ketemu atau hanya sebagian; layar HP yang ditempel (PiP) belum jadi slot gambar; emoji belum digambar.
 
 ## Supaya agent menemukan dan memakai WeCut
