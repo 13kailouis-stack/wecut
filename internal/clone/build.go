@@ -55,10 +55,24 @@ type Reading struct {
 	Mode          string       `json:"mode,omitempty"`      // captions: chunk, karaoke, pop
 	MaxWords      int          `json:"max_words,omitempty"` // captions
 	Highlight     string       `json:"highlight,omitempty"` // captions: the word being spoken
+	Fit           string       `json:"fit,omitempty"`       // slotN: cover, contain (black bars) or blur
+	Box           string       `json:"box,omitempty"`       // a text: line (a box per line) or card
+	Radius        *float64     `json:"radius,omitempty"`    // a text: rounded box corners, px at 1080
+	Badge         *BadgeAnswer `json:"badge,omitempty"`     // a text: its small mark
 
 	// Given: a model or a person answered, so the words are not second-guessed.
 	Given bool `json:"-"`
 }
+
+// BadgeAnswer corrects a text's badge: drop it, or set its glyph or colour.
+type BadgeAnswer struct {
+	Drop  bool   `json:"drop,omitempty"`
+	Glyph string `json:"glyph,omitempty"`
+	Color string `json:"color,omitempty"`
+}
+
+// BadgeOff says the badge was dropped.
+func (r Reading) BadgeOff() bool { return r.Badge != nil && r.Badge.Drop }
 
 type Word struct {
 	Text string `json:"text"`
@@ -110,6 +124,34 @@ func (a *Analyzer) Build(o Options) *Result {
 	if p == nil {
 		p = a.Analyze()
 	}
+	// Answers about the shots change this template, not the measurements.
+	pp := *p
+	pp.Shots = append([]ShotInfo(nil), p.Shots...)
+	p = &pp
+	cutDur := make([]float64, len(p.Shots)) // seconds a false transition gave each shot
+	for k := range p.Shots {
+		rd := o.Read[fmt.Sprintf("slot%d", k+1)]
+		s := &p.Shots[k]
+		switch rd.Fit {
+		case "cover":
+			s.Fit, s.Bg = "cover", ""
+		case "contain", "black":
+			s.Fit, s.Bg = "contain", "black"
+		case "blur":
+			s.Fit, s.Bg = "contain", "blur"
+		}
+		if rd.Join == "cut" && s.Join != "" && k+1 < len(p.Shots) {
+			// Someone looked: a hard cut, not a transition. It falls on the
+			// transition's busiest frame, and the overlap goes.
+			at := s.JoinAt
+			if at <= p.Shots[k+1].Start || at >= s.End {
+				at = (p.Shots[k+1].Start + s.End) / 2
+			}
+			cutDur[k] -= s.End - at
+			cutDur[k+1] -= at - p.Shots[k+1].Start
+			s.Join, s.JoinDur = "", 0
+		}
+	}
 	res := &Result{Plan: p}
 	W, H := a.cfg.W, a.cfg.H
 	r := &recipe.Recipe{Recipe: recipe.Version, Name: o.Name, MaxDuration: math.Max(3, math.Ceil(p.ContentEnd*100)/100)}
@@ -141,7 +183,8 @@ func (a *Analyzer) Build(o Options) *Result {
 
 	// Sections: the hook (shots under an opening card), then a new section
 	// wherever the framing changes.
-	hookEnd := hookEndOf(p)
+	hookEnd := hookEndOf(p, o.Read)
+	p.HookEnd = hookEnd
 	hookMusic, hookLen := p.HookSound(o.Read)
 	type group struct {
 		shots []int
@@ -185,7 +228,7 @@ func (a *Analyzer) Build(o Options) *Result {
 		var abouts []string
 		for j, k := range g.shots {
 			s := p.Shots[k]
-			sh := recipe.Shot{Dur: r3(s.Dur()), Ref: spec.F(r2(s.Start + s.Dur()/2))}
+			sh := recipe.Shot{Dur: r3(s.Dur() + cutDur[k]), Ref: spec.F(r2(s.Start + s.Dur()/2))}
 			if s.Fit != sec.Fit {
 				sh.Fit = s.Fit
 			}
@@ -209,7 +252,7 @@ func (a *Analyzer) Build(o Options) *Result {
 			sh.Inset = seen.Inset
 			abouts = append(abouts, sh.About)
 			joinName := transitionName(s.Join)
-			if seen.Join != "" {
+			if seen.Join != "" && seen.Join != "cut" {
 				joinName = seen.Join
 			}
 			if s.Join != "" {
@@ -327,11 +370,19 @@ func (a *Analyzer) Build(o Options) *Result {
 		if l.Background != "" {
 			sl.Background = l.Background
 			sl.BackgroundOpacity = spec.F(l.BgOpacity)
+			sl.Box = "line"
 			if l.Card {
 				sl.Box = "card"
 			}
+			sl.Radius = l.Radius
 		} else {
 			sl.Background = "none"
+		}
+		if rd.Box != "" {
+			sl.Box = rd.Box
+		}
+		if rd.Radius != nil {
+			sl.Radius = *rd.Radius
 		}
 		if (rd.Italic == nil && l.Italic) || (rd.Italic != nil && *rd.Italic) {
 			sl.Italic = spec.B(true)
@@ -356,18 +407,32 @@ func (a *Analyzer) Build(o Options) *Result {
 			// it so the widest line is as wide as the original's, which keeps
 			// the same line breaks inside the same card.
 			if lines := rd.Lines; len(lines) == len(l.Left) && len(lines) > 0 {
-				k := math.Inf(1)
+				var ks []float64
 				for i, ln := range lines {
 					text := ln
 					if upper {
 						text = strings.ToUpper(ln)
 					}
 					if ours := engine.TextWidth(sl.Font, text, fs); ours > 0 {
-						k = math.Min(k, (l.Right[i]-l.Left[i])*float64(W)/ours)
+						ks = append(ks, (l.Right[i]-l.Left[i])*float64(W)/ours)
 					}
 				}
-				if k < 1 && k > 0.6 {
-					fs *= k
+				if len(ks) > 0 {
+					lo := ks[0]
+					for _, v := range ks {
+						lo = math.Min(lo, v)
+					}
+					k := lo
+					if rd.Given {
+						// Words read by someone who looked: their width is surer
+						// than the capitals, which mostly lower-case lines
+						// measure at x-height. Grow up to the typical line,
+						// never far past the narrowest.
+						k = math.Min(median(ks), lo*1.06)
+					}
+					if (k < 1 && k > 0.6) || (rd.Given && k > 1 && k < 1.8) {
+						fs *= k
+					}
 				}
 			}
 			sl.Size = r2(clampf(fs*1080/short, 8, 400))
@@ -385,6 +450,11 @@ func (a *Analyzer) Build(o Options) *Result {
 			default:
 				x = (left + right) / 2
 			}
+			// A card with a mark above it, or a headline in the upper half,
+			// keeps its top: a longer text grows downward, away from the mark.
+			if l.Badge != nil || (n > 1 && y < 0.55) {
+				sl.VAlign, y = "top", l.CapTop[0]
+			}
 			sl.LineHeight = 1.2
 			if n > 1 {
 				var gaps []float64
@@ -401,6 +471,15 @@ func (a *Analyzer) Build(o Options) *Result {
 				bottom := (b.Y + b.H - l.Base[n-1]) * float64(H) * k
 				lp := (left - b.X) * float64(W) * k
 				rp := (b.X + b.W - right) * float64(W) * k
+				// Keep the first line's box as tall as the original's: our
+				// capitals are not exactly its capitals, and boxes per line
+				// would otherwise touch or drift apart.
+				if meas, ours := (l.Base[0]-l.CapTop[0])*float64(H)*k, sl.Size*engine.CapRatio(sl.Font); top+bottom > 0 && meas > 0 && ours > 0 {
+					if room := top + bottom + meas - ours; room >= 0.3*(top+bottom) {
+						f := room / (top + bottom)
+						top, bottom = top*f, bottom*f
+					}
+				}
 				sl.Padding = []float64{r2(clampf(top, 0, 300)), r2(clampf(rp, 0, 300)), r2(clampf(bottom, 0, 300)), r2(clampf(lp, 0, 300))}
 			}
 			sl.MaxWidth = r2(clampf(right-left+0.04, 0.2, 1))
@@ -418,7 +497,7 @@ func (a *Analyzer) Build(o Options) *Result {
 			sl.MaxWidth = r2(clampf(bl.Box.W+0.02, 0.2, 0.96))
 		}
 		if rd.Y != nil {
-			y = *rd.Y
+			y = *rd.Y // what the slot's y holds: the top with valign top
 		}
 		if rd.X != nil {
 			x = *rd.X
@@ -452,6 +531,23 @@ func (a *Analyzer) Build(o Options) *Result {
 		}
 		if bl.In != "" {
 			sl.In = &spec.Anim{Type: bl.In, Duration: r2(clampf(bl.InDur, 0.05, 2))}
+		}
+		if bg := l.Badge; bg != nil && !rd.BadgeOff() {
+			short := float64(min(W, H))
+			bw, bh := bg.W*float64(W)*1080/short, bg.H*float64(H)*1080/short
+			sl.Badge = &spec.Badge{X: r3(bg.X + bg.W/2), Y: r3(bg.Y + bg.H/2), Size: r2(clampf(bh, 4, 600)),
+				Color: bg.Color, Glyph: "quote", GlyphColor: bg.Glyph, Radius: r2(clampf(bg.Round*math.Min(bw, bh), 0, 300))}
+			if math.Abs(bw-bh) > 0.08*bh {
+				sl.Badge.Width = r2(clampf(bw, 4, 1000))
+			}
+		}
+		if a := rd.Badge; a != nil && sl.Badge != nil {
+			if a.Glyph != "" {
+				sl.Badge.Glyph = a.Glyph
+			}
+			if a.Color != "" {
+				sl.Badge.Color = a.Color
+			}
 		}
 		if l.Emphasis != "" {
 			sl.EmphasisColor = l.Emphasis
@@ -494,6 +590,12 @@ func (a *Analyzer) Build(o Options) *Result {
 	if c := p.Captions; c != nil && c.Look != nil && !reads["captions"].Drop {
 		l := c.Look
 		seen := reads["captions"]
+		if seen.Start != nil {
+			c.Start = r2(clampf(*seen.Start, 0, p.ContentEnd))
+		}
+		if seen.End != nil {
+			c.End = r2(clampf(*seen.End, c.Start, p.ContentEnd))
+		}
 		cs := &recipe.CaptionStyle{Mode: c.Mode, MaxWords: c.MaxWords, Y: spec.F(r3(c.Y))}
 		var sample []string
 		for k := 1; k <= 3; k++ {
@@ -628,9 +730,12 @@ func (a *Analyzer) Build(o Options) *Result {
 }
 
 // hookEndOf is where the opening under a text card ends, or -1.
-func hookEndOf(p *Plan) float64 {
+func hookEndOf(p *Plan, read map[string]Reading) float64 {
 	end := -1.0
 	for _, bl := range p.Blocks {
+		if read[bl.ID].Drop {
+			continue // not a card: someone looked
+		}
 		if bl.Start <= 0.5 && bl.End < p.ContentEnd*0.6 && bl.Look != nil && (bl.Look.Background != "" || len(bl.Lines) >= 2) {
 			end = math.Max(end, bl.End)
 		}

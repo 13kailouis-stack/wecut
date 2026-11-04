@@ -101,7 +101,8 @@ func FromEdit(e *engine.Edit, name string) *Recipe {
 		if name == "" || taken[name] {
 			name = fmt.Sprintf("text%d", n)
 		}
-		sl := Slot{Slot: name, Text: t.Text, X: t.X, Y: t.Y, Rotate: t.Rotate, In: t.In, Out: t.Out, EmphasisColor: t.EmphasisColor, Look: t.Look}
+		sl := Slot{Slot: name, Text: t.Text, X: t.X, Y: t.Y, Rotate: t.Rotate, MaxWidth: t.MaxWidth, LineHeight: t.LineHeight, VAlign: t.VAlign,
+			Padding: t.Padding, In: t.In, Out: t.Out, EmphasisColor: t.EmphasisColor, Badge: t.Badge, Look: t.Look}
 		// Texts running to the end are kept relative to the end (a call to
 		// action stays last whatever the length).
 		if end >= e.Total-0.05 && t.Start > e.Total/2 {

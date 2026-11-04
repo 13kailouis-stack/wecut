@@ -352,8 +352,8 @@ func Apply(r *Recipe, in Input, m media.Set) (*spec.Project, []spec.Issue, []spe
 		}
 		p.Texts = append(p.Texts, spec.Text{
 			Text: words, Start: round3(start), End: spec.F(round3(end)), X: sl.X, Y: sl.Y, Rotate: sl.Rotate,
-			MaxWidth: sl.MaxWidth, LineHeight: sl.LineHeight, Padding: sl.Padding,
-			In: sl.In, Out: sl.Out, Emphasis: t.Emphasis, EmphasisColor: sl.EmphasisColor, Look: sl.Look,
+			MaxWidth: sl.MaxWidth, LineHeight: sl.LineHeight, VAlign: sl.VAlign, Padding: sl.Padding,
+			In: sl.In, Out: sl.Out, Emphasis: t.Emphasis, EmphasisColor: sl.EmphasisColor, Badge: sl.Badge, Look: sl.Look,
 		})
 	}
 	for si, s := range r.Sections {

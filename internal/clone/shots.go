@@ -10,9 +10,10 @@ type ShotInfo struct {
 	// Join is the transition into the next shot ("" = hard cut).
 	Join    string  `json:"join,omitempty"`
 	JoinDur float64 `json:"join_dur,omitempty"`
-	Fit     string  `json:"fit"`          // cover or contain
-	Bg      string  `json:"bg,omitempty"` // contain: black, blur or #RRGGBB
-	Content Box     `json:"content"`      // the picture's area on the canvas
+	JoinAt  float64 `json:"join_at,omitempty"` // the transition's busiest moment
+	Fit     string  `json:"fit"`               // cover or contain
+	Bg      string  `json:"bg,omitempty"`      // contain: black, blur or #RRGGBB
+	Content Box     `json:"content"`           // the picture's area on the canvas
 	Zoom    float64 `json:"zoom,omitempty"`
 	ZoomTo  float64 `json:"zoom_to,omitempty"`
 	// Continue: the same take as the shot before, punched in or out.
@@ -34,7 +35,7 @@ func (a *Analyzer) shots(evs []Event, end float64) []ShotInfo {
 			e := evs[i]
 			s.End = e.End
 			if e.Kind != "cut" && e.End > e.Start {
-				s.Join, s.JoinDur = e.Kind, r3(e.End-e.Start)
+				s.Join, s.JoinDur, s.JoinAt = e.Kind, r3(e.End-e.Start), r3(e.At)
 			}
 			start = e.Start
 			if e.Kind == "cut" {

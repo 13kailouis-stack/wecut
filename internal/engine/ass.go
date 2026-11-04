@@ -26,8 +26,9 @@ type look struct {
 	Upper     bool
 	Italic    bool
 	Align     string
-	Card      bool // one box behind the whole block instead of one per line
-	Anchor    int  // \an position, 0 = from Align (middle row)
+	Card      bool    // one box behind the whole block instead of one per line
+	Radius    float64 // rounded box corners, output pixels
+	Anchor    int     // \an position, 0 = from Align (middle row)
 }
 
 func resolveLook(l spec.Look, base spec.TextStyle, scale float64) look {
@@ -90,6 +91,7 @@ func resolveLook(l spec.Look, base spec.TextStyle, scale float64) look {
 		box = l.Box
 	}
 	r.Card = box == "card" && r.Bg != ""
+	r.Radius = l.Radius * scale
 	r.Size *= scale
 	r.Spacing *= scale
 	return r
@@ -331,6 +333,9 @@ func buildASS(e *Edit) (string, []string) {
 			}
 			body = emphasize(text, t.Emphasis, color, l.Color)
 		}
+		if t.Badge != nil {
+			d.badge(e, t, name, l, scale, t.Start, end)
+		}
 		if t.LineHeight > 0 && t.Rotate == 0 && d.layoutText(e, &e.P.Texts[i], name, l, scale, t.Start, end, x*float64(e.W), y*float64(e.H)) {
 			continue
 		}
@@ -401,6 +406,12 @@ func (d *assDoc) layoutText(e *Edit, t *spec.Text, name string, l look, scale, s
 	for i, ln := range lines {
 		w := m.width(ln, fs, l.Spacing)
 		b := py + capH/2 - float64(n-1)*pitch/2 + float64(i)*pitch
+		switch t.VAlign {
+		case "top":
+			b = py + capH + float64(i)*pitch
+		case "bottom":
+			b = py - float64(n-1-i)*pitch
+		}
 		x0 := px
 		switch l.Align {
 		case "center":
@@ -420,7 +431,7 @@ func (d *assDoc) layoutText(e *Edit, t *spec.Text, name string, l look, scale, s
 		d.styles = append(d.styles, box.styleLine(bname, e.W))
 		rect := func(x0, y0, x1, y1 float64) {
 			w, h := math.Round(x1-x0), math.Round(y1-y0)
-			draw := fmt.Sprintf(`{\p1}m 0 0 l %s 0 %s %s 0 %s{\p0}`, num(w), num(w), num(h), num(h))
+			draw := fmt.Sprintf(`{\p1}%s{\p0}`, roundRect(w, h, l.Radius))
 			d.textEvents(bname, box, start, end, round1((x0+x1)/2), round1((y0+y1)/2), 0, 0, "", draw, animOnly(t.In), animOnly(t.Out))
 		}
 		if l.Card || n == 1 {
@@ -460,6 +471,68 @@ func (d *assDoc) layoutText(e *Edit, t *spec.Text, name string, l look, scale, s
 		d.textEvents(tname, txt, start, end, round1(p.x0+p.w/2), round1(cy), 0, 0, p.text, body, t.In, t.Out)
 	}
 	return true
+}
+
+// badge draws a text's badge: a filled square or circle, then its glyph,
+// with the text's timing and animation.
+func (d *assDoc) badge(e *Edit, t spec.Text, name string, l look, scale, start, end float64) {
+	b := t.Badge
+	side := math.Round(math.Max(1, b.Size*scale))
+	wide := side
+	if b.Width > 0 {
+		wide = math.Round(math.Max(1, b.Width*scale))
+	}
+	cx, cy := b.X*float64(e.W), b.Y*float64(e.H)
+	shape := l
+	shape.Bg, shape.Card, shape.Stroke, shape.Shadow, shape.Anchor = "", false, "", false, 5
+	shape.Color = orStr(b.Color, "#2BB673")
+	d.styles = append(d.styles, shape.styleLine(name+"Q", e.W))
+	draw := fmt.Sprintf(`{\p1}%s{\p0}`, roundRect(wide, side, b.Radius*scale))
+	d.textEvents(name+"Q", shape, start, end, round1(cx), round1(cy), 0, 0, "", draw, animOnly(t.In), animOnly(t.Out))
+	if orStr(b.Glyph, "quote") != "quote" {
+		return
+	}
+	mark := shape
+	mark.Color = orStr(b.GlyphColor, "#FFFFFF")
+	d.styles = append(d.styles, mark.styleLine(name+"M", e.W))
+	draw = fmt.Sprintf(`{\p1}%s{\p0}`, quotePath(side))
+	d.textEvents(name+"M", mark, start, end, round1(cx), round1(cy), 0, 0, "", draw, animOnly(t.In), animOnly(t.Out))
+}
+
+// quotePath is an opening double quote, two heavy marks shaped like a 6,
+// sized for a badge s high, as quote icons on hook cards are drawn: about
+// half the badge's height. The drawing is centred on its own box.
+func quotePath(s float64) string {
+	h := s * 0.5 // one mark
+	w, gap := h*0.78, h*0.2
+	var b strings.Builder
+	for k := 0; k < 2; k++ {
+		x0 := float64(k) * (w + gap)
+		p := func(x, y float64) string { return num(round1(x0+x*w)) + " " + num(round1(y*h)) }
+		fmt.Fprintf(&b, "m %s b %s %s %s b %s %s %s b %s %s %s b %s %s %s b %s %s %s ",
+			p(0, 0.68),
+			p(0, 0.35), p(0.25, 0.08), p(0.78, 0),
+			p(0.82, 0.12), p(0.55, 0.2), p(0.5, 0.38),
+			p(0.84, 0.38), p(1, 0.52), p(1, 0.68),
+			p(1, 0.86), p(0.78, 1), p(0.5, 1),
+			p(0.22, 1), p(0, 0.86), p(0, 0.68))
+	}
+	return strings.TrimSpace(b.String())
+}
+
+// roundRect is a drawing path for a w x h box whose corners are rounded by
+// r (at most half the short side); r <= 0 gives square corners.
+func roundRect(w, h, r float64) string {
+	r = math.Round(math.Min(r, math.Min(w, h)/2))
+	if r < 1 {
+		return fmt.Sprintf("m 0 0 l %s 0 %s %s 0 %s", num(w), num(w), num(h), num(h))
+	}
+	k := r * 0.448 // control points of a quarter circle
+	return fmt.Sprintf("m %s 0 l %s 0 b %s 0 %s %s %s %s l %s %s b %s %s %s %s %s %s l %s %s b %s %s 0 %s 0 %s l 0 %s b 0 %s %s 0 %s 0",
+		num(r), num(w-r), num(w-k), num(w), num(k), num(w), num(r),
+		num(w), num(h-r), num(w), num(h-k), num(w-k), num(h), num(w-r), num(h),
+		num(r), num(h), num(k), num(h), num(h-k), num(h-r),
+		num(r), num(k), num(k), num(r))
 }
 
 // animOnly keeps an animation for a background box; typing has no letters

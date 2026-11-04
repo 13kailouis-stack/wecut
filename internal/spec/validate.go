@@ -362,6 +362,7 @@ func (v *validator) look(path string, l *Look, styles []string) {
 	if l.Box != "" {
 		v.oneOf(path+"/box", l.Box, Boxes, "box")
 	}
+	v.rng(path+"/radius", l.Radius, 0, 300, "radius")
 }
 
 func (v *validator) text(path string, t *Text) {
@@ -377,6 +378,9 @@ func (v *validator) text(path string, t *Text) {
 	if t.LineHeight != 0 {
 		v.rng(path+"/lineHeight", t.LineHeight, 0.6, 3, "lineHeight")
 	}
+	if t.VAlign != "" {
+		v.oneOf(path+"/valign", t.VAlign, VAligns, "valign")
+	}
 	if n := len(t.Padding); n == 3 || n > 4 {
 		v.add("E_VALUE", path+"/padding", "padding is one number, [x, y] or [top, right, bottom, left]", "")
 	}
@@ -388,6 +392,20 @@ func (v *validator) text(path string, t *Text) {
 		keys[i] = s.Key
 	}
 	v.look(path, &t.Look, keys)
+	if b := t.Badge; b != nil {
+		v.rng(path+"/badge/x", b.X, 0, 1, "badge.x")
+		v.rng(path+"/badge/y", b.Y, 0, 1, "badge.y")
+		v.rng(path+"/badge/size", b.Size, 4, 600, "badge.size")
+		if b.Width != 0 {
+			v.rng(path+"/badge/width", b.Width, 4, 1000, "badge.width")
+		}
+		v.rng(path+"/badge/radius", b.Radius, 0, 300, "badge.radius")
+		v.color(path+"/badge/color", b.Color, false)
+		v.color(path+"/badge/glyphColor", b.GlyphColor, false)
+		if b.Glyph != "" {
+			v.oneOf(path+"/badge/glyph", b.Glyph, BadgeGlyphs, "badge glyph")
+		}
+	}
 	if t.In != nil && v.oneOf(path+"/in/type", t.In.Type, AnimIn, "in animation") && t.In.Duration != 0 {
 		v.rng(path+"/in/duration", t.In.Duration, 0.05, 5, "in.duration")
 	}

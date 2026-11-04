@@ -155,6 +155,7 @@ type Slot struct {
 	Rotate     float64    `json:"rotate,omitempty"`
 	MaxWidth   float64    `json:"maxWidth,omitempty"`
 	LineHeight float64    `json:"lineHeight,omitempty"`
+	VAlign     string     `json:"valign,omitempty"`
 	Padding    []float64  `json:"padding,omitempty"`
 	In         *spec.Anim `json:"in,omitempty"`
 	Out        *spec.Anim `json:"out,omitempty"`
@@ -162,6 +163,8 @@ type Slot struct {
 	Emphasis []string `json:"emphasis,omitempty"`
 	// EmphasisColor colours the words passed as emphasis when applying.
 	EmphasisColor string `json:"emphasisColor,omitempty"`
+	// Badge is a small shape drawn with the text, like a quote icon.
+	Badge *spec.Badge `json:"badge,omitempty"`
 	spec.Look
 }
 

@@ -260,6 +260,8 @@ var (
 	AnimOut     = []string{"fade", "down", "shrink"}
 	Aligns      = []string{"left", "center", "right"}
 	Boxes       = []string{"line", "card"}
+	BadgeGlyphs = []string{"quote", "none"}
+	VAligns     = []string{"top", "center", "bottom"}
 )
 
 // Limits keep a render from eating the host machine.

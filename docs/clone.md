@@ -67,7 +67,12 @@ tell. The agent looks and answers what it can see:
 | A dark fade over the picture | `gradientN`: `from`, `to`, `color`, `opacity`, or `drop` | one that stays through the video is measured; one that comes and goes with a shot is not |
 | `timeline.jpg`, frames across the whole video with ticks every tenth of the height | captions' `y` and `size`, and what cannot be templated | captions and effects live inside the shots |
 | Text crops | exact words and line breaks, closest font, slant, coloured words, `background` | OCR misreads styled text; the words also let fonts be matched by line width |
-| A crop that is scenery or part of the footage | `{"drop": true}` | letters on a sign look like laid-over text |
+| A crop that is scenery or part of the footage | `{"drop": true}` | letters on a sign look like laid-over text; a label on a shelf behind a tripod shot holds as still as a title |
+| A text's box | `background`, `box` (`line`: one box per line, `card`: one behind the block), `radius` | measured from the frame; a box hidden behind busy footage can be missed |
+| A small mark shown with a text (a quote icon on a hook card) | `badge`: `{"drop": true}`, or `glyph` (`quote`, `none`) and `color` | measured as the filled shape around the mark; its glyph is drawn, not copied |
+| A shot shown whole on a plain or blurred background | `slotN.fit`: `cover`, `contain`, `black`, `blur` | a picture with bars looks like full-screen footage |
+| A "transition" that is a jump cut | `slotN.join`: `"cut"` | a jump cut in one setting can look like a zoom or a dissolve |
+| Captions that run longer or shorter than measured | `captions.start`, `captions.end` (seconds of the video) | captions on busy footage are found in parts |
 | Caption crops | words, font (dripping, script, novelty), colour, `highlight`, outline, `background`, how they appear | measuring only picks among plain faces, and captions that grow word by word can be measured in the wrong place |
 | `slots.jpg`, one frame per shot | `slotN.about`: the kind of shot to film | a shot's content is not in its pixels' statistics |
 | `transitions.jpg`, five frames through each | `slotN.join` when the kind is wrong | measuring tells flash, fade, dissolve, zoom and blur; a slide looks like one of them |
@@ -86,6 +91,9 @@ wecut clone media/viral.mp4 --name news-card --force --read words.json
 #  "caption1": ["WORD"],
 #  "captions": {"font": "creepster", "color": "#FFC93C", "stroke": "#C8320A", "mode": "pop", "max_words": 1},
 #  "slot1": {"about": "wide outdoor shot, camera moving fast"},
+#  "text3": {"background": "#FFFFFF", "color": "#222222", "box": "line", "radius": 0, "badge": {"glyph": "quote", "color": "#70BFA8"}},
+#  "slot2": {"fit": "contain"},
+#  "slot6": {"join": "cut"},
 #  "slot8": {"join": "slideleft"},
 #  "logo": {"about": "white logo with wordmark"}}
 ```
@@ -120,7 +128,12 @@ A cloned recipe is an ordinary `wecut.recipe/1` file
     {"slot": "headline", "text": "Tolak Ngantor di Jakarta,\nAmbisi Bos Ini Bangun",
      "start": 0, "end": 5.97, "x": 0.046, "y": 0.756, "align": "left",
      "font": "poppins", "size": 70.8, "italic": true, "color": "#020202",
-     "background": "#FEFEFE", "box": "card", "lineHeight": 1.0, "padding": [18, 26], "maxWidth": 0.92}
+     "background": "#FEFEFE", "box": "card", "lineHeight": 1.0, "padding": [18, 26], "maxWidth": 0.92},
+    {"slot": "text2", "text": "Two lines
+of a hook", "start": 0, "end": 5.87, "x": 0.106, "y": 0.689, "valign": "top",
+     "align": "left", "font": "poppins", "size": 57.2, "color": "#242424", "background": "#FDFEFD", "box": "line",
+     "lineHeight": 1.17, "padding": [14.5, 39.7, 6.1, 52.6], "maxWidth": 0.87,
+     "badge": {"x": 0.141, "y": 0.643, "size": 74.9, "width": 131.8, "color": "#70BFA8", "glyph": "quote"}}
   ],
   "captions": {"mode": "pop", "maxWords": 1, "y": 0.632, "size": 120, "color": "#FDF68D", "uppercase": true},
   "overlays": [{"slot": "logo", "x": 0.238, "y": 0.103, "width": 0.28}]

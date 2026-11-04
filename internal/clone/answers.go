@@ -108,8 +108,15 @@ func CheckAnswers(p *Plan, crops []Crop, read map[string]Reading) []string {
 			if rd.Continue && k == 1 {
 				out = append(out, "slot1: the first slot has no slot before it to continue")
 			}
+			if rd.Fit != "" && !slices.Contains([]string{"cover", "contain", "black", "blur"}, rd.Fit) {
+				out = append(out, fmt.Sprintf("%s: fit is cover (fills the frame), contain or black (shown whole on black), or blur (shown whole on its own blur)", id))
+			}
 			if rd.Join != "" {
-				if _, ok := spec.Transitions[rd.Join]; !ok {
+				if rd.Join == "cut" {
+					if p.Shots[k-1].Join == "" {
+						out = append(out, fmt.Sprintf("%s: this shot already ends on a hard cut", id))
+					}
+				} else if _, ok := spec.Transitions[rd.Join]; !ok {
 					out = append(out, fmt.Sprintf("%s: unknown transition %q (wecut list transitions)", id, rd.Join))
 				} else if p.Shots[k-1].Join == "" {
 					out = append(out, fmt.Sprintf("%s: this shot ends on a hard cut, so its timing has no transition to rename", id))
@@ -151,8 +158,28 @@ func CheckAnswers(p *Plan, crops []Crop, read map[string]Reading) []string {
 		if rd.Align != "" && !slices.Contains([]string{"left", "center", "right"}, rd.Align) {
 			out = append(out, fmt.Sprintf("%s: align must be left, center or right", id))
 		}
-		if !strings.HasPrefix(id, "text") && (rd.Align != "" || rd.MaxWidth != nil || rd.LineHeight != nil || rd.Start != nil || rd.End != nil) {
-			out = append(out, fmt.Sprintf("%s: align, max_width, line_height and start/end apply to text blocks only", id))
+		if !strings.HasPrefix(id, "text") && (rd.Align != "" || rd.MaxWidth != nil || rd.LineHeight != nil || rd.Box != "" || rd.Radius != nil || rd.Badge != nil) {
+			out = append(out, fmt.Sprintf("%s: align, max_width, line_height, box, radius and badge apply to text blocks only", id))
+		}
+		if !strings.HasPrefix(id, "text") && id != "captions" && (rd.Start != nil || rd.End != nil) {
+			out = append(out, fmt.Sprintf("%s: start/end apply to text blocks and captions only", id))
+		}
+		if id == "captions" && rd.Start != nil && rd.End != nil && *rd.End <= *rd.Start {
+			out = append(out, "captions: end must be after start")
+		}
+		if rd.Box != "" && rd.Box != "line" && rd.Box != "card" {
+			out = append(out, fmt.Sprintf("%s: box is line (a box behind each line) or card (one box behind all of them)", id))
+		}
+		if rd.Radius != nil && (*rd.Radius < 0 || *rd.Radius > 300) {
+			out = append(out, fmt.Sprintf("%s: radius must be 0 to 300 pixels at 1080", id))
+		}
+		if b := rd.Badge; b != nil {
+			if b.Glyph != "" && !slices.Contains(spec.BadgeGlyphs, b.Glyph) {
+				out = append(out, fmt.Sprintf("%s: badge glyph must be one of %s", id, strings.Join(spec.BadgeGlyphs, ", ")))
+			}
+			if b.Color != "" && !answerHex.MatchString(b.Color) {
+				out = append(out, fmt.Sprintf("%s: badge colour %q must look like #RRGGBB", id, b.Color))
+			}
 		}
 		if rd.MaxWidth != nil && (*rd.MaxWidth <= 0 || *rd.MaxWidth > 1) {
 			out = append(out, fmt.Sprintf("%s: max_width must be greater than 0 and at most 1", id))

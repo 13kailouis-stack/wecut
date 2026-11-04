@@ -179,3 +179,15 @@ func TestCatalogKeysAreUnique(t *testing.T) {
 		}
 	}
 }
+
+func TestValidateTextLayoutFields(t *testing.T) {
+	p := &Project{Wecut: Version, Clips: []Clip{{Src: "a.mp4"}}, Texts: []Text{{Text: "hi", LineHeight: 1.2, VAlign: "middle",
+		Badge: &Badge{X: 0.1, Y: 0.1, Size: 40, Width: 2000}}}}
+	got := map[string]bool{}
+	for _, is := range Validate(p) {
+		got[is.Path] = true
+	}
+	if !got["/texts/0/valign"] || !got["/texts/0/badge/width"] {
+		t.Fatalf("issues %v", got)
+	}
+}

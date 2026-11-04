@@ -87,6 +87,19 @@ Cek: `https://registry.modelcontextprotocol.io/v0.1/servers/io.github.13kailouis
 
 Jangan push tag `v0.3.0` setelah publish manual: tag itu menjalankan `release.yml`, yang akan mencoba menerbitkan versi yang sama lagi dan gagal. Push tag hanya dipakai kalau trusted publishing sudah diatur di npm untuk ketujuh paket dan langkah manual di atas TIDAK dijalankan.
 
+## Kloning diuji pada video viral Wefluence (4 Nov 2026)
+
+Diuji pada video viral dari data Wefluence (diunduh ke `media/viral-uji/`, tidak masuk repo). Yang diperbaiki dari video 01 (kartu hook TikTok):
+
+- Kotak putih per baris dengan huruf gelap sekarang terbaca benar (dulu warnanya terbalik: kotak dibaca huruf, huruf dibaca garis tepi). Baris yang menempel dan tertangkap sebagai satu baris tinggi tetap dikelompokkan.
+- Kotak per baris (`box: line`) dibedakan dari satu kartu (`card`), sudut membulat diukur (`radius`), dan tinggi tiap kotak ikut aslinya sehingga celah antar kotak tetap ada.
+- Ikon kecil di atas kartu (kutip hijau) jadi `badge`: warna, lebar dan tinggi kotaknya diukur, tanda kutipnya digambar mesin. Tanda lain di dekatnya tidak lagi menyerobot.
+- Teks hook bisa menempel di atas (`valign: top`), jadi teks pengganti yang barisnya lebih sedikit atau banyak tumbuh ke bawah dan jarak ke badge tetap.
+- Jawaban baru untuk agent: `box`, `radius`, `badge`, `fit` per shot, `join: "cut"`, `start`/`end` caption.
+- Resep dari proyek (`recipe from-project`) dulu membuang `lineHeight`, `padding`, `maxWidth`; sekarang ikut tersimpan.
+
+Masih terbuka: label di rak belakang pada video tripod (scenery yang diam) masih jadi slot teks palsu dan harus di-drop oleh agent; caption bicara di footage ramai sering tidak ketemu atau hanya sebagian; layar HP yang ditempel (PiP) belum jadi slot gambar; emoji belum digambar.
+
 ## Supaya agent menemukan dan memakai WeCut
 
 File di repo (dibaca agent, registry dan mesin pencari AI):

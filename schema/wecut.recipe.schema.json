@@ -190,7 +190,8 @@
         "uppercase": { "type": "boolean" },
         "italic": { "type": "boolean" },
         "align": { "enum": ["left", "center", "right"] },
-        "box": { "enum": ["line", "card"], "description": "card: one box behind the whole block, like a news headline card." }
+        "box": { "enum": ["line", "card"], "description": "card: one box behind the whole block, like a news headline card." },
+        "radius": { "type": "number", "minimum": 0, "maximum": 300, "description": "Rounded corners of the background box, pixels at 1080." }
       }
     },
     "shot": {
@@ -238,11 +239,26 @@
         "rotate": { "type": "number" },
         "maxWidth": { "type": "number", "minimum": 0.1, "maximum": 1, "description": "Wrap lines at this fraction of the canvas width." },
         "lineHeight": { "type": "number", "minimum": 0.6, "maximum": 3, "description": "Exact line spacing (times the size); the background becomes a card sized to the text." },
+        "valign": { "enum": ["top", "center", "bottom"], "description": "With lineHeight: y is the middle (center, default), the first line's top (top) or the last baseline (bottom)." },
         "padding": { "type": "array", "minItems": 1, "maxItems": 4, "items": { "type": "number" }, "description": "Card padding in px at 1080: [all], [x, y] or [top, right, bottom, left]." },
         "in": { "type": "object" },
         "out": { "type": "object" },
         "emphasis": { "type": "array", "items": { "type": "string" }, "description": "Words of the default text to colour, used only with the default text." },
-        "emphasisColor": { "type": "string", "description": "Colour for the words passed as emphasis." }
+        "emphasisColor": { "type": "string", "description": "Colour for the words passed as emphasis." },
+        "badge": {
+          "type": "object", "required": ["x", "y", "size"], "additionalProperties": false,
+          "description": "A small filled square or circle with a glyph, shown with the text (a quote icon on a hook card).",
+          "properties": {
+            "x": { "type": "number", "minimum": 0, "maximum": 1, "description": "Centre, fraction of the width." },
+            "y": { "type": "number", "minimum": 0, "maximum": 1, "description": "Centre, fraction of the height." },
+            "size": { "type": "number", "minimum": 4, "maximum": 600, "description": "Side in pixels at 1080; the height when width is set." },
+            "width": { "type": "number", "minimum": 4, "maximum": 1000, "description": "Width in pixels at 1080, default the size: a wide badge like a tag." },
+            "color": { "type": "string", "description": "Fill colour, default #2BB673." },
+            "glyph": { "enum": ["quote", "none"], "description": "What is drawn in it: an opening double quote (default) or nothing." },
+            "glyphColor": { "type": "string", "description": "Glyph colour, default #FFFFFF." },
+            "radius": { "type": "number", "minimum": 0, "maximum": 300, "description": "Corner radius in pixels at 1080; half the size is a circle." }
+          }
+        }
       }
     }
   }

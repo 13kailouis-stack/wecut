@@ -356,3 +356,33 @@ func TestApplySnapsShotsToNewTempo(t *testing.T) {
 		t.Fatalf("warning %q", joined)
 	}
 }
+
+// A project's exact text layout survives being saved as a recipe.
+func TestFromEditKeepsTextLayout(t *testing.T) {
+	r := load(t, "news-headline")
+	in := Input{
+		Clips: []Clip{{Src: "m/broll.mp4", Role: "hook"}, {Src: "m/talk.mp4", From: 100, To: spec.F(130)}},
+		Texts: map[string]SlotText{"headline": {Text: "Big news"}, "label": {Text: "Page"}},
+	}
+	p, _, errs := Apply(r, in, mset)
+	if len(errs) > 0 {
+		t.Fatal(errs)
+	}
+	for i := range p.Texts {
+		p.Texts[i].LineHeight, p.Texts[i].VAlign, p.Texts[i].MaxWidth = 1.2, "top", 0.7
+		p.Texts[i].Padding = []float64{10, 20}
+		p.Texts[i].Badge = &spec.Badge{X: 0.1, Y: 0.6, Size: 70, Width: 130}
+	}
+	e, issues := engine.Resolve(p, mset, nil)
+	if len(issues) > 0 {
+		t.Fatal(issues)
+	}
+	d := FromEdit(e, "mine")
+	for _, s := range d.Sections {
+		for _, sl := range s.Texts {
+			if sl.LineHeight != 1.2 || sl.VAlign != "top" || sl.MaxWidth != 0.7 || len(sl.Padding) != 2 || sl.Badge == nil || sl.Badge.Width != 130 {
+				t.Fatalf("slot %s lost its layout: %+v", sl.Slot, sl)
+			}
+		}
+	}
+}

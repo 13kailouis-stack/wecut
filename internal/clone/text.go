@@ -358,6 +358,10 @@ type Block struct {
 	InDur float64 `json:"in_dur,omitempty"`
 	Out   string  `json:"out,omitempty"`
 	// Filled in by Measure.
+	// Badge is a small mark shown with the block, like a quote icon on a
+	// hook card: the mark found by the line finder (its glyph).
+	Badge   *Box   `json:"badge,omitempty"`
+	badges  []Box  // candidates for Badge, best first; Measure keeps the one that is a filled shape
 	Look    *Look  `json:"look,omitempty"`
 	Words   string `json:"words,omitempty"`
 	Slot    string `json:"slot,omitempty"` // the recipe slot it became
@@ -452,17 +456,23 @@ func (a *Analyzer) textResults(p *Plan) {
 	var groups []*group
 	for _, l := range lines {
 		var into *group
+		bestFit, bestGap := 0.0, math.Inf(1)
 		for _, g := range groups {
 			bl := g.bl
 			ov := math.Min(bl.End, l.e) - math.Max(bl.Start, l.s)
 			span := math.Max(bl.End, l.e) - math.Min(bl.Start, l.s)
 			last := bl.Lines[len(bl.Lines)-1]
 			gap := l.b.Y - (last.Y + last.H)
-			hOK := l.b.H < last.H*1.6 && last.H < l.b.H*1.6
+			// Lines set tight on touching boxes can come out of the tracker as
+			// one tall line: compare heights per line.
+			lh, llh := perLine(l.b.H, last.H), perLine(last.H, l.b.H)
+			hOK := lh < llh*1.6 && llh < lh*1.6
 			xOK := math.Min(l.b.X+l.b.W, bl.Box.X+bl.Box.W)-math.Max(l.b.X, bl.Box.X) > 0
-			if ov/math.Min(bl.End-bl.Start, l.e-l.s) >= 0.6 && ov/span >= 0.4 && gap < 1.3*math.Max(l.b.H, last.H) && gap > -0.5*l.b.H && hOK && xOK {
-				into = g
-				break
+			if ov/math.Min(bl.End-bl.Start, l.e-l.s) >= 0.6 && ov/span >= 0.4 && gap < 1.3*math.Max(lh, llh) && gap > -0.5*l.b.H && hOK && xOK {
+				// The block it was shown with most closely, then the nearest.
+				if fit := ov / span; fit > bestFit+0.05 || (math.Abs(fit-bestFit) <= 0.05 && math.Abs(gap) < bestGap) {
+					into, bestFit, bestGap = g, fit, math.Abs(gap)
+				}
 			}
 		}
 		if into == nil {
@@ -485,6 +495,12 @@ func (a *Analyzer) textResults(p *Plan) {
 			}
 		}
 		return false
+	}
+	var marks []*Block
+	for _, g := range groups {
+		if b := g.bl.Box; b.W < 0.08 && b.H < 0.05 && len(g.bl.Lines) == 1 {
+			marks = append(marks, g.bl)
+		}
 	}
 	var blocks []*Block
 	for _, g := range groups {
@@ -654,6 +670,7 @@ func (a *Analyzer) textResults(p *Plan) {
 		}
 	}
 	blocks = kept
+	attachBadges(blocks, marks)
 	sort.Slice(blocks, func(i, j int) bool {
 		if math.Abs(blocks[i].Start-blocks[j].Start) > 0.1 {
 			return blocks[i].Start < blocks[j].Start
@@ -978,4 +995,60 @@ func (a *Analyzer) coreBox(area Box, s, e float64) (Box, bool) {
 		return Box{}, false
 	}
 	return Rect{r.X + x0, r.Y + y0, x1 - x0 + 1, y1 - y0 + 1}.box(w, h), true
+}
+
+// perLine is h as the height of one line, when h looks like a few lines
+// of about other's height that the tracker took as one.
+func perLine(h, other float64) float64 {
+	if h <= other*1.6 || other <= 0 {
+		return h
+	}
+	n := math.Round(h / other)
+	if n < 2 || n > 3 || math.Abs(h/other-n) > 0.35 {
+		return h
+	}
+	return h / n
+}
+
+// attachBadges gives a block the small marks that come and go with it just
+// above or on its top edge: a quote icon or a tag on a hook card. Each block
+// keeps its candidates nearest its first line first; Measure keeps the first
+// one that is a filled shape.
+func attachBadges(blocks, marks []*Block) {
+	type cand struct {
+		b Box
+		d float64
+	}
+	for _, bl := range blocks {
+		if bl.Kind == "logo" || len(bl.Lines) == 0 {
+			continue
+		}
+		first := bl.Lines[0]
+		var cs []cand
+		for _, m := range marks {
+			ov := math.Min(bl.End, m.End) - math.Max(bl.Start, m.Start)
+			if ov < 0.7*(m.End-m.Start) || ov < 0.5*(bl.End-bl.Start) {
+				continue
+			}
+			below := first.Y - (m.Box.Y + m.Box.H) // room between the mark and the block
+			if below < -m.Box.H*1.2 || below > math.Max(m.Box.H, first.H)*3 {
+				continue
+			}
+			if m.Box.cx() < bl.Box.X-m.Box.W || m.Box.cx() > bl.Box.X+bl.Box.W+m.Box.W {
+				continue
+			}
+			// How far it sits beside the first line, on top of how far above.
+			side := math.Max(0, math.Max(first.X-m.Box.cx(), m.Box.cx()-(first.X+first.W)))
+			cs = append(cs, cand{m.Box, math.Abs(below) + side})
+		}
+		if len(cs) == 0 {
+			continue
+		}
+		sort.SliceStable(cs, func(i, j int) bool { return cs[i].d < cs[j].d })
+		for _, c := range cs {
+			bl.badges = append(bl.badges, c.b)
+		}
+		b := cs[0].b
+		bl.Badge = &b
+	}
 }

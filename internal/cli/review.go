@@ -22,7 +22,7 @@ import (
 // and its answers come back through --read. OCR is only the fallback for
 // running without an agent.
 
-const answerExample = `{"text1": {"lines": ["first line", "second line"], "font": "roboto", "italic": true, "emphasis": ["word"], "emphasis_color": "#E8003D", "background": "none"}, "text2": {"drop": true}, "caption1": ["WORD"], "captions": {"font": "barlow-condensed", "color": "#8E8E8E", "highlight": "#FFFFFF", "mode": "karaoke", "max_words": 5, "y": 0.52, "size": 64, "background": "none", "shadow": true, "accent": {"color": "#FFD60A", "scale": 130, "italic": true}}, "slot1": {"about": "wide outdoor shot, handheld"}, "slot3": {"join": "wipeleft"}, "slot4": {"continue": true}, "slot5": {"inset": {"x": 0.05, "y": 0.35, "w": 0.9, "h": 0.3, "background": "#0E0E0E", "grid": true, "radius": 24}}, "filter1": {"color": "#FF6A00", "opacity": 40, "start": 19.2, "end": 19.9}, "gradient1": {"from": 0.6, "to": 0.8, "color": "#000000"}, "logo": {"drop": true}}`
+const answerExample = `{"text1": {"lines": ["first line", "second line"], "font": "roboto", "italic": true, "emphasis": ["word"], "emphasis_color": "#E8003D", "background": "none"}, "text2": {"drop": true}, "text3": {"background": "#FFFFFF", "color": "#222222", "box": "line", "radius": 0, "badge": {"glyph": "quote", "color": "#70BFA8"}}, "caption1": ["WORD"], "captions": {"font": "barlow-condensed", "color": "#8E8E8E", "highlight": "#FFFFFF", "mode": "karaoke", "max_words": 5, "start": 5.8, "end": 40, "y": 0.52, "size": 64, "background": "none", "shadow": true, "accent": {"color": "#FFD60A", "scale": 130, "italic": true}}, "slot1": {"about": "wide outdoor shot, handheld"}, "slot2": {"fit": "contain"}, "slot3": {"join": "wipeleft"}, "slot6": {"join": "cut"}, "slot4": {"continue": true}, "slot5": {"inset": {"x": 0.05, "y": 0.35, "w": 0.9, "h": 0.3, "background": "#0E0E0E", "grid": true, "radius": 24}}, "filter1": {"color": "#FF6A00", "opacity": 40, "start": 19.2, "end": 19.9}, "gradient1": {"from": 0.6, "to": 0.8, "color": "#000000"}, "logo": {"drop": true}}`
 
 const (
 	sessionFile    = "analysis.json"
@@ -249,7 +249,7 @@ func buildReview(res *clone.Result, crops []clone.Crop, files map[string]string,
 			pending++
 		}
 		it := map[string]any{"id": bl.ID, "kind": "text", "start": bl.Start, "end": bl.End, "answered": answered,
-			"ask": "The exact words with their line breaks, closest font, slant and emphasis. Correct layout with x, y (canvas fractions), align (left/center/right), size (pixels at 1080), max_width (canvas fraction), line_height (0.8..2.5), start/end (source seconds). If this is part of the footage or not text, drop it."}
+			"ask": "The exact words with their line breaks, closest font, slant and emphasis. Correct layout with x, y (canvas fractions; with now.valign top, y is the top of the first line's capitals), align (left/center/right), size (pixels at 1080), max_width (canvas fraction), line_height (0.8..2.5), start/end (source seconds). Its background: background (#RRGGBB or none), box (line: a box behind each line; card: one box behind the block), radius (corner px at 1080). A small mark shown with it (a quote icon): badge {drop: true}, or badge {glyph: quote or none, color}. If this is part of the footage or not text, drop it."}
 		if f := files[bl.ID]; f != "" {
 			it["image"] = f
 		}
@@ -257,6 +257,18 @@ func buildReview(res *clone.Result, crops []clone.Crop, files map[string]string,
 			now := map[string]any{"slot": sl.Slot, "font": sl.Font, "color": sl.Color, "italic": sl.Italic != nil && *sl.Italic, "uppercase": sl.Uppercase != nil && *sl.Uppercase}
 			now["x"], now["y"], now["size"], now["align"] = sl.X, sl.Y, sl.Size, sl.Align
 			now["max_width"], now["line_height"] = sl.MaxWidth, sl.LineHeight
+			if sl.VAlign != "" {
+				now["valign"] = sl.VAlign
+			}
+			if sl.Background != "" {
+				now["background"], now["box"] = sl.Background, sl.Box
+				if sl.Radius > 0 {
+					now["radius"] = sl.Radius
+				}
+			}
+			if b := sl.Badge; b != nil {
+				now["badge"] = map[string]any{"color": b.Color, "glyph": b.Glyph}
+			}
 			now["start"], now["end"] = sl.Start, sl.End
 			if bl.Words != "" {
 				now["words"] = bl.Words
@@ -334,7 +346,7 @@ func buildReview(res *clone.Result, crops []clone.Crop, files map[string]string,
 	}
 	if trans != "" {
 		items = append(items, map[string]any{"id": "transitions", "kind": "transitions", "image": trans, "now": transitionRows(res.Plan),
-			"ask": "Each row runs through one transition, numbered with the slot it leaves. If the measured kind is wrong, answer slotN with join and a name from wecut list transitions (a slide, wipe, spin...). Their timing stays as measured."})
+			"ask": "Each row runs through one transition, numbered with the slot it leaves. If the measured kind is wrong, answer slotN with join and a name from wecut list transitions (a slide, wipe, spin...); their timing stays as measured. If there is no transition there at all, only a jump cut, answer join \"cut\"."})
 	}
 	if compare != "" {
 		items = append(items, map[string]any{"id": "compare", "kind": "check", "image": compare,

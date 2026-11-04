@@ -115,6 +115,9 @@ type Look struct {
 	// Box is how a background is drawn: "line" (default) puts a box behind
 	// each line, "card" one box behind the whole block, like a news card.
 	Box string `json:"box,omitempty"`
+	// Radius rounds the corners of the background box, in pixels at 1080
+	// (texts laid out with lineHeight).
+	Radius float64 `json:"radius,omitempty"`
 }
 
 type Text struct {
@@ -131,6 +134,10 @@ type Text struct {
 	// size apart (e.g. 1.2), instead of the font's own spacing. A
 	// background then becomes one exact card (or one box per line).
 	LineHeight float64 `json:"lineHeight,omitempty"`
+	// VAlign says what Y holds with lineHeight: "center" (default) the
+	// middle of the block, "top" the capitals' top of the first line, so
+	// more lines grow downward, "bottom" the last baseline.
+	VAlign string `json:"valign,omitempty"`
 	// Padding around the text inside its card, in pixels at 1080: one
 	// value for all sides, or [x, y]. Used with lineHeight.
 	Padding []float64 `json:"padding,omitempty"`
@@ -140,7 +147,23 @@ type Text struct {
 	// EmphasisColor, like the red words in a headline card.
 	Emphasis      []string `json:"emphasis,omitempty"`
 	EmphasisColor string   `json:"emphasisColor,omitempty"`
+	// Badge is a small filled shape shown with the text, like the quote
+	// icon on a hook card.
+	Badge *Badge `json:"badge,omitempty"`
 	Look
+}
+
+// Badge is a filled square or circle with a glyph in it, drawn under the
+// text's timing and animation. X and Y place its centre (canvas fractions).
+type Badge struct {
+	X          float64 `json:"x"`
+	Y          float64 `json:"y"`
+	Size       float64 `json:"size"`                 // side (the height when width is set), pixels at 1080
+	Width      float64 `json:"width,omitempty"`      // pixels at 1080, default size
+	Color      string  `json:"color,omitempty"`      // fill, default #2BB673
+	Glyph      string  `json:"glyph,omitempty"`      // quote (default) or none
+	GlyphColor string  `json:"glyphColor,omitempty"` // default #FFFFFF
+	Radius     float64 `json:"radius,omitempty"`     // corners, pixels at 1080; size/2 is a circle
 }
 
 type Anim struct {

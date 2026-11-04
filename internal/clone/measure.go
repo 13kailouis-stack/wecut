@@ -15,9 +15,12 @@ type Look struct {
 	BgOpacity  float64 `json:"background_opacity,omitempty"`
 	Card       bool    `json:"card,omitempty"`     // one box behind all lines
 	BoxArea    *Box    `json:"box_area,omitempty"` // the box itself
-	Emphasis   string  `json:"emphasis,omitempty"` // a second text colour, e.g. red key words
-	Size       float64 `json:"size"`               // font size in px at 1080 (short side)
-	Glyph      float64 `json:"glyph"`              // measured line height, fraction of the frame
+	Radius     float64 `json:"radius,omitempty"`   // rounded box corners, px at 1080
+	// Badge is a small mark drawn with the text, like a quote icon.
+	Badge    *BadgeLook `json:"badge,omitempty"`
+	Emphasis string     `json:"emphasis,omitempty"` // a second text colour, e.g. red key words
+	Size     float64    `json:"size"`               // font size in px at 1080 (short side)
+	Glyph    float64    `json:"glyph"`              // measured line height, fraction of the frame
 	// Per line, as fractions of the frame: top of the capitals, the
 	// baseline, and the left and right ends of the letters.
 	CapTop []float64 `json:"cap_top,omitempty"`
@@ -106,6 +109,7 @@ func (a *Analyzer) Measure(frames []*RGB) []Crop {
 		parts := splitByStyle(bl, frames[p.stillOf[bl.ID][0]])
 		for k, part := range parts {
 			if k > 0 {
+				part.Badge, part.badges = nil, nil
 				part.ID = fmt.Sprintf("%s-%d", bl.ID, k+1)
 				p.stillOf[part.ID] = p.stillOf[bl.ID]
 			}
@@ -117,6 +121,20 @@ func (a *Analyzer) Measure(frames []*RGB) []Crop {
 		idx := p.stillOf[bl.ID]
 		f1, f2 := frames[idx[0]], frames[idx[len(idx)-1]]
 		bl.Look = measureBlock(bl, f1, f2)
+		if bl.Badge != nil {
+			cands := bl.badges
+			if len(cands) == 0 {
+				cands = []Box{*bl.Badge}
+			}
+			bl.Badge = nil
+			for _, c := range cands {
+				if bg := measureBadge(c, f1); bg != nil {
+					c := c
+					bl.Badge, bl.Look.Badge = &c, bg
+					break
+				}
+			}
+		}
 		if c := cropFor(bl.ID, "text", p.Stills[idx[0]], f1, bl.Box, bl.Look); c != nil {
 			crops = append(crops, *c)
 		}
@@ -141,7 +159,7 @@ func (a *Analyzer) Measure(frames []*RGB) []Crop {
 		}
 		c.Look = mergeLooks(looks)
 	}
-	p.HookEnd = hookEndOf(p)
+	p.HookEnd = hookEndOf(p, nil)
 	p.HookMusic = p.Speech && p.HookEnd > 1 && soundsLikeMusic(a.pcm, a.rate, 0, p.HookEnd)
 	return crops
 }
@@ -165,7 +183,7 @@ func splitByStyle(bl *Block, f *RGB) []*Block {
 		bgs = append(bgs, c)
 	}
 	var out []*Block
-	cur := &Block{ID: bl.ID, Start: bl.Start, End: bl.End, In: bl.In, InDur: bl.InDur, Kind: bl.Kind}
+	cur := &Block{ID: bl.ID, Start: bl.Start, End: bl.End, In: bl.In, InDur: bl.InDur, Kind: bl.Kind, Badge: bl.Badge, badges: bl.badges}
 	for i, ln := range bl.Lines {
 		if i > 0 && dist(bgs[i], bgs[i-1]) > 70 {
 			out = append(out, cur)
@@ -386,7 +404,67 @@ func measureBlock(bl *Block, f1, f2 *RGB) *Look {
 		}
 		return sides >= 3
 	}
-	boxed := false
+	// Or a box drawn tight around each line: each line's own rectangle is
+	// mostly the colour, which runs up to the rectangle's side and stops
+	// there, against the picture.
+	tight := func(c rgb) bool {
+		for _, ln := range bl.Lines {
+			r := ln.rect(W, H)
+			if r.W < 6 || r.H < 4 {
+				return false
+			}
+			on, n := 0, 0
+			for y := r.Y; y < r.Y+r.H; y++ {
+				for x := r.X; x < r.X+r.W; x++ {
+					n++
+					if dist(px(f1, x, y), c) < 36 {
+						on++
+					}
+				}
+			}
+			if float64(on) < 0.45*float64(n) {
+				return false
+			}
+			side := func(x0, x1 int) float64 {
+				k, m := 0, 0
+				for y := r.Y + r.H/4; y < r.Y+r.H*3/4; y++ {
+					for x := max(0, x0); x < min(W, x1); x++ {
+						m++
+						if dist(px(f1, x, y), c) < 36 {
+							k++
+						}
+					}
+				}
+				if m == 0 {
+					return -1
+				}
+				return float64(k) / float64(m)
+			}
+			// The line finder's edge sits a few pixels either side of the
+			// box's: find the first column, from outside in, that is the
+			// colour, and check the columns just outside it are not.
+			edge := func(from, step int) bool {
+				for i := 0; i < 16; i++ {
+					x := from + step*i
+					if f := side(x, x+1); f >= 0.6 {
+						out := 1.0
+						for j := 2; j <= 6; j++ {
+							if v := side(x-step*j, x-step*j+1); v >= 0 && v < out {
+								out = v
+							}
+						}
+						return out < 0.5
+					}
+				}
+				return false
+			}
+			if !edge(r.X-6, 1) && !edge(r.X+r.W+5, -1) {
+				return false
+			}
+		}
+		return true
+	}
+	boxed, tightBox := false, false
 	s1, s2 := 0.0, 0.0
 	if share >= 0.25 {
 		s1 = surrounds(bg)
@@ -395,6 +473,12 @@ func measureBlock(bl *Block, f1, f2 *RGB) *Look {
 		s2 = surrounds(bg2)
 	}
 	switch {
+	// Boxes drawn tight around each line first: the picture around a block
+	// of them is no box, however much of it there is.
+	case share >= 0.3 && tight(bg):
+		boxed, tightBox = true, true
+	case share2 >= 0.3 && tight(bg2):
+		boxed, tightBox, bg = true, true, bg2
 	case s1 >= 0.5 && s1 >= s2:
 		boxed = true
 	case s2 >= 0.5:
@@ -416,6 +500,7 @@ func measureBlock(bl *Block, f1, f2 *RGB) *Look {
 
 	var glyph []rgb
 	glyphAt := func(c rgb) bool { return dist(c, bg) > 80 }
+	orig := f1
 	if boxed {
 		l.Background, l.BgOpacity = bg.hex(), 100
 		if f2 != nil && f2.W == W && f2.H == H {
@@ -434,6 +519,15 @@ func measureBlock(bl *Block, f1, f2 *RGB) *Look {
 		ab := area.box(W, H)
 		l.BoxArea = &ab
 		l.Card = true
+		if !tightBox || len(bl.Lines) == 1 {
+			l.Radius = r2(cornerRadius(f1, area, bg) * 1080 / short)
+		}
+		orig = f1
+		if tightBox {
+			// The picture beside a shorter line's box is not part of the
+			// letters: read them with it painted over in the box colour.
+			f1 = maskOutsideBoxes(f1, tr, bg)
+		}
 		for y := tr.Y; y < tr.Y+tr.H; y++ {
 			for x := tr.X; x < tr.X+tr.W; x++ {
 				if c := px(f1, x, y); glyphAt(c) {
@@ -681,6 +775,68 @@ func measureBlock(bl *Block, f1, f2 *RGB) *Look {
 		l.Align = "right"
 	}
 
+	if boxed && len(l.Left) == len(bl.Lines) && len(bl.Lines) > 1 {
+		// One box per line when each box ends a fixed way past its own
+		// line's letters and the lines have different lengths.
+		var el, er, dl, dr []float64
+		for i, ln := range bl.Lines {
+			lr := ln.rect(W, H)
+			y := lr.Y + lr.H/2
+			// From a letter's edge outward to where the box ends.
+			scan := func(x, step int) int {
+				for k := 0; k < 3 && x+step >= 0 && x+step < W && dist(px(orig, x+step, y), bg) >= 36; k++ {
+					x += step
+				}
+				for x+step >= 0 && x+step < W && dist(px(orig, x+step, y), bg) < 36 {
+					x += step
+				}
+				return x
+			}
+			x0 := scan(int(l.Left[i]*float64(W)), -1)
+			x1 := scan(int(l.Right[i]*float64(W))-1, 1) + 1
+			el = append(el, float64(x0)/float64(W))
+			er = append(er, float64(x1)/float64(W))
+			dl = append(dl, l.Left[i]-float64(x0)/float64(W))
+			dr = append(dr, float64(x1)/float64(W)-l.Right[i])
+		}
+		edges, pads := spread(er), spread(dr)
+		switch l.Align {
+		case "right":
+			edges, pads = spread(el), spread(dl)
+		case "center":
+			edges, pads = math.Max(spread(el), spread(er)), math.Max(spread(dl), spread(dr))
+		}
+		if edges > 0.03 && pads < 0.025 {
+			l.Card = false
+		}
+		if tightBox {
+			// Corners of the first line's own box: the block's corner can
+			// sit on the picture beside a shorter line.
+			lr := bl.Lines[0].rect(W, H)
+			x := int(el[0]*float64(W)) + 1
+			top, bot := lr.Y+lr.H/2, lr.Y+lr.H/2
+			for top > 0 && dist(px(orig, x, top-1), bg) < 36 {
+				top--
+			}
+			for bot < H-1 && dist(px(orig, x, bot+1), bg) < 36 {
+				bot++
+			}
+			x0, x1 := int(el[0]*float64(W)), int(er[0]*float64(W))
+			if x1 > x0+4 && bot > top+4 {
+				l.Radius = r2(cornerRadius(orig, Rect{x0, top, x1 - x0, bot - top + 1}, bg) * 1080 / short)
+			}
+			// Boxes per line: the space above and below the letters is that
+			// of one line's box, not of the tracker's rect around them all.
+			n := len(l.CapTop)
+			pt := l.CapTop[0] - float64(top)/float64(H)
+			pb := float64(bot+1)/float64(H) - l.Base[0]
+			if lh := l.Base[0] - l.CapTop[0]; !l.Card && n == len(l.Base) && pt >= 0 && pb >= 0 && pt < lh*1.5 && pb < lh*1.5 && l.BoxArea != nil {
+				y0, y1 := l.CapTop[0]-pt, l.Base[n-1]+pb
+				l.BoxArea.Y, l.BoxArea.H = y0, y1-y0
+			}
+		}
+	}
+
 	switch {
 	case l.Italic:
 		l.Font = "poppins"
@@ -900,4 +1056,149 @@ func parseHex(s string) rgb {
 	var r, g, b int
 	fmt.Sscanf(strings.TrimPrefix(s, "#"), "%02x%02x%02x", &r, &g, &b)
 	return rgb{float64(r), float64(g), float64(b)}
+}
+
+// maskOutsideBoxes copies f with every pixel of r that is not inside a box
+// of colour bg (left of a row's first box pixel or right of its last)
+// painted bg, so the picture beside short line boxes is not read as letters.
+func maskOutsideBoxes(f *RGB, r Rect, bg rgb) *RGB {
+	out := &RGB{W: f.W, H: f.H, Pix: append([]uint8(nil), f.Pix...)}
+	c := [3]uint8{uint8(clampf(bg.r, 0, 255)), uint8(clampf(bg.g, 0, 255)), uint8(clampf(bg.b, 0, 255))}
+	paint := func(x, y int) {
+		i := 3 * (y*f.W + x)
+		out.Pix[i], out.Pix[i+1], out.Pix[i+2] = c[0], c[1], c[2]
+	}
+	for y := max(0, r.Y); y < min(f.H, r.Y+r.H); y++ {
+		first, last := -1, -1
+		for x := max(0, r.X); x < min(f.W, r.X+r.W); x++ {
+			if dist(px(f, x, y), bg) < 36 {
+				if first < 0 {
+					first = x
+				}
+				last = x
+			}
+		}
+		for x := max(0, r.X); x < min(f.W, r.X+r.W); x++ {
+			if first < 0 || x < first || x > last {
+				paint(x, y)
+			}
+		}
+	}
+	return out
+}
+
+// cornerRadius measures how rounded a box's top corner is, in pixels of f:
+// how far in along the diagonal the box colour starts. 0 is a square corner.
+func cornerRadius(f *RGB, a Rect, bg rgb) float64 {
+	limit := min(a.W, a.H) / 2
+	var gaps []float64
+	for _, c := range [][4]int{{a.X, a.Y, 1, 1}, {a.X + a.W - 1, a.Y, -1, 1}} {
+		for d := 0; d <= limit; d++ {
+			x, y := c[0]+c[2]*d, c[1]+c[3]*d
+			if x < 0 || y < 0 || x >= f.W || y >= f.H {
+				break
+			}
+			if dist(px(f, x, y), bg) < 36 {
+				gaps = append(gaps, float64(d))
+				break
+			}
+		}
+	}
+	if len(gaps) == 0 {
+		return 0
+	}
+	g := gaps[0]
+	for _, v := range gaps {
+		g = math.Min(g, v)
+	}
+	if g < 2 {
+		return 0 // a square corner, softened by scaling
+	}
+	// A quarter circle of radius r leaves r(1 - 1/sqrt 2) along the diagonal.
+	return g / 0.293
+}
+
+// BadgeLook is a small mark shown with a text, like a quote icon: a filled
+// square or circle with a light glyph, in fractions of the frame.
+type BadgeLook struct {
+	X     float64 `json:"x"` // the filled shape
+	Y     float64 `json:"y"`
+	W     float64 `json:"w"`
+	H     float64 `json:"h"`
+	Color string  `json:"color"`
+	Glyph string  `json:"glyph"` // the mark's colour
+	Round float64 `json:"round"` // corner radius / short side: 0.5 = circle
+}
+
+// measureBadge reads the shape around a small mark's glyph: the colour that
+// surrounds it, how far that reaches, and how round its corners are.
+func measureBadge(b Box, f *RGB) *BadgeLook {
+	W, H := f.W, f.H
+	tr := b.rect(W, H)
+	ring := b.grow(b.H*0.5, b.H*0.4).rect(W, H)
+	var cs []rgb
+	for y := ring.Y; y < ring.Y+ring.H; y++ {
+		for x := ring.X; x < ring.X+ring.W; x++ {
+			if x >= tr.X && x < tr.X+tr.W && y >= tr.Y && y < tr.Y+tr.H {
+				continue
+			}
+			cs = append(cs, px(f, x, y))
+		}
+	}
+	fill, share := dominant(cs)
+	if share < 0.5 {
+		return nil // no plain shape around it
+	}
+	// The shape: rows and columns of the search area busy with its colour.
+	// A wide glyph box sits in a wider shape: give it room on every side.
+	search := b.grow(math.Max(b.H, b.W)*0.6, b.H*1.2).rect(W, H)
+	rows, cols := make([]int, search.H), make([]int, search.W)
+	for y := search.Y; y < search.Y+search.H; y++ {
+		for x := search.X; x < search.X+search.W; x++ {
+			if dist(px(f, x, y), fill) < 36 {
+				rows[y-search.Y]++
+				cols[x-search.X]++
+			}
+		}
+	}
+	span := func(v []int) (int, int) {
+		peak := 0
+		for _, n := range v {
+			peak = max(peak, n)
+		}
+		lo, hi := -1, -1
+		for i, n := range v {
+			if n*4 >= peak && n > 1 {
+				if lo < 0 {
+					lo = i
+				}
+				hi = i
+			}
+		}
+		return lo, hi
+	}
+	y0, y1 := span(rows)
+	x0, x1 := span(cols)
+	if y0 < 0 || x0 < 0 {
+		return nil
+	}
+	area := Rect{search.X + x0, search.Y + y0, x1 - x0 + 1, y1 - y0 + 1}
+	if area.W >= W/4 || area.H >= H/8 || x0 == 0 && x1 == search.W-1 {
+		return nil // the colour runs on: the picture, not a badge
+	}
+	var gl []rgb
+	for y := area.Y; y < area.Y+area.H; y++ {
+		for x := area.X; x < area.X+area.W; x++ {
+			if c := px(f, x, y); dist(c, fill) > 80 {
+				gl = append(gl, c)
+			}
+		}
+	}
+	glyph := rgb{255, 255, 255}
+	if len(gl) > 0 {
+		glyph, _ = dominant(gl)
+	}
+	bb := area.box(W, H)
+	return &BadgeLook{X: r3(bb.X), Y: r3(bb.Y), W: r3(bb.W), H: r3(bb.H), Color: fill.hex(), Glyph: glyph.hex(),
+		Round: r2(clampf(cornerRadius(f, area, fill)/float64(max(1, min(area.W, area.H))), 0, 0.5))}
 }
