@@ -39,7 +39,7 @@ type Look struct {
 // made black-on-white for a text recogniser.
 type Crop struct {
 	ID    string  `json:"id"`
-	Kind  string  `json:"kind"` // text, caption, logo
+	Kind  string  `json:"kind"` // text, caption, logo, screen
 	At    float64 `json:"at"`
 	Rect  Rect    `json:"rect"` // in pixels of the full-size frame
 	Image *RGB    `json:"-"`
@@ -79,7 +79,7 @@ func (a *Analyzer) planStills(p *Plan) {
 		}
 		return t
 	}
-	for _, bl := range append(append([]*Block{}, p.Blocks...), p.Logos...) {
+	for _, bl := range append(append(append([]*Block{}, p.Blocks...), p.Logos...), p.Screens...) {
 		lo, hi := bl.Start, bl.End
 		if bl.InDur > 0 {
 			lo += bl.InDur
@@ -148,6 +148,12 @@ func (a *Analyzer) Measure(frames []*RGB) []Crop {
 		idx := p.stillOf[bl.ID]
 		f := frames[idx[0]]
 		if c := cropFor(bl.ID, "logo", p.Stills[idx[0]], f, bl.Box.grow(bl.Box.H, bl.Box.H*0.6), nil); c != nil {
+			crops = append(crops, *c)
+		}
+	}
+	for _, bl := range p.Screens {
+		idx := p.stillOf[bl.ID]
+		if c := cropFor(bl.ID, "screen", p.Stills[idx[0]], frames[idx[0]], bl.Box, nil); c != nil {
 			crops = append(crops, *c)
 		}
 	}

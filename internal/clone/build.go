@@ -706,6 +706,23 @@ func (a *Analyzer) Build(o Options) *Result {
 		}
 		r.Overlays = append(r.Overlays, ov)
 	}
+	// Pictures pasted over the footage become picture slots too, the size
+	// of the original's.
+	for _, sc := range p.Screens {
+		if reads[sc.ID].Drop {
+			continue
+		}
+		b := sc.Box
+		ov := recipe.OverlaySlot{Slot: sc.ID, About: "a screenshot or picture shown over the footage (PNG or JPG" + aspectNote(b, W, H) + ")",
+			Start: r2(sc.Start), X: spec.F(r3(b.cx())), Y: spec.F(r3(b.cy())), Width: r3(clampf(b.W, 0.05, 1))}
+		if a := reads[sc.ID].About; a != "" {
+			ov.About = a
+		}
+		if sc.End < p.ContentEnd-0.2 {
+			ov.End = spec.F(r2(sc.End))
+		}
+		r.Overlays = append(r.Overlays, ov)
+	}
 
 	if music {
 		vol := 100.0
@@ -840,8 +857,12 @@ func (a *Analyzer) hints(p *Plan, r *recipe.Recipe, slots int, o Options) []stri
 			h = append(h, "the hook is silent B-roll with the talk already playing under it: feed it role hook clips and the talk as role body")
 		}
 	}
-	if len(r.Overlays) > 0 {
-		h = append(h, "a logo sits on the video the whole time: pass overlays.logo (a PNG) or it is left out")
+	for _, o := range r.Overlays {
+		if strings.HasPrefix(o.Slot, "screen") {
+			h = append(h, fmt.Sprintf("a picture is pasted over the footage from %.1f s (%s): pass overlays.%s or it is left out", o.Start, o.About, o.Slot))
+		} else {
+			h = append(h, fmt.Sprintf("a logo sits on the video: pass overlays.%s (a PNG) or it is left out", o.Slot))
+		}
 	}
 	if r.Music != nil {
 		h = append(h, "the original's soundtrack is the default music; a song taken from someone else's video may be muted by the platform")

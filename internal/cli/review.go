@@ -301,6 +301,8 @@ func buildReview(res *clone.Result, crops []clone.Crop, files map[string]string,
 			it["ask"] = "The words shown. They say how many words show at once. If this shows no words, leave it unanswered and take the captions from the timeline."
 		case "logo":
 			it["ask"] = "Is this a logo laid over the video? If not, drop it. Otherwise say what kind of mark it is in about."
+		case "screen":
+			it["ask"] = "Is this a screenshot or picture pasted over the footage (it holds still while the footage moves)? If not, drop it. Otherwise say in about what it shows, so a picture of the same kind takes its place."
 		}
 		items = append(items, it)
 	}

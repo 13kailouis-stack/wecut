@@ -216,7 +216,7 @@ func (a *app) clone(args []string) int {
 		crops = an.Measure(stills)
 
 		// Files from an earlier clone of the same name would mix with these.
-		for _, pat := range []string{"text*.png", "caption*.png", "logo*.png", "slots.jpg", "transitions.jpg", "timeline.jpg", "compare.jpg", "debug.json", sessionFile} {
+		for _, pat := range []string{"text*.png", "caption*.png", "logo*.png", "screen*.png", "slots.jpg", "transitions.jpg", "timeline.jpg", "compare.jpg", "debug.json", sessionFile} {
 			old, _ := filepath.Glob(filepath.Join(outAbs, pat))
 			for _, f := range old {
 				os.Remove(f)
@@ -231,7 +231,7 @@ func (a *app) clone(args []string) int {
 			if err := writePNG(f, rgbImage(cr.Image, 1)); err == nil {
 				cropFiles[cr.ID] = root.Rel(f)
 			}
-			if _, ok := given[cr.ID]; ok || !tried || cr.OCR == nil || cr.Kind == "logo" {
+			if _, ok := given[cr.ID]; ok || !tried || cr.OCR == nil || cr.Kind == "logo" || cr.Kind == "screen" {
 				continue
 			}
 			rd, err := tesseract(ctx, tess, job, cr)
@@ -339,6 +339,9 @@ func (a *app) clone(args []string) int {
 	}
 	if res.Plan.Captions != nil {
 		out["captions"] = res.Plan.Captions
+	}
+	if len(res.Plan.Screens) > 0 {
+		out["screens"] = res.Plan.Screens
 	}
 	if len(res.Plan.Logos) > 0 {
 		out["logos"] = res.Plan.Logos

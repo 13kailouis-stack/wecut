@@ -45,6 +45,7 @@ song taken from someone else's video may be muted by the platform.
 | Text cards | lines of edges followed frame to frame; kept when they stay put while the picture behind them changes, last across a cut, or come and go mid-shot | `texts` slots with font size, colour, box (`card` or per line), line spacing, padding, alignment, italic, uppercase, key-word colour, timing, and an entrance (`in`: `fade`, `pop` for a scale-up, `up` for a drift into place, `type` for letters filling in) |
 | Captions | short-lived words that keep returning to one centred band | `captions` style, position and mode (`pop` for one word at a time) |
 | Logo | text-like mark near an edge for most of the video | `overlays` slot |
+| Pasted picture | a big rectangle (a phone screen, a chat, a product shot) that holds still to the pixel while the footage around it moves | `overlays` slot `screen`, with its size, place, times and shape (`about 9:16`) |
 | Hook over talk | silent B-roll under an opening card while speech already plays | hook section `audio: "next"` (a J-cut) |
 | Platform outro | a silent dark still ending | left out (`source.used`) |
 | Beat grid | the same tempo measure as `wecut analyze`, when it is steady | `tempo` (`bpm`, `offset`) plus each shot's `beat` and each text slot's `startBeat` / `endBeat`, beside the seconds |

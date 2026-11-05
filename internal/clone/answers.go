@@ -24,6 +24,9 @@ func CheckAnswers(p *Plan, crops []Crop, read map[string]Reading) []string {
 	for _, lg := range p.Logos {
 		known[lg.ID] = true
 	}
+	for _, sc := range p.Screens {
+		known[sc.ID] = true
+	}
 	for _, c := range crops {
 		known[c.ID] = true
 	}

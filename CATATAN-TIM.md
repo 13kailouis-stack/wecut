@@ -114,6 +114,8 @@ Dari video 04 (kartu putih membulat + kutip merah, caption satu kata):
 - Potongan latar yang hampir diam (huruf kaos, pipi, pinggir meja) dulu lolos karena gambar di sekitarnya bergerak sementara dia "diam" di resolusi rendah. Sekarang blok yang lolos cuma lewat bukti itu dicek noise di dalamnya: teks tempelan diam sampai ke pikselnya (logo, kartu hook, stiker: 0-0,6), footage selalu punya noise kamera/encoder (kaos 4,3, kulit 18,7, pinggir kotak 52). Di atas 3 dibuang. Hasil: 01 tinggal kartu hook + logo, 04 tinggal kartu hook, caption tetap.
 - Batas: teks tempelan di bawah efek grain/film (seluruh layar berbintik) ikut bernoise dan bisa terbuang; bingkai kamera "90 F11.0" di 04 (stiker beranimasi) sekarang tidak jadi slot.
 
+- Gambar yang ditempel di atas footage (layar HP, chat, foto produk) sekarang jadi slot gambar `screen`: persegi panjang besar yang diam sampai ke pikselnya sementara footage di sekitarnya bergerak, bertekstur (bukan pita hitam), menyentuh paling banyak satu tepi frame, bukan kartu teks. Ujung waktunya dicari per frame. 01: layar PODS INDONESIA 21,13-40,23 dtk, kotak x 0,07 y 0,52 lebar 0,49 tinggi 0,45, resep mencatat "about 9:16". Video lain tidak punya screen palsu. Batas: layar yang memenuhi lebar frame (menyentuh 2 tepi) tidak dicari; sudut membulat belum digambar.
+
 Masih terbuka: caption bicara di footage ramai sering tidak ketemu atau hanya sebagian; layar HP yang ditempel (PiP) belum jadi slot gambar; emoji belum digambar.
 
 ## Supaya agent menemukan dan memakai WeCut

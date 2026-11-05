@@ -131,6 +131,7 @@ type Plan struct {
 	Blocks     []*Block        `json:"texts"`
 	Captions   *CaptionBand    `json:"captions,omitempty"`
 	Logos      []*Block        `json:"logos,omitempty"`
+	Screens    []*Block        `json:"screens,omitempty"` // pictures pasted over the footage
 	Gradients  []spec.Gradient `json:"gradients,omitempty"`
 	Audio      *analyze.Audio  `json:"audio,omitempty"`
 	Speech     bool            `json:"speech"`
@@ -182,6 +183,7 @@ func (a *Analyzer) Analyze() *Plan {
 	p.Events = evs
 	p.Shots = a.shots(p.Events, p.ContentEnd)
 	a.textResults(p)
+	p.Screens = a.screens(p)
 	p.Speech = p.Captions != nil
 	p.Gradients = a.gradients(p)
 	a.plan = p
