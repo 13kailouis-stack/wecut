@@ -44,6 +44,16 @@ func (b Box) iou(o Box) float64 {
 	return in / (b.W*b.H + o.W*o.H - in)
 }
 
+// overlap is the share of b that o covers.
+func (b Box) overlap(o Box) float64 {
+	w := math.Min(b.X+b.W, o.X+o.W) - math.Max(b.X, o.X)
+	h := math.Min(b.Y+b.H, o.Y+o.H) - math.Max(b.Y, o.Y)
+	if w <= 0 || h <= 0 || b.W*b.H <= 0 {
+		return 0
+	}
+	return w * h / (b.W * b.H)
+}
+
 func (b Box) union(o Box) Box {
 	x0, y0 := math.Min(b.X, o.X), math.Min(b.Y, o.Y)
 	x1, y1 := math.Max(b.X+b.W, o.X+o.W), math.Max(b.Y+b.H, o.Y+o.H)

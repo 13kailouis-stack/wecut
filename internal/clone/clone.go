@@ -64,6 +64,7 @@ type Analyzer struct {
 	highH    int
 	prevHigh *Gray
 	edges    [][]uint64 // edge map of every high frame, as bits
+	faint    [][]uint64 // the same at half the contrast
 	tracks   []*track
 	active   []*track
 

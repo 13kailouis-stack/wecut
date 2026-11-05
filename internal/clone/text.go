@@ -37,10 +37,13 @@ func (t *track) mean() Box {
 const sigW, sigH = 32, 8
 
 // findLines returns the boxes of text-like lines in a frame: dense runs of
-// strong edges, wider than tall.
-func findLines(g *Gray) ([]cand, []uint8) {
+// strong edges, wider than tall. It also returns the edge map, and a
+// fainter one (half the contrast) for looking again where words are known
+// to show.
+func findLines(g *Gray) ([]cand, []uint8, []uint8) {
 	w, h := g.W, g.H
 	edge := make([]uint8, w*h)
+	faint := make([]uint8, w*h)
 	for y := 1; y < h-1; y++ {
 		for x := 1; x < w-1; x++ {
 			i := y*w + x
@@ -55,67 +58,15 @@ func findLines(g *Gray) ([]cand, []uint8) {
 			if gx+gy >= 70 {
 				edge[i] = 1
 			}
-		}
-	}
-	// Join letters into words and words into lines: fill short gaps along
-	// each row, then bridge one-pixel gaps between rows.
-	gap := max(3, w/45)
-	fill := make([]uint8, w*h)
-	for y := 0; y < h; y++ {
-		last := -1
-		for x := 0; x < w; x++ {
-			if edge[y*w+x] == 1 {
-				if last >= 0 && x-last <= gap {
-					for k := last; k <= x; k++ {
-						fill[y*w+k] = 1
-					}
-				}
-				fill[y*w+x] = 1
-				last = x
+			if gx+gy >= faintEdge {
+				faint[i] = 1
 			}
 		}
 	}
-	for x := 0; x < w; x++ {
-		for y := 1; y < h-1; y++ {
-			if fill[y*w+x] == 0 && fill[(y-1)*w+x] == 1 && fill[(y+1)*w+x] == 1 {
-				fill[y*w+x] = 1
-			}
-		}
-	}
-	// Connected regions.
-	label := make([]int32, w*h)
 	var out []cand
-	stack := make([]int, 0, 1024)
-	next := int32(0)
-	for i := range fill {
-		if fill[i] == 0 || label[i] != 0 {
-			continue
-		}
-		next++
-		label[i] = next
-		stack = append(stack[:0], i)
-		x0, y0, x1, y1, area := w, h, 0, 0, 0
-		for len(stack) > 0 {
-			j := stack[len(stack)-1]
-			stack = stack[:len(stack)-1]
-			x, y := j%w, j/w
-			area++
-			x0, y0, x1, y1 = min(x0, x), min(y0, y), max(x1, x), max(y1, y)
-			for _, k := range [4]int{j - 1, j + 1, j - w, j + w} {
-				if k < 0 || k >= len(fill) || fill[k] == 0 || label[k] != 0 {
-					continue
-				}
-				if (k == j-1 && x == 0) || (k == j+1 && x == w-1) {
-					continue
-				}
-				label[k] = next
-				stack = append(stack, k)
-			}
-		}
-		for _, r := range xyCut(edge, w, Rect{x0, y0, x1 - x0 + 1, y1 - y0 + 1}, max(5, min(w, h)*16/1000), gap, 0) {
-			if c, ok := lineCand(g, edge, r); ok {
-				out = append(out, c)
-			}
+	for _, r := range lineRects(edge, w, h, 0, h) {
+		if c, ok := lineCand(g, edge, r); ok {
+			out = append(out, c)
 		}
 	}
 	// One line found twice (alone, and joined to a box edge beside it):
@@ -136,7 +87,75 @@ func findLines(g *Gray) ([]cand, []uint8) {
 			kept = append(kept, c)
 		}
 	}
-	return kept, edge
+	return kept, edge, faint
+}
+
+// faintEdge is the contrast of the fainter edge map: white words with a
+// thin coloured outline over a pale picture.
+const faintEdge = 35
+
+// lineRects joins the edges of rows y0..y1-1 into letters, words and lines
+// and cuts the regions into lines. Regions do not reach past those rows,
+// so a strip can be read apart from the picture above and below it.
+func lineRects(edge []uint8, w, h, y0, y1 int) []Rect {
+	y0, y1 = max(0, y0), min(h, y1)
+	// Join letters into words and words into lines: fill short gaps along
+	// each row, then bridge one-pixel gaps between rows.
+	gap := max(3, w/45)
+	fill := make([]uint8, w*h)
+	for y := y0; y < y1; y++ {
+		last := -1
+		for x := 0; x < w; x++ {
+			if edge[y*w+x] == 1 {
+				if last >= 0 && x-last <= gap {
+					for k := last; k <= x; k++ {
+						fill[y*w+k] = 1
+					}
+				}
+				fill[y*w+x] = 1
+				last = x
+			}
+		}
+	}
+	for x := 0; x < w; x++ {
+		for y := max(1, y0); y < min(h-1, y1-1); y++ {
+			if fill[y*w+x] == 0 && fill[(y-1)*w+x] == 1 && fill[(y+1)*w+x] == 1 {
+				fill[y*w+x] = 1
+			}
+		}
+	}
+	// Connected regions.
+	label := make([]int32, w*h)
+	var out []Rect
+	stack := make([]int, 0, 1024)
+	next := int32(0)
+	for i := y0 * w; i < y1*w; i++ {
+		if fill[i] == 0 || label[i] != 0 {
+			continue
+		}
+		next++
+		label[i] = next
+		stack = append(stack[:0], i)
+		x0, ry0, x1, ry1 := w, h, 0, 0
+		for len(stack) > 0 {
+			j := stack[len(stack)-1]
+			stack = stack[:len(stack)-1]
+			x, y := j%w, j/w
+			x0, ry0, x1, ry1 = min(x0, x), min(ry0, y), max(x1, x), max(ry1, y)
+			for _, k := range [4]int{j - 1, j + 1, j - w, j + w} {
+				if k < 0 || k >= len(fill) || fill[k] == 0 || label[k] != 0 {
+					continue
+				}
+				if (k == j-1 && x == 0) || (k == j+1 && x == w-1) {
+					continue
+				}
+				label[k] = next
+				stack = append(stack, k)
+			}
+		}
+		out = append(out, xyCut(edge, w, Rect{x0, ry0, x1 - x0 + 1, ry1 - ry0 + 1}, max(5, min(w, h)*16/1000), gap, 0)...)
+	}
+	return out
 }
 
 // xyCut splits a region into lines (at rows with almost no edges) and
@@ -267,11 +286,17 @@ func splitRows(edge []uint8, w, x0, y0, x1, y1, minH int) []Rect {
 // lineCand keeps a region that looks like a line of text: wider than
 // tall, dense with edges, with the on/off rhythm of letters.
 func lineCand(g *Gray, edge []uint8, r Rect) (cand, bool) {
-	w, h := g.W, g.H
+	if !lineShape(edge, g.W, g.H, r) {
+		return cand{}, false
+	}
+	return cand{r: r, box: r.box(g.W, g.H), sig: patch(g, r, sigW, sigH), esig: edgePatch(edge, g.W, r, sigW, sigH)}, true
+}
+
+func lineShape(edge []uint8, w, h int, r Rect) bool {
 	bw, bh := r.W, r.H
 	short := min(w, h)
 	if bh < max(5, short*16/1000) || bh > h*14/100 || bw < bh*3/2 || bw < w*5/100 {
-		return cand{}, false
+		return false
 	}
 	edges, flips := 0, 0
 	for y := r.Y; y < r.Y+bh; y++ {
@@ -287,16 +312,14 @@ func lineCand(g *Gray, edge []uint8, r Rect) (cand, bool) {
 		}
 	}
 	dens := float64(edges) / float64(bw*bh)
-	if dens < 0.12 || dens > 0.85 || float64(flips)/3 < float64(bw)/float64(bh)*0.9 {
-		return cand{}, false
-	}
-	return cand{r: r, box: r.box(w, h), sig: patch(g, r, sigW, sigH), esig: edgePatch(edge, w, r, sigW, sigH)}, true
+	return dens >= 0.12 && dens <= 0.85 && float64(flips)/3 >= float64(bw)/float64(bh)*0.9
 }
 
 // trackText follows the lines of one high frame on from the frames before.
 func (a *Analyzer) trackText(g *Gray, k int) {
-	cands, edge := findLines(g)
+	cands, edge, faint := findLines(g)
 	a.edges = append(a.edges, pack(edge))
+	a.faint = append(a.faint, pack(faint))
 	if a.debug != nil {
 		var bs []Box
 		for _, c := range cands {
@@ -671,6 +694,31 @@ func (a *Analyzer) textResults(p *Plan) {
 		// shot mostly does not.
 		if span >= 3 && covered/span >= 0.3 && float64(len(cap))/span >= 0.4 && steady*10 >= len(cap) {
 			band := &CaptionBand{Start: r2(s0), End: r2(math.Min(s1, end)), Y: r3(median(ys)), Height: r3(median(hs)), Width: r3(median(ws)), Changes: r2(float64(len(cap)) / span)}
+			// Read the band's strip again past both ends: words the line
+			// finder lost over busy or pale footage carry it on.
+			sy0, sy1 := bandStrip(band.Y, band.Height)
+			var carried []piece
+			words := append(a.bandWords(sy0, sy1, 0, s0+0.5), a.bandWords(sy0, sy1, s1-0.5, end)...)
+			// The first pass's own pieces in the strip past the stretch it kept.
+			for _, sh := range shorts {
+				if cy := sh.b.cy(); sh.steady && math.Abs(sh.b.cx()-0.5) <= 0.12 && cy >= sy0 && cy <= sy1 && (sh.e <= s0 || sh.s >= s1) {
+					words = append(words, piece{sh.s, sh.e, sh.b})
+				}
+			}
+			// A line the first pass kept as a block there: short, or stitched from
+			// several lines that took each other's place.
+			for _, bl := range blocks {
+				if cy := bl.Box.cy(); len(bl.Lines) <= 2 && math.Abs(bl.Box.cx()-0.5) <= 0.12 && cy >= sy0 && cy <= sy1 &&
+					(bl.End <= s0 || bl.Start >= s1) && (bl.End-bl.Start < 3 || bl.words >= 3) {
+					words = append(words, piece{bl.Start, bl.End, bl.Box})
+				}
+			}
+			words = bandOnly(words, blocks, band.Height)
+			if len(words) > 0 {
+				var c0, c1 float64
+				c0, c1, carried = carryBand(s0, s1, words)
+				band.Start, band.End = r2(c0), r2(math.Min(c1, end))
+			}
 			band.Mode, band.MaxWords = "pop", 1
 			if ratio := median(ratios); ratio > 5 {
 				band.Mode = "chunk"
@@ -703,9 +751,23 @@ func (a *Analyzer) textResults(p *Plan) {
 				}
 				return n >= 2
 			}
+			// Past the first pass's ends, a line held up while words read
+			// again in the strip came and went in it is those words.
+			carriedIn := func(bl *Block) bool {
+				n := 0
+				for _, c := range carried {
+					if c.s >= bl.Start-0.2 && c.e <= bl.End+0.2 && c.b.iou(bl.Box) > 0.2 {
+						n++
+					}
+				}
+				return n >= 2 || n == 1 && bl.End-bl.Start < 3
+			}
 			var keep []*Block
 			for _, bl := range blocks {
 				if math.Abs(bl.Box.cy()-band.Y) < 0.035 && (len(bl.Lines) == 1 && bl.End-bl.Start < 3 || len(bl.Lines) <= 2 && changing(bl)) {
+					continue
+				}
+				if cy := bl.Box.cy(); cy >= sy0 && cy <= sy1 && len(bl.Lines) <= 2 && carriedIn(bl) {
 					continue
 				}
 				keep = append(keep, bl)
