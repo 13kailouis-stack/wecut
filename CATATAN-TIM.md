@@ -111,7 +111,10 @@ Dari video 04 (kartu putih membulat + kutip merah, caption satu kata):
 - Akhir pita caption tidak lagi kepotong. Pelacak pertama membaca seluruh frame sekaligus, jadi huruf tipis di atas footage ramai menyatu dengan tepi sekitarnya, dan huruf putih bergaris pink di atas layar HP pucat tepinya terlalu samar. Setelah pita ketemu, jalur pita itu dibaca ulang sendiri (terpisah dari gambar di atas dan bawahnya, plus peta tepi kedua setengah kontras), lalu kata-kata yang ketemu menyambung pita: jeda sampai 4,5 detik, atau sampai 12 detik kalau sesudahnya ada 5 kata lebih berturut-turut. Yang tidak dihitung: baris kartu yang sudah ketemu, potongan yang tidak di tengah, dan potongan jauh lebih tinggi dari 2 baris caption. Hasil: 01 6-40,17 dtk (dulu 19,7; aslinya 40), 03 0,5-18,33 (dulu 11,8; aslinya 18), 04 7,67-32,67 (aslinya ~31), 02 0,5-125,83 (dulu 110; aslinya 127). Potongan caption pink 01 yang dulu jadi slot teks ikut hilang.
 - Masih terbuka: bobot huruf gelap kecil di atas putih terbaca terlalu tipis (tabel bobot dikalibrasi di kapital 33 px), mode caption satu kata vs dua kata belum bisa dibedakan tanpa membaca kata.
 
-Masih terbuka: potongan latar kecil yang diam dalam satu shot (pinggir kotak, huruf kaos) masih bisa jadi slot dan harus di-drop oleh agent; caption bicara di footage ramai sering tidak ketemu atau hanya sebagian; layar HP yang ditempel (PiP) belum jadi slot gambar; emoji belum digambar.
+- Potongan latar yang hampir diam (huruf kaos, pipi, pinggir meja) dulu lolos karena gambar di sekitarnya bergerak sementara dia "diam" di resolusi rendah. Sekarang blok yang lolos cuma lewat bukti itu dicek noise di dalamnya: teks tempelan diam sampai ke pikselnya (logo, kartu hook, stiker: 0-0,6), footage selalu punya noise kamera/encoder (kaos 4,3, kulit 18,7, pinggir kotak 52). Di atas 3 dibuang. Hasil: 01 tinggal kartu hook + logo, 04 tinggal kartu hook, caption tetap.
+- Batas: teks tempelan di bawah efek grain/film (seluruh layar berbintik) ikut bernoise dan bisa terbuang; bingkai kamera "90 F11.0" di 04 (stiker beranimasi) sekarang tidak jadi slot.
+
+Masih terbuka: caption bicara di footage ramai sering tidak ketemu atau hanya sebagian; layar HP yang ditempel (PiP) belum jadi slot gambar; emoji belum digambar.
 
 ## Supaya agent menemukan dan memakai WeCut
 

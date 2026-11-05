@@ -77,3 +77,31 @@ func TestCarryBand(t *testing.T) {
 		t.Fatalf("three words past a long gap carried the band to %v", s1)
 	}
 }
+
+// Laid-over words hold still to the pixel; a shirt's print in footage keeps
+// the noise of the camera.
+func TestInsideNoise(t *testing.T) {
+	const W, H = 72, 128
+	a := New(Config{W: W, H: H, Duration: 3, LowFPS: 30, HighFPS: 6})
+	seed := uint32(7)
+	for k := 0; k < 90; k++ {
+		g := &Gray{W: W, H: H, Pix: make([]uint8, W*H)}
+		for y := 0; y < H; y++ {
+			for x := 0; x < W; x++ {
+				seed = seed*1664525 + 1013904223
+				v := 120 + int(seed>>27) // noise of 0..31
+				if y >= 20 && y < 30 {
+					v = 240 // the laid-over line
+				}
+				g.Pix[y*W+x] = uint8(v)
+			}
+		}
+		a.AddLow(g)
+	}
+	if n := a.insideNoise(Box{0.1, 20.0 / H, 0.8, 10.0 / H}, 0, 3); n > 0.5 {
+		t.Fatalf("laid-over line noise %.2f, want about 0", n)
+	}
+	if n := a.insideNoise(Box{0.1, 60.0 / H, 0.8, 10.0 / H}, 0, 3); n <= 3 {
+		t.Fatalf("footage noise %.2f, want more than 3", n)
+	}
+}

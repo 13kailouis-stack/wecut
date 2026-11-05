@@ -383,8 +383,11 @@ type Block struct {
 	// Filled in by Measure.
 	// Badge is a small mark shown with the block, like a quote icon on a
 	// hook card: the mark found by the line finder (its glyph).
-	Badge  *Box  `json:"badge,omitempty"`
-	badges []Box // candidates for Badge, best first; Measure keeps the one that is a filled shape
+	Badge *Box `json:"badge,omitempty"`
+	// heldOnly: kept only because the picture moved around it while it
+	// held its place.
+	heldOnly bool
+	badges   []Box // candidates for Badge, best first; Measure keeps the one that is a filled shape
 	// words is how many line tracks of widths wlo..whi a one-line block was
 	// stitched from.
 	words    int
@@ -550,8 +553,10 @@ func (a *Analyzer) textResults(p *Plan) {
 		// A block that spans a cut only as pieces stitched together on
 		// either side of it is the same spot of a setting filmed twice (a
 		// jump cut): laid-over text that runs through a cut stays the same.
-		if g.ev || (crossesCut(bl.Start, bl.End) && steady) || (steady && !oneShot && a.behindMoves(bl.Box, bl.Start, bl.End)) ||
-			(steady && !nearCut(bl.Start) && !nearCut(bl.End) && a.popsIn(bl.Box, bl.Start, bl.End)) || opening {
+		other := (crossesCut(bl.Start, bl.End) && steady) || (steady && !oneShot && a.behindMoves(bl.Box, bl.Start, bl.End)) ||
+			(steady && !nearCut(bl.Start) && !nearCut(bl.End) && a.popsIn(bl.Box, bl.Start, bl.End)) || opening
+		if g.ev || other {
+			bl.heldOnly = !other
 			blocks = append(blocks, bl)
 		}
 	}
@@ -775,6 +780,20 @@ func (a *Analyzer) textResults(p *Plan) {
 			blocks = keep
 		}
 	}
+
+	// A line kept only because the picture moved around it while it held
+	// its place can be footage that moved little: a shirt's print, a cheek,
+	// the edge of a table. Words laid over the video hold still to the pixel
+	// while they show; footage keeps the noise of the camera and the
+	// encoder. (Caption words that change in one place were taken above.)
+	still := blocks[:0]
+	for _, bl := range blocks {
+		if bl.heldOnly && len(bl.Lines) <= 2 && a.insideNoise(bl.Box, bl.Start, bl.End) > 3 {
+			continue
+		}
+		still = append(still, bl)
+	}
+	blocks = still
 
 	// Logos stay on screen for most of the video near an edge. A logo's
 	// name and its small tagline are one logo.
@@ -1230,4 +1249,22 @@ func attachBadges(blocks, marks []*Block) {
 		b := cs[0].b
 		bl.Badge = &b
 	}
+}
+
+// insideNoise is how much the inside of b changes from one moment to the
+// next while it shows, the middle of a few looks: laid-over words hold still
+// to the pixel, footage keeps the noise of the camera and the encoder.
+func (a *Analyzer) insideNoise(b Box, s, e float64) float64 {
+	if len(a.lowGray) == 0 || e-s < 0.5 {
+		return -1
+	}
+	r := b.rect(a.lowGray[0].W, a.lowGray[0].H)
+	var ds []float64
+	for t := s + math.Min(0.6, 0.15*(e-s)); t+0.25 < e-0.1; t += 0.25 {
+		ds = append(ds, regionDiff(a.lowGray[a.lowIndex(t)], a.lowGray[a.lowIndex(t+0.25)], r))
+	}
+	if len(ds) == 0 {
+		return -1
+	}
+	return median(ds)
 }
